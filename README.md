@@ -1,63 +1,324 @@
-Here's everything that was built and how to run it:
+# Mark1Job – AI-Powered Candidate Screening Platform
 
-Project Structure
+An AI-powered recruitment platform that automatically screens resumes against job descriptions, ranks candidates, manages limited acceptance pools, and handles candidate displacement using GPT-4o.
 
+---
+
+## Features
+
+### Recruiter Features
+
+* Create and manage job postings
+* Define maximum accepted candidate pool size
+* View ranked candidate leaderboard
+* Monitor accepted, rejected, and displaced applicants
+* AI-generated candidate evaluation summaries
+
+### Candidate Features
+
+* Browse available jobs
+* Upload resumes (PDF, DOCX, TXT)
+* Receive instant AI screening results
+* Get personalized feedback and improvement suggestions
+* Track application status
+
+### AI Capabilities
+
+* Resume parsing
+* Job-description matching
+* Candidate scoring
+* Personalized rejection emails
+* Candidate feedback generation
+* Automatic displacement handling
+
+---
+
+# Project Structure
+
+```text
 Mark1Job/
-├── backend/          FastAPI + SQLite + OpenAI
+│
+├── backend/
 │   ├── main.py
-│   ├── models.py     Job, Application (ORM)
+│   ├── models.py
+│   │
 │   ├── routers/
-│   │   ├── jobs.py           CRUD for job postings
-│   │   └── applications.py   Full screening + displacement logic
-│   └── services/
-│       ├── ai_service.py     GPT-4o screening + rejection email gen
-│       ├── email_service.py  SMTP / console fallback
-│       └── file_parser.py    PDF, DOCX, TXT extraction
-└── frontend/         React + TypeScript + Tailwind
-    └── src/pages/
-        ├── Home.tsx            Job listings grid
-        ├── JobDetail.tsx       JD + live leaderboard sidebar
-        ├── Apply.tsx           Drag-drop resume upload form
-        ├── ApplicationResult.tsx  Score ring + AI feedback
-        └── RecruiterPortal.tsx    Post jobs + ranked applicant table
-Running the app
-Step 1 — add your OpenAI key:
+│   │   ├── jobs.py
+│   │   └── applications.py
+│   │
+│   ├── services/
+│   │   ├── ai_service.py
+│   │   ├── email_service.py
+│   │   └── file_parser.py
+│   │
+│   ├── requirements.txt
+│   ├── .env.example
+│   └── database.db
+│
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── Home.tsx
+│   │   │   ├── JobDetail.tsx
+│   │   │   ├── Apply.tsx
+│   │   │   ├── ApplicationResult.tsx
+│   │   │   └── RecruiterPortal.tsx
+│   │   │
+│   │   ├── components/
+│   │   └── services/
+│   │
+│   ├── package.json
+│   └── vite.config.ts
+│
+└── README.md
+```
 
+---
 
+# Technology Stack
+
+## Backend
+
+* FastAPI
+* SQLAlchemy
+* SQLite
+* OpenAI GPT-4o
+* Python
+
+## Frontend
+
+* React
+* TypeScript
+* TailwindCSS
+* Vite
+
+---
+
+# Setup Instructions
+
+## 1. Clone Repository
+
+```bash
+git clone https://github.com/<username>/Mark1Job.git
+
+cd Mark1Job
+```
+
+---
+
+## 2. Configure Environment Variables
+
+Create a `.env` file:
+
+```bash
 cp backend/.env.example backend/.env
-# edit backend/.env and set OPENAI_API_KEY=sk-...
-Step 2 — start backend:
+```
 
+Update:
 
+```env
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+```
+
+Optional SMTP configuration:
+
+```env
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USERNAME=
+SMTP_PASSWORD=
+```
+
+If SMTP is not configured, emails will be logged to the console.
+
+---
+
+# Backend Setup
+
+## Create Virtual Environment
+
+```bash
 cd backend
+
+python -m venv venv
+```
+
+### Linux / Mac
+
+```bash
 source venv/bin/activate
+```
+
+### Windows
+
+```bash
+venv\Scripts\activate
+```
+
+---
+
+## Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Run Backend
+
+```bash
 uvicorn main:app --reload
-# runs on http://localhost:8000
-Step 3 — start frontend:
+```
 
+Backend runs at:
 
+```text
+http://localhost:8000
+```
+
+Swagger Documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+---
+
+# Frontend Setup
+
+Open a new terminal:
+
+```bash
 cd frontend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run application:
+
+```bash
 npm run dev
-# runs on http://localhost:5173
-How the AI screening works
-Score	Outcome
-< 80%	Instant rejection — GPT-4o generates a personalised email with specific gaps + 3 actionable resume tips
-≥ 80%, pool not full	Accepted — ranked by score, acceptance notification sent
-≥ 80%, pool full, score > lowest	Displaces lowest-ranked candidate — displaced gets a specific "you were displaced" email; new candidate confirmed
-≥ 80%, pool full, score ≤ lowest	Rejected — pool-full rejection email sent
-Email sending falls back to console logging if SMTP is not configured — so it works for development out of the box.
+```
 
-in case 3 are we placing the new resume at right rank instead of last
-Let me read the relevant code to confirm:
+Frontend runs at:
 
-Read applications.py (lines 2-31)
-Yes — it's correct. Here's exactly what happens in Case 3:
+```text
+http://localhost:5173
+```
 
-lowest.status = "displaced", lowest.rank = None — removes the bottom candidate from the accepted pool
-_save("accepted") — inserts the new candidate with rank=None
-_rerank(db, job_id) — queries all status=="accepted" apps for that job, sorts them by match_score DESC, then assigns ranks 1, 2, 3... in order
-So if the pool was [95, 90, 85, 82, 80] and the new candidate scored 88:
+---
 
-After displacing 80: pool has [95, 90, 85, 82] + new 88
-_rerank sorts: 95 → #1, 90 → #2, 88 → #3, 85 → #4, 82 → #5
-The new candidate lands at rank 3 — exactly where their score places them. Every other candidate above them keeps their rank, those below them shift down by one. It's a full re-sort on every change, not an append.
+# AI Screening Workflow
+
+```text
+Resume Upload
+       │
+       ▼
+Resume Parsing
+       │
+       ▼
+GPT-4o Candidate Evaluation
+       │
+       ▼
+Generate Match Score
+       │
+       ▼
+Decision Engine
+```
+
+---
+
+# Candidate Outcomes
+
+| Score                            | Outcome                    |
+| -------------------------------- | -------------------------- |
+| < 80%                            | Rejected                   |
+| ≥ 80% & Pool Available           | Accepted                   |
+| ≥ 80% & Pool Full & Better Score | Displaces Lowest Candidate |
+| ≥ 80% & Pool Full & Lower Score  | Rejected                   |
+
+---
+
+# Candidate Displacement Logic
+
+When the candidate pool reaches capacity:
+
+1. Identify the lowest-ranked accepted candidate.
+2. Compare incoming candidate score.
+3. If incoming score is higher:
+
+   * Mark lowest candidate as displaced.
+   * Send displacement notification.
+   * Accept new candidate.
+4. Re-rank all accepted candidates.
+5. Update leaderboard.
+
+### Example
+
+Current Leaderboard
+
+| Rank | Score |
+| ---- | ----- |
+| #1   | 95    |
+| #2   | 90    |
+| #3   | 85    |
+| #4   | 82    |
+| #5   | 80    |
+
+New Candidate Score = **88**
+
+Updated Leaderboard
+
+| Rank | Score |
+| ---- | ----- |
+| #1   | 95    |
+| #2   | 90    |
+| #3   | 88    |
+| #4   | 85    |
+| #5   | 82    |
+
+The candidate with score **80** is displaced.
+
+---
+
+# API Endpoints
+
+## Jobs
+
+```http
+POST   /jobs
+GET    /jobs
+GET    /jobs/{id}
+PUT    /jobs/{id}
+DELETE /jobs/{id}
+```
+
+## Applications
+
+```http
+POST /applications/apply
+GET  /applications/job/{job_id}
+```
+
+---
+
+# Future Enhancements
+
+* Multi-job recommendation engine
+* Recruiter analytics dashboard
+* ATS integrations
+* Vector-based semantic resume matching
+* Interview scheduling
+* Email provider integrations (SendGrid, SES)
+* Multi-tenant architecture
+
+---
+
+# License
+
+MIT License
