@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(git -C /Users/aniket/Desktop/Mark1Job rm --cached backend/.env)",
-      "Bash(git -C /Users/aniket/Desktop/Mark1Job status --short)"
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job status --short)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job remote -v)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job config user.name)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job config user.email)",
+      "Bash(git filter-branch *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --tree-filter 'python3 /tmp/fix_secrets.py' -- --all)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job reflog expire --expire=now --all)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job gc --prune=now --quiet)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job log --oneline version1)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job push --force origin version1)"
+    ],
+    "additionalDirectories": [
+      "/tmp",
+      "/private/tmp"
     ]
   }
 }

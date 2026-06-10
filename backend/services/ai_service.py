@@ -29,5 +29,27 @@ async def generate_rejection_email(
     )
 
 
+async def rank_tied_candidates(
+    jd_text: str,
+    job_title: str,
+    candidates: list,
+) -> list:
+    return await get_ai_strategy().rank_tied_candidates(jd_text, job_title, candidates)
+
+
+async def generate_rank_explanation(
+    candidate_name: str,
+    job_title: str,
+    rank: int,
+    total: int,
+    resume_text: str,
+    above_candidates: list,
+    jd_text: str,
+) -> str:
+    return await get_ai_strategy().generate_rank_explanation(
+        candidate_name, job_title, rank, total, resume_text, above_candidates, jd_text
+    )
+
+
 async def get_embedding(text: str) -> list[float]:
     return await get_ai_strategy().get_embedding(text)

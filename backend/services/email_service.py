@@ -113,11 +113,17 @@ async def send_acceptance_notification(
     recruiter_position: str = "Recruiter",
     strengths: list = [],
     gaps: list = [],
+    rank_explanation: str = "",
 ) -> None:
     signature = _build_signature(recruiter_name, recruiter_email, recruiter_position)
 
     strengths_section = _bullet_section("Your Strengths:", strengths)
     gaps_section = _bullet_section("Areas to Strengthen:", gaps)
+
+    explanation_section = (
+        f"\nWhy you're ranked #{rank}:\n{rank_explanation}\n"
+        if rank_explanation else ""
+    )
 
     body = f"""Dear {candidate_name},
 
@@ -125,7 +131,7 @@ Thank you for applying for the {job_title} position. We're pleased to let you kn
 
 Your AI Match Score: {match_score:.1f}%
 Current Rank in Pool: #{rank}
-{strengths_section}{gaps_section}
+{strengths_section}{gaps_section}{explanation_section}
 Your profile is now in our active candidate pool and a recruiter will be in touch shortly with next steps.
 
 We appreciate your interest and look forward to learning more about you.

@@ -25,5 +25,13 @@ class ClaudeStrategy(AIStrategy):
     ):
         raise NotImplementedError(self._MSG)
 
+    async def rank_tied_candidates(self, jd_text, job_title, candidates):
+        raise NotImplementedError(self._MSG)
+
+    async def generate_rank_explanation(
+        self, candidate_name, job_title, rank, total, resume_text, above_candidates, jd_text
+    ):
+        raise NotImplementedError(self._MSG)
+
     async def get_embedding(self, text):
         raise NotImplementedError(self._MSG)

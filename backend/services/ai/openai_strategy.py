@@ -136,6 +136,87 @@ Start directly with: Dear {candidate_name},"""
         )
         return response.choices[0].message.content
 
+    async def rank_tied_candidates(
+        self,
+        jd_text: str,
+        job_title: str,
+        candidates: list,
+    ) -> list:
+        blocks = "\n\n".join(
+            f"CANDIDATE {i + 1} (ID: {cid})\nName: {name}\n{resume[:1500]}"
+            for i, (cid, name, resume) in enumerate(candidates)
+        )
+        prompt = f"""Break a tie between candidates who scored equally on an AI resume screen.
+Compare their resumes deeply to find who is the stronger fit for this specific role.
+
+JOB TITLE: {job_title}
+JOB DESCRIPTION:
+{jd_text[:2000]}
+
+TIED CANDIDATES:
+{blocks}
+
+Focus on depth of experience, specificity of skills, and project relevance.
+Return ONLY this JSON (no markdown):
+{{
+    "ranking": [<id_best>, <id_second>, ...],
+    "reasoning": "<2-3 sentences on why the top candidate wins the tie>"
+}}"""
+
+        response = await _client().chat.completions.create(
+            model=settings.AI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=300,
+        )
+        result = json.loads(response.choices[0].message.content)
+        return result.get("ranking", [c[0] for c in candidates])
+
+    async def generate_rank_explanation(
+        self,
+        candidate_name: str,
+        job_title: str,
+        rank: int,
+        total: int,
+        resume_text: str,
+        above_candidates: list,
+        jd_text: str,
+    ) -> str:
+        above_blocks = "\n\n".join(
+            f"Rank #{c['rank']} (Score: {c['score']:.1f}%)\n"
+            f"Strengths: {', '.join(c['strengths'][:3])}\n"
+            f"Resume excerpt: {c['resume'][:800]}"
+            for c in above_candidates
+        )
+        prompt = f"""A candidate was shortlisted for a job at rank #{rank} out of {total}.
+Write a short, honest, and constructive explanation of their standing.
+
+JOB: {job_title}
+JOB DESCRIPTION EXCERPT:
+{jd_text[:800]}
+
+THIS CANDIDATE: {candidate_name} — Rank #{rank} of {total}
+THEIR RESUME EXCERPT:
+{resume_text[:800]}
+
+CANDIDATES RANKED ABOVE THEM:
+{above_blocks}
+
+Write 3-4 sentences that:
+1. Name 2-3 specific things the higher-ranked candidates have that this candidate lacks
+2. Give concrete, actionable advice on what to strengthen to move up in the ranking
+
+Address the candidate directly (use "you"/"your"). Be specific, not generic."""
+
+        response = await _client().chat.completions.create(
+            model=settings.AI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.6,
+            max_tokens=250,
+        )
+        return response.choices[0].message.content
+
     async def get_embedding(self, text: str) -> list[float]:
         response = await _client().embeddings.create(
             model=settings.EMBEDDING_MODEL,

@@ -40,5 +40,29 @@ class AIStrategy(ABC):
         """Return the plain-text body of a personalised rejection email."""
 
     @abstractmethod
+    async def rank_tied_candidates(
+        self,
+        jd_text: str,
+        job_title: str,
+        candidates: list,
+    ) -> list:
+        """Given a list of (id, name, resume_text) tuples with equal match scores,
+        return their IDs ordered best to worst."""
+
+    @abstractmethod
+    async def generate_rank_explanation(
+        self,
+        candidate_name: str,
+        job_title: str,
+        rank: int,
+        total: int,
+        resume_text: str,
+        above_candidates: list,
+        jd_text: str,
+    ) -> str:
+        """Return a short paragraph explaining why the candidate is at this rank
+        and what candidates ranked above them have that they don't."""
+
+    @abstractmethod
     async def get_embedding(self, text: str) -> list[float]:
         """Return a dense float vector for the given text (e.g. 1536-d for text-embedding-3-small)."""

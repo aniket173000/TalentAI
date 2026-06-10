@@ -9,7 +9,13 @@ import models
 import schemas
 from database import SessionLocal, get_db
 from routers.auth import get_current_user, require_candidate, require_recruiter
-from services.ai_service import generate_rejection_email, get_embedding, screen_resume
+from services.ai_service import (
+    generate_rank_explanation,
+    generate_rejection_email,
+    get_embedding,
+    rank_tied_candidates,
+    screen_resume,
+)
 from services.email_service import send_acceptance_notification, send_rejection_email
 from services.file_parser import parse_resume
 from services.vector_service import rank_applications_by_vector
@@ -20,20 +26,118 @@ router = APIRouter(prefix="/api/applications", tags=["applications"])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _rerank(db: Session, job_id: int) -> None:
-    """Assign contiguous ranks 1..N to accepted applications, best score first."""
+async def _rerank(db: Session, job_id: int) -> None:
+    """Assign contiguous ranks 1..N to accepted applications.
+    Equal scores are broken by AI resume comparison; fallback is applied_at."""
     accepted = (
         db.query(models.Application)
         .filter(
             models.Application.job_id == job_id,
             models.Application.status == "accepted",
         )
-        .order_by(models.Application.match_score.desc())
+        .order_by(
+            models.Application.match_score.desc(),
+            models.Application.applied_at.asc(),
+        )
         .all()
     )
-    for i, app in enumerate(accepted):
-        app.rank = i + 1
+
+    if not accepted:
+        return
+
+    # Group consecutive entries by rounded score to find ties
+    ordered: list = []
+    i = 0
+    while i < len(accepted):
+        group = [accepted[i]]
+        while (
+            i + 1 < len(accepted)
+            and round(accepted[i + 1].match_score, 1) == round(accepted[i].match_score, 1)
+        ):
+            i += 1
+            group.append(accepted[i])
+
+        if len(group) > 1:
+            try:
+                job = db.query(models.Job).filter(models.Job.id == job_id).first()
+                if job:
+                    candidates = [(a.id, a.candidate_name, a.resume_text) for a in group]
+                    ranked_ids = await rank_tied_candidates(job.jd_text, job.title, candidates)
+                    id_map = {a.id: a for a in group}
+                    reordered = [id_map[rid] for rid in ranked_ids if rid in id_map]
+                    # Safety: append any not returned by AI
+                    returned = set(ranked_ids)
+                    reordered += [a for a in group if a.id not in returned]
+                    group = reordered
+            except Exception as exc:
+                logger.warning(f"AI tiebreaker failed for job {job_id}: {exc}")
+                # Falls back to applied_at order already set by the query
+
+        ordered.extend(group)
+        i += 1
+
+    for pos, app in enumerate(ordered):
+        app.rank = pos + 1
     db.commit()
+
+
+async def _send_acceptance_with_explanation(
+    app_id: int,
+    job_id: int,
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    match_score: float,
+    recruiter_name: str,
+    recruiter_email: str,
+    recruiter_position: str,
+    strengths: list,
+    gaps: list,
+) -> None:
+    """Background task: generate rank explanation then send acceptance email."""
+    with SessionLocal() as session:
+        app = session.query(models.Application).filter(
+            models.Application.id == app_id
+        ).first()
+        if not app or not app.rank:
+            return
+
+        job = session.query(models.Job).filter(models.Job.id == job_id).first()
+        total = session.query(models.Application).filter(
+            models.Application.job_id == job_id,
+            models.Application.status == "accepted",
+        ).count()
+
+        above = session.query(models.Application).filter(
+            models.Application.job_id == job_id,
+            models.Application.status == "accepted",
+            models.Application.rank < app.rank,
+        ).order_by(models.Application.rank).all()
+
+        rank_explanation = ""
+        if above and job:
+            try:
+                above_data = [
+                    {
+                        "rank": a.rank,
+                        "score": a.match_score,
+                        "strengths": json.loads(a.strengths or "[]"),
+                        "resume": a.resume_text,
+                    }
+                    for a in above
+                ]
+                rank_explanation = await generate_rank_explanation(
+                    candidate_name, job_title, app.rank, total,
+                    app.resume_text, above_data, job.jd_text,
+                )
+            except Exception as exc:
+                logger.warning(f"Rank explanation failed for app {app_id}: {exc}")
+
+        await send_acceptance_notification(
+            candidate_email, candidate_name, job_title, app.rank, match_score,
+            recruiter_name, recruiter_email, recruiter_position,
+            strengths, gaps, rank_explanation,
+        )
 
 
 async def _store_embeddings(app_id: int, resume_text: str, job_id: int) -> None:
@@ -175,14 +279,13 @@ async def apply_to_job(
     # 6. Pool not full → add directly ──────────────────────────────────────────
     if len(accepted) < max_count:
         app = _save("accepted")
-        _rerank(db, job_id)
+        await _rerank(db, job_id)
         db.refresh(app)
         background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
         background_tasks.add_task(
-            send_acceptance_notification,
-            candidate_email, candidate_name, job_title, app.rank or 1, match_score,
-            recruiter_name, recruiter_email, recruiter_position,
-            strengths, gaps,
+            _send_acceptance_with_explanation,
+            app.id, job_id, candidate_email, candidate_name, job_title, match_score,
+            recruiter_name, recruiter_email, recruiter_position, strengths, gaps,
         )
         return {
             "status": "accepted",
@@ -240,7 +343,7 @@ async def apply_to_job(
     lowest.status = "displaced"
     lowest.rank = None
     app = _save("accepted")
-    _rerank(db, job_id)
+    await _rerank(db, job_id)
     db.refresh(app)
     background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
 
@@ -254,10 +357,9 @@ async def apply_to_job(
 
     background_tasks.add_task(_send_displaced)
     background_tasks.add_task(
-        send_acceptance_notification,
-        candidate_email, candidate_name, job_title, app.rank or 1, match_score,
-        recruiter_name, recruiter_email, recruiter_position,
-        strengths, gaps,
+        _send_acceptance_with_explanation,
+        app.id, job_id, candidate_email, candidate_name, job_title, match_score,
+        recruiter_name, recruiter_email, recruiter_position, strengths, gaps,
     )
 
     return {
