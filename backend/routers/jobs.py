@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
+from routers.auth import require_recruiter
 from services.file_parser import parse_docx, parse_pdf
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
@@ -20,6 +21,7 @@ async def create_job(
     jd_text: Optional[str] = Form(default=None),
     jd_file: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),  # recruiter-only
 ):
     final_jd = jd_text or ""
 
@@ -42,6 +44,7 @@ async def create_job(
         company=company,
         location=location,
         max_count=max_count,
+        recruiter_id=current_user.id,
     )
     db.add(job)
     db.commit()

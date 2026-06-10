@@ -7,6 +7,18 @@ class Settings(BaseSettings):
     MAX_APPLICATIONS_PER_JOB: int = 10
     MIN_MATCH_SCORE: float = 80.0
 
+    # ── JWT auth ──────────────────────────────────────────────────────────────
+    JWT_SECRET: str = "change-me-to-a-long-random-string-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 1440  # 24 h
+
+    # ── AI provider (Strategy pattern) ───────────────────────────────────────
+    # Supported values: "openai" | "claude" (stub)
+    AI_PROVIDER: str = "openai"
+    AI_MODEL: str = "gpt-4o"
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+
+    # ── Email ─────────────────────────────────────────────────────────────────
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""

@@ -1,23 +1,27 @@
 import json
 import logging
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 import models
 import schemas
-from database import get_db
-from services.ai_service import generate_rejection_email, screen_resume
+from database import SessionLocal, get_db
+from routers.auth import get_current_user, require_candidate, require_recruiter
+from services.ai_service import generate_rejection_email, get_embedding, screen_resume
 from services.email_service import send_acceptance_notification, send_rejection_email
 from services.file_parser import parse_resume
+from services.vector_service import rank_applications_by_vector
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/applications", tags=["applications"])
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
 def _rerank(db: Session, job_id: int) -> None:
-    """Assign contiguous ranks 1..N to all accepted applications, best score first."""
+    """Assign contiguous ranks 1..N to accepted applications, best score first."""
     accepted = (
         db.query(models.Application)
         .filter(
@@ -32,6 +36,33 @@ def _rerank(db: Session, job_id: int) -> None:
     db.commit()
 
 
+async def _store_embeddings(app_id: int, resume_text: str, job_id: int) -> None:
+    """
+    Background task: compute resume + JD embeddings and persist them.
+    Uses its own DB session (safe for background execution).
+    """
+    try:
+        resume_emb = await get_embedding(resume_text)
+        with SessionLocal() as session:
+            app = session.query(models.Application).filter(
+                models.Application.id == app_id
+            ).first()
+            if app:
+                app.resume_embedding = json.dumps(resume_emb)
+
+            # Cache JD embedding on the job (only computed once)
+            job = session.query(models.Job).filter(models.Job.id == job_id).first()
+            if job and not job.jd_embedding:
+                jd_emb = await get_embedding(job.jd_text)
+                job.jd_embedding = json.dumps(jd_emb)
+
+            session.commit()
+    except Exception as exc:
+        logger.warning(f"Embedding computation skipped for application {app_id}: {exc}")
+
+
+# ── Apply ─────────────────────────────────────────────────────────────────────
+
 @router.post("/apply/{job_id}")
 async def apply_to_job(
     job_id: int,
@@ -40,13 +71,14 @@ async def apply_to_job(
     candidate_email: str = Form(...),
     resume_file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_candidate),  # must be logged in as candidate
 ):
-    # ── 1. Fetch job ──────────────────────────────────────────────────────────
+    # 1. Fetch job ─────────────────────────────────────────────────────────────
     job = db.query(models.Job).filter(models.Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
 
-    # ── 2. Parse resume ───────────────────────────────────────────────────────
+    # 2. Parse resume ──────────────────────────────────────────────────────────
     content = await resume_file.read()
     resume_text = parse_resume(content, resume_file.filename or "resume")
     if not resume_text or len(resume_text.strip()) < 50:
@@ -55,7 +87,7 @@ async def apply_to_job(
             detail="Could not extract text from resume. Please upload a valid PDF, DOCX, or TXT file.",
         )
 
-    # ── 3. AI screening ───────────────────────────────────────────────────────
+    # 3. AI screening ──────────────────────────────────────────────────────────
     try:
         screening = await screen_resume(job.jd_text, resume_text, job.title)
     except Exception as exc:
@@ -66,17 +98,23 @@ async def apply_to_job(
     strengths: list = screening.get("strengths", [])
     gaps: list = screening.get("gaps", [])
     suggestions: list = screening.get("improvement_suggestions", [])
+    project_scores: list = screening.get("project_scores", [])
     summary: str = screening.get("summary", "")
 
-    # Capture primitive values used in background tasks (avoids ORM session issues)
     job_title = job.title
     job_company = job.company
     max_count = job.max_count
     min_score = job.min_match_score
 
+    _rec = job.recruiter
+    recruiter_name = _rec.full_name if _rec else "Recruitment Team"
+    recruiter_email = _rec.email if _rec else ""
+    recruiter_position = _rec.role.capitalize() if _rec else "Recruiter"
+
     def _save(status: str) -> models.Application:
         app = models.Application(
             job_id=job_id,
+            candidate_user_id=current_user.id,
             candidate_name=candidate_name,
             candidate_email=candidate_email,
             resume_text=resume_text,
@@ -87,24 +125,27 @@ async def apply_to_job(
             strengths=json.dumps(strengths),
             gaps=json.dumps(gaps),
             improvement_suggestions=json.dumps(suggestions),
+            project_scores=json.dumps(project_scores),
         )
         db.add(app)
         db.commit()
         db.refresh(app)
         return app
 
-    # ── 4. Below minimum threshold → instant rejection ────────────────────────
+    # 4. Below threshold → instant rejection ───────────────────────────────────
     if match_score < min_score:
-        _save("rejected")
+        saved = _save("rejected")
+        background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
 
-        async def _send_below_threshold():
+        async def _send_below():
             body = await generate_rejection_email(
                 candidate_name, job_title, job_company,
                 match_score, gaps, suggestions, "score_below_threshold",
+                recruiter_name, recruiter_email, recruiter_position,
             )
-            await send_rejection_email(candidate_email, candidate_name, job_title, body)
+            await send_rejection_email(candidate_email, candidate_name, job_title, body, strengths, gaps)
 
-        background_tasks.add_task(_send_below_threshold)
+        background_tasks.add_task(_send_below)
 
         return {
             "status": "rejected",
@@ -116,10 +157,11 @@ async def apply_to_job(
             "strengths": strengths,
             "gaps": gaps,
             "improvement_suggestions": suggestions,
+            "project_scores": project_scores,
             "summary": summary,
         }
 
-    # ── 5. Get current accepted pool ──────────────────────────────────────────
+    # 5. Current accepted pool ─────────────────────────────────────────────────
     accepted = (
         db.query(models.Application)
         .filter(
@@ -130,17 +172,18 @@ async def apply_to_job(
         .all()
     )
 
-    # ── 6. Pool not full → add directly ──────────────────────────────────────
+    # 6. Pool not full → add directly ──────────────────────────────────────────
     if len(accepted) < max_count:
         app = _save("accepted")
         _rerank(db, job_id)
         db.refresh(app)
-
+        background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
         background_tasks.add_task(
             send_acceptance_notification,
             candidate_email, candidate_name, job_title, app.rank or 1, match_score,
+            recruiter_name, recruiter_email, recruiter_position,
+            strengths, gaps,
         )
-
         return {
             "status": "accepted",
             "match_score": round(match_score, 1),
@@ -152,24 +195,26 @@ async def apply_to_job(
                 f"#{app.rank} with a {match_score:.1f}% match."
             ),
             "strengths": strengths,
+            "project_scores": project_scores,
             "summary": summary,
         }
 
-    # ── 7. Pool full → compare with lowest-ranked ─────────────────────────────
-    lowest = accepted[-1]  # sorted desc, so last = lowest score
+    # 7. Pool full → compare with lowest ──────────────────────────────────────
+    lowest = accepted[-1]
 
     if match_score <= lowest.match_score:
-        _save("rejected")
+        saved = _save("rejected")
+        background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
 
-        async def _send_pool_full():
+        async def _send_full():
             body = await generate_rejection_email(
                 candidate_name, job_title, job_company,
                 match_score, gaps, suggestions, "pool_full",
+                recruiter_name, recruiter_email, recruiter_position,
             )
-            await send_rejection_email(candidate_email, candidate_name, job_title, body)
+            await send_rejection_email(candidate_email, candidate_name, job_title, body, strengths, gaps)
 
-        background_tasks.add_task(_send_pool_full)
-
+        background_tasks.add_task(_send_full)
         return {
             "status": "rejected",
             "match_score": round(match_score, 1),
@@ -180,34 +225,39 @@ async def apply_to_job(
             "strengths": strengths,
             "gaps": gaps,
             "improvement_suggestions": suggestions,
+            "project_scores": project_scores,
             "summary": summary,
         }
 
-    # ── 8. New candidate displaces the lowest ─────────────────────────────────
+    # 8. Displace lowest ───────────────────────────────────────────────────────
     d_email = lowest.candidate_email
     d_name = lowest.candidate_name
     d_score = lowest.match_score
+    d_strengths = json.loads(lowest.strengths or "[]")
     d_gaps = json.loads(lowest.gaps or "[]")
     d_suggestions = json.loads(lowest.improvement_suggestions or "[]")
 
     lowest.status = "displaced"
     lowest.rank = None
-    # _save commits the displaced status change along with the new application
     app = _save("accepted")
     _rerank(db, job_id)
     db.refresh(app)
+    background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
 
     async def _send_displaced():
         body = await generate_rejection_email(
             d_name, job_title, job_company,
             d_score, d_gaps, d_suggestions, "displaced",
+            recruiter_name, recruiter_email, recruiter_position,
         )
-        await send_rejection_email(d_email, d_name, job_title, body)
+        await send_rejection_email(d_email, d_name, job_title, body, d_strengths, d_gaps)
 
     background_tasks.add_task(_send_displaced)
     background_tasks.add_task(
         send_acceptance_notification,
         candidate_email, candidate_name, job_title, app.rank or 1, match_score,
+        recruiter_name, recruiter_email, recruiter_position,
+        strengths, gaps,
     )
 
     return {
@@ -222,13 +272,32 @@ async def apply_to_job(
             f"{match_score:.1f}% match, displacing the previous lowest-ranked candidate."
         ),
         "strengths": strengths,
+        "project_scores": project_scores,
         "summary": summary,
     }
 
 
+# ── Candidate: my applications ────────────────────────────────────────────────
+
+@router.get("/my", response_model=List[schemas.ApplicationResponse])
+def my_applications(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_candidate),
+):
+    """Returns all applications submitted by the authenticated candidate."""
+    return (
+        db.query(models.Application)
+        .filter(models.Application.candidate_user_id == current_user.id)
+        .order_by(models.Application.applied_at.desc())
+        .all()
+    )
+
+
+# ── Public: ranked shortlist ──────────────────────────────────────────────────
+
 @router.get("/job/{job_id}", response_model=List[schemas.ApplicationResponse])
 def get_accepted_applications(job_id: int, db: Session = Depends(get_db)):
-    """Ranked shortlist — accepted candidates only."""
+    """Ranked shortlist — accepted candidates only (public)."""
     return (
         db.query(models.Application)
         .filter(
@@ -240,8 +309,14 @@ def get_accepted_applications(job_id: int, db: Session = Depends(get_db)):
     )
 
 
+# ── Recruiter: all applications ───────────────────────────────────────────────
+
 @router.get("/job/{job_id}/all")
-def get_all_applications(job_id: int, db: Session = Depends(get_db)):
+def get_all_applications(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_recruiter),  # recruiter-only
+):
     """All applications for a job including rejected/displaced — recruiter view."""
     apps = (
         db.query(models.Application)
@@ -260,7 +335,57 @@ def get_all_applications(job_id: int, db: Session = Depends(get_db)):
             "strengths": json.loads(a.strengths or "[]"),
             "gaps": json.loads(a.gaps or "[]"),
             "improvement_suggestions": json.loads(a.improvement_suggestions or "[]"),
+            "project_scores": json.loads(a.project_scores or "[]"),
             "applied_at": a.applied_at.isoformat() if a.applied_at else None,
         }
         for a in apps
+    ]
+
+
+# ── Recruiter: vector similarity re-ranking ───────────────────────────────────
+
+@router.get("/job/{job_id}/vector-rank")
+def get_vector_ranked(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_recruiter),
+):
+    """
+    Re-rank accepted candidates by cosine similarity to the JD embedding.
+    Falls back to match_score for candidates whose embeddings haven't been computed yet.
+    """
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if not job.jd_embedding:
+        raise HTTPException(
+            status_code=202,
+            detail="JD embedding not yet computed. Try again in a few seconds after the first application is submitted.",
+        )
+
+    accepted = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.status == "accepted",
+        )
+        .all()
+    )
+
+    import json as _json
+    jd_emb = _json.loads(job.jd_embedding)
+    ranked = rank_applications_by_vector(accepted, jd_emb)
+
+    return [
+        {
+            "id": a.id,
+            "candidate_name": a.candidate_name,
+            "candidate_email": a.candidate_email,
+            "match_score": a.match_score,
+            "rank": a.rank,
+            "status": a.status,
+            "project_scores": json.loads(a.project_scores or "[]"),
+            "has_embedding": bool(a.resume_embedding),
+        }
+        for a in ranked
     ]

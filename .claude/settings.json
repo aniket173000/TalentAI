@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job rm --cached backend/.env)",
+      "Bash(git -C /Users/aniket/Desktop/Mark1Job status --short)"
+    ]
+  }
+}

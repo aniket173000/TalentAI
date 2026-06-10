@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useAuth } from '../context/AuthContext'
 import { Job } from '../types'
 
 export default function Apply() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const [job, setJob] = useState<Job | null>(null)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  // Pre-fill from auth profile; candidate can still override
+  const [name, setName] = useState(user?.full_name ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -74,7 +77,9 @@ export default function Apply() {
         <div className="mb-8">
           <p className="text-slate-500 text-sm">{job.company}</p>
           <h1 className="text-2xl font-extrabold text-navy-900">{job.title}</h1>
-          <p className="text-slate-400 text-sm mt-1">Min. match: {job.min_match_score}% · Pool: {job.active_applications}/{job.max_count}</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Min. match: {job.min_match_score}% · Pool: {job.active_applications}/{job.max_count}
+          </p>
         </div>
       )}
 
@@ -134,7 +139,9 @@ export default function Apply() {
             ) : (
               <div className="text-slate-400">
                 <p className="text-3xl mb-2">📄</p>
-                <p className="text-sm font-medium">Drop your resume here or <span className="text-brand-blue">browse</span></p>
+                <p className="text-sm font-medium">
+                  Drop your resume here or <span className="text-brand-blue">browse</span>
+                </p>
                 <p className="text-xs mt-1">PDF, DOCX, or TXT · Max 10MB</p>
               </div>
             )}

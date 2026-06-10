@@ -1,3 +1,11 @@
+export interface AuthUser {
+  id: number
+  email: string
+  full_name: string
+  role: 'recruiter' | 'candidate'
+  created_at: string
+}
+
 export interface Job {
   id: number
   title: string
@@ -8,6 +16,13 @@ export interface Job {
   min_match_score: number
   created_at: string
   active_applications: number
+}
+
+export interface ProjectScore {
+  project_name: string
+  relevance_score: number
+  tech_overlap: string[]
+  notes: string
 }
 
 export interface Application {
@@ -21,6 +36,7 @@ export interface Application {
   strengths: string[] | string | null
   gaps: string[] | string | null
   improvement_suggestions: string[] | string | null
+  project_scores: ProjectScore[] | string | null
   applied_at: string
 }
 
@@ -35,5 +51,6 @@ export interface ApplyResult {
   strengths?: string[]
   gaps?: string[]
   improvement_suggestions?: string[]
+  project_scores?: ProjectScore[]
   summary?: string
 }

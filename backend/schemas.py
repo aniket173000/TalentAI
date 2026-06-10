@@ -1,7 +1,40 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr
+from typing import Literal, Optional, List
 from datetime import datetime
 
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    role: Literal["recruiter", "candidate"] = "candidate"
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
 
 class JobCreate(BaseModel):
     title: str
@@ -26,6 +59,8 @@ class JobResponse(BaseModel):
         from_attributes = True
 
 
+# ── Applications ──────────────────────────────────────────────────────────────
+
 class ApplicationResponse(BaseModel):
     id: int
     job_id: int
@@ -37,6 +72,7 @@ class ApplicationResponse(BaseModel):
     strengths: Optional[str]
     gaps: Optional[str]
     improvement_suggestions: Optional[str]
+    project_scores: Optional[str] = None
     applied_at: datetime
 
     class Config:
