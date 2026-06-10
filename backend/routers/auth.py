@@ -71,8 +71,15 @@ require_candidate = require_role("candidate")
 
 @router.post("/register", response_model=schemas.Token)
 def register(body: schemas.UserCreate, db: Session = Depends(get_db)):
-    if db.query(models.User).filter(models.User.email == body.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    exists = db.query(models.User).filter(
+        models.User.email == body.email,
+        models.User.role == body.role,
+    ).first()
+    if exists:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This email is already registered as a {body.role}.",
+        )
     user = models.User(
         email=body.email,
         hashed_password=hash_password(body.password),
@@ -92,7 +99,22 @@ def register(body: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=schemas.Token)
 def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == body.email).first()
+    query = db.query(models.User).filter(models.User.email == body.email)
+
+    if body.role:
+        user = query.filter(models.User.role == body.role).first()
+    else:
+        matches = query.all()
+        if len(matches) > 1:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This email has both a recruiter and a candidate account. "
+                    "Please include 'role' in your request to specify which to log into."
+                ),
+            )
+        user = matches[0] if matches else None
+
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:

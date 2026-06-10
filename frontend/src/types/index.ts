@@ -6,6 +6,17 @@ export interface AuthUser {
   created_at: string
 }
 
+export type JobStatus = 'draft' | 'published' | 'closed'
+export type EmploymentType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship'
+export type RemotePolicy = 'On-site' | 'Remote' | 'Hybrid'
+export type EducationLevel = 'None' | 'Diploma' | 'Bachelor' | 'Master' | 'PhD'
+
+export interface EligibilityCriteria {
+  min_years_experience: number | null
+  required_skills: string[]
+  required_education: EducationLevel | null
+}
+
 export interface Job {
   id: number
   title: string
@@ -14,8 +25,38 @@ export interface Job {
   location: string
   max_count: number
   min_match_score: number
+  status: JobStatus
+  slug: string | null
+  department: string | null
+  employment_type: EmploymentType | null
+  salary_range_min: number | null
+  salary_range_max: number | null
+  remote_policy: RemotePolicy | null
+  application_deadline: string | null
+  published_at: string | null
   created_at: string
+  total_applicants: number
   active_applications: number
+  pool_count: number
+  avg_score: number
+  eligibility_criteria: EligibilityCriteria | null
+}
+
+export interface JobListResponse {
+  jobs: Job[]
+  total: number
+  page: number
+  pages: number
+  per_page: number
+}
+
+export interface JobAuditLog {
+  id: number
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+  changed_at: string
+  actor_name: string
 }
 
 export interface ProjectScore {

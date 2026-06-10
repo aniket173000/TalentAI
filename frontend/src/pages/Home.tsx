@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../api/client'
 import JobCard from '../components/JobCard'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { Job } from '../types'
+import { Job, JobListResponse } from '../types'
 
 export default function Home() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -10,8 +10,8 @@ export default function Home() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get<Job[]>('/jobs/')
-      .then(r => setJobs(r.data))
+    api.get<JobListResponse>('/jobs/')
+      .then(r => setJobs(r.data.jobs))
       .catch(() => setError('Failed to load jobs. Is the backend running?'))
       .finally(() => setLoading(false))
   }, [])

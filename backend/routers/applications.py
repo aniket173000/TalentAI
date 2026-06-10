@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
@@ -182,6 +183,21 @@ async def apply_to_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
 
+    if job.status != "published":
+        msg = {
+            "draft": "This job posting is not yet open for applications.",
+            "closed": "This position is currently closed.",
+        }.get(job.status, "This job is not accepting applications.")
+        raise HTTPException(status_code=403, detail=msg)
+
+    if job.application_deadline:
+        from datetime import timezone as _tz
+        deadline = job.application_deadline
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=_tz.utc)
+        if deadline < datetime.now(_tz.utc):
+            raise HTTPException(status_code=403, detail="The application deadline for this position has passed.")
+
     # 2. Parse resume ──────────────────────────────────────────────────────────
     content = await resume_file.read()
     resume_text = parse_resume(content, resume_file.filename or "resume")
@@ -191,9 +207,26 @@ async def apply_to_job(
             detail="Could not extract text from resume. Please upload a valid PDF, DOCX, or TXT file.",
         )
 
-    # 3. AI screening ──────────────────────────────────────────────────────────
+    # 3. AI screening (eligibility criteria injected into JD context) ──────────
+    effective_jd = job.jd_text
+    if job.criteria:
+        criteria_lines = []
+        if job.criteria.min_years_experience:
+            criteria_lines.append(f"- Minimum {job.criteria.min_years_experience} years of experience required.")
+        skills = json.loads(job.criteria.required_skills or "[]")
+        if skills:
+            criteria_lines.append(f"- Required skills: {', '.join(skills)}.")
+        if job.criteria.required_education and job.criteria.required_education != "None":
+            criteria_lines.append(f"- Minimum education level: {job.criteria.required_education}.")
+        if criteria_lines:
+            effective_jd += (
+                "\n\nMANDATORY ELIGIBILITY CRITERIA "
+                "(candidates clearly not meeting these must score below 50):\n"
+                + "\n".join(criteria_lines)
+            )
+
     try:
-        screening = await screen_resume(job.jd_text, resume_text, job.title)
+        screening = await screen_resume(effective_jd, resume_text, job.title)
     except Exception as exc:
         logger.error(f"AI screening failed for job {job_id}: {exc}")
         raise HTTPException(status_code=500, detail="AI screening service unavailable. Please try again.")

@@ -5,6 +5,8 @@ import { AuthProvider } from './context/AuthContext'
 import Apply from './pages/Apply'
 import ApplicationResult from './pages/ApplicationResult'
 import CandidateDashboard from './pages/CandidateDashboard'
+import CreateJob from './pages/CreateJob'
+import EditJob from './pages/EditJob'
 import Home from './pages/Home'
 import JobDetail from './pages/JobDetail'
 import Login from './pages/Login'
@@ -50,6 +52,22 @@ export default function App() {
                 element={
                   <ProtectedRoute role="recruiter">
                     <RecruiterPortal />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/recruiter/jobs/create"
+                element={
+                  <ProtectedRoute role="recruiter">
+                    <CreateJob />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/recruiter/jobs/:jobId/edit"
+                element={
+                  <ProtectedRoute role="recruiter">
+                    <EditJob />
                   </ProtectedRoute>
                 }
               />

@@ -26,12 +26,33 @@ class UserResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    role: Optional[Literal["recruiter", "candidate"]] = None
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+# ── Eligibility Criteria ──────────────────────────────────────────────────────
+
+EducationLevel = Literal["None", "Diploma", "Bachelor", "Master", "PhD"]
+
+
+class EligibilityCriteriaIn(BaseModel):
+    min_years_experience: Optional[int] = None
+    required_skills: List[str] = []
+    required_education: Optional[EducationLevel] = None
+
+
+class EligibilityCriteriaResponse(BaseModel):
+    min_years_experience: Optional[int] = None
+    required_skills: List[str] = []
+    required_education: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 # ── Jobs ──────────────────────────────────────────────────────────────────────
@@ -42,6 +63,42 @@ class JobCreate(BaseModel):
     company: str = "Our Company"
     location: str = "Remote"
     max_count: int = 10
+    min_match_score: float = 80.0
+    department: Optional[str] = None
+    employment_type: Optional[Literal["Full-time", "Part-time", "Contract", "Internship"]] = None
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    remote_policy: Optional[Literal["On-site", "Remote", "Hybrid"]] = None
+    application_deadline: Optional[datetime] = None
+    eligibility_criteria: Optional[EligibilityCriteriaIn] = None
+
+
+class JobUpdate(BaseModel):
+    title: Optional[str] = None
+    jd_text: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    max_count: Optional[int] = None
+    min_match_score: Optional[float] = None
+    department: Optional[str] = None
+    employment_type: Optional[str] = None
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    remote_policy: Optional[str] = None
+    application_deadline: Optional[datetime] = None
+    eligibility_criteria: Optional[EligibilityCriteriaIn] = None
+
+
+class JobAuditLogResponse(BaseModel):
+    id: int
+    field_name: str
+    old_value: Optional[str]
+    new_value: Optional[str]
+    changed_at: datetime
+    actor_name: str = ""
+
+    class Config:
+        from_attributes = True
 
 
 class JobResponse(BaseModel):
@@ -52,11 +109,33 @@ class JobResponse(BaseModel):
     location: str
     max_count: int
     min_match_score: float
+    status: str = "draft"
+    slug: Optional[str] = None
+    department: Optional[str] = None
+    employment_type: Optional[str] = None
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    remote_policy: Optional[str] = None
+    application_deadline: Optional[datetime] = None
+    published_at: Optional[datetime] = None
     created_at: datetime
-    active_applications: int = 0
+    # Computed in router
+    total_applicants: int = 0
+    active_applications: int = 0   # accepted count (backwards compat)
+    pool_count: int = 0
+    avg_score: float = 0.0
+    eligibility_criteria: Optional[EligibilityCriteriaResponse] = None
 
     class Config:
         from_attributes = True
+
+
+class JobListResponse(BaseModel):
+    jobs: List[JobResponse]
+    total: int
+    page: int
+    pages: int
+    per_page: int
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
