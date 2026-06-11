@@ -10,7 +10,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)   # nullable for LinkedIn-only accounts
     full_name = Column(String(255), nullable=False)
     role = Column(String(50), default="candidate")  # "recruiter" | "candidate"
     is_active = Column(Boolean, default=True)
@@ -18,6 +18,13 @@ class User(Base):
 
     totp_secret = Column(String(255), nullable=True)
     totp_enabled = Column(Boolean, default=False)
+
+    # LinkedIn OAuth fields
+    linkedin_id = Column(String(255), nullable=True)
+    linkedin_verified = Column(Boolean, default=False)
+    # Recruiter's current employer — used for company verification on job posts
+    company = Column(String(255), nullable=True)
+    is_third_party_recruiter = Column(Boolean, default=False)
 
     applications = relationship("Application", back_populates="user")
 
@@ -74,6 +81,7 @@ class Job(Base):
     published_at = Column(DateTime, nullable=True)
     company_url = Column(String(500), nullable=True)      # company website or LinkedIn URL
     company_logo_url = Column(String(1000), nullable=True) # resolved logo URL (auto-populated)
+    is_third_party = Column(Boolean, default=False)         # posted by a third-party recruiter
 
     applications = relationship("Application", back_populates="job")
     recruiter = relationship("User", foreign_keys=[recruiter_id])
@@ -95,7 +103,13 @@ class Application(Base):
 
     match_score = Column(Float, nullable=False)
     rank = Column(Integer, nullable=True)
-    status = Column(String(50), default="accepted")  # accepted | rejected | displaced
+    status = Column(String(50), default="accepted")  # accepted | rejected | displaced (pool-management)
+    # candidate_status: what the candidate sees
+    #   AI-set:       rejected | pool_accepted
+    #   Recruiter-set: under_review | interview_scheduled | offer_extended | interview_rejected
+    candidate_status = Column(String(50), default="rejected")
+    status_token = Column(String(64), nullable=True, unique=True, index=True)  # public tracking URL token
+    status_feedback = Column(Text, nullable=True)  # recruiter feedback for interview_rejected
 
     strengths = Column(Text)
     gaps = Column(Text)

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import LinkedInButton from '../components/LinkedInButton'
 import { useAuth } from '../context/AuthContext'
 
 const ROLES = [
@@ -20,7 +21,7 @@ const ROLES = [
 ]
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, loginWithLinkedIn } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const redirect = params.get('redirect')
@@ -167,6 +168,19 @@ export default function Login() {
             </Link>
           </p>
         </form>
+
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-xs text-slate-400 font-medium">or</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+
+        <div className="mt-4">
+          <LinkedInButton
+            label={`Continue with LinkedIn as ${roleInfo.label}`}
+            onClick={() => loginWithLinkedIn(selectedRole)}
+          />
+        </div>
       </div>
     </div>
   )

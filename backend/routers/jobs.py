@@ -152,6 +152,7 @@ async def create_job(
     salary_range_max: Optional[int] = Form(default=None),
     remote_policy: Optional[str] = Form(default=None),
     application_deadline: Optional[datetime] = Form(default=None),
+    is_third_party: bool = Form(default=False),
     jd_text: Optional[str] = Form(default=None),
     jd_file: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
@@ -173,6 +174,20 @@ async def create_job(
     if len(final_jd.strip()) < 100:
         raise HTTPException(status_code=400, detail="Job description must be at least 100 characters.")
 
+    # ── Company verification ──────────────────────────────────────────────────
+    # Any recruiter whose profile has a company set is treated as an internal recruiter.
+    # They may only post jobs for their own company unless they declare is_third_party=True.
+    if current_user.company and not is_third_party:
+        if company.strip().lower() != current_user.company.strip().lower():
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Your profile is linked to '{current_user.company}'. "
+                    f"You can only post jobs for that company. "
+                    "To post for a different company, mark this as a third-party posting."
+                ),
+            )
+
     resolved_url = company_url or None
     logo_url = _resolve_logo(db, company, resolved_url)
 
@@ -191,6 +206,7 @@ async def create_job(
         salary_range_max=salary_range_max,
         remote_policy=remote_policy,
         application_deadline=application_deadline,
+        is_third_party=is_third_party,
         recruiter_id=current_user.id,
         status="draft",
         slug=_unique_slug(db, title, location),

@@ -10,6 +10,8 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     role: Literal["recruiter", "candidate"] = "candidate"
+    company: Optional[str] = None
+    is_third_party_recruiter: bool = False
 
 
 class UserResponse(BaseModel):
@@ -18,6 +20,9 @@ class UserResponse(BaseModel):
     full_name: str
     role: str
     created_at: datetime
+    linkedin_verified: bool = False
+    company: Optional[str] = None
+    is_third_party_recruiter: bool = False
 
     class Config:
         from_attributes = True
@@ -72,6 +77,7 @@ class JobCreate(BaseModel):
     remote_policy: Optional[Literal["On-site", "Remote", "Hybrid"]] = None
     application_deadline: Optional[datetime] = None
     eligibility_criteria: Optional[EligibilityCriteriaIn] = None
+    is_third_party: bool = False
 
 
 class JobUpdate(BaseModel):
@@ -123,6 +129,7 @@ class JobResponse(BaseModel):
     application_deadline: Optional[datetime] = None
     published_at: Optional[datetime] = None
     created_at: datetime
+    is_third_party: bool = False
     # Computed in router
     total_applicants: int = 0
     active_applications: int = 0   # accepted count (backwards compat)
@@ -152,6 +159,8 @@ class ApplicationResponse(BaseModel):
     match_score: float
     rank: Optional[int]
     status: str
+    candidate_status: str = "rejected"
+    status_token: Optional[str] = None
     strengths: Optional[str]
     gaps: Optional[str]
     improvement_suggestions: Optional[str]
@@ -160,3 +169,25 @@ class ApplicationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── Public application status ─────────────────────────────────────────────────
+
+class ApplicationStatusPublic(BaseModel):
+    candidate_status: str
+    job_title: str
+    company: str
+    applied_at: datetime
+    score_tier: Optional[str] = None      # "Top 25" / "Top 50" / "Top 100" — pool members only
+    status_feedback: Optional[str] = None  # recruiter feedback for interview_rejected
+
+    class Config:
+        from_attributes = True
+
+
+class ApplicationStatusUpdate(BaseModel):
+    candidate_status: Literal[
+        "rejected", "pool_accepted",
+        "under_review", "interview_scheduled", "offer_extended", "interview_rejected",
+    ]
+    feedback: Optional[str] = None  # required (strongly recommended) for interview_rejected

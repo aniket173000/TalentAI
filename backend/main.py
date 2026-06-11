@@ -10,6 +10,7 @@ from config import settings
 from database import SessionLocal, engine
 from routers import applications, jobs
 from routers import auth as auth_router
+from routers import linkedin_auth as linkedin_auth_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,6 +42,18 @@ _MIGRATIONS = [
     # Company profile
     "ALTER TABLE jobs ADD COLUMN company_url VARCHAR(500)",
     "ALTER TABLE jobs ADD COLUMN company_logo_url VARCHAR(1000)",
+    # Candidate application status tracking
+    "ALTER TABLE applications ADD COLUMN candidate_status VARCHAR(50) DEFAULT 'received'",
+    "ALTER TABLE applications ADD COLUMN status_token VARCHAR(64)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ix_applications_status_token ON applications (status_token)",
+    # LinkedIn OAuth + company verification
+    "ALTER TABLE users ADD COLUMN linkedin_id VARCHAR(255)",
+    "ALTER TABLE users ADD COLUMN linkedin_verified BOOLEAN DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN company VARCHAR(255)",
+    "ALTER TABLE users ADD COLUMN is_third_party_recruiter BOOLEAN DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN is_third_party BOOLEAN DEFAULT 0",
+    # Recruiter feedback for interview_rejected status
+    "ALTER TABLE applications ADD COLUMN status_feedback TEXT",
 ]
 
 with engine.connect() as _conn:
@@ -50,6 +63,22 @@ with engine.connect() as _conn:
             _conn.commit()
         except Exception:
             pass  # column/index already exists
+
+
+# Data migration: remap old candidate_status values to new state machine
+with engine.connect() as _conn:
+    try:
+        _conn.execute(text(
+            "UPDATE applications SET candidate_status = 'pool_accepted' "
+            "WHERE candidate_status IN ('shortlisted', 'received') AND status = 'accepted'"
+        ))
+        _conn.execute(text(
+            "UPDATE applications SET candidate_status = 'rejected' "
+            "WHERE candidate_status = 'received' AND status != 'accepted'"
+        ))
+        _conn.commit()
+    except Exception:
+        pass
 
 
 def _slugify(text: str) -> str:
@@ -93,6 +122,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router.router)
+app.include_router(linkedin_auth_router.router)
 app.include_router(jobs.router)
 app.include_router(applications.router)
 

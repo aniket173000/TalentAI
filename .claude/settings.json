@@ -17,7 +17,11 @@
       "Bash(python -c \"import routers.applications; import services.email_service; print\\('OK'\\)\")",
       "Bash(pip freeze *)",
       "Bash(python -c \"from services.company_logo import resolve_company_logo; print\\('OK'\\)\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import ast, sys; files=['models.py','config.py','schemas.py','main.py','routers/auth.py','routers/jobs.py','routers/linkedin_auth.py','services/auth_service.py']; [print\\(f\\) or ast.parse\\(open\\(f\\).read\\(\\)\\) for f in files]; print\\('All OK'\\)\")",
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['schemas.py','routers/auth.py','routers/jobs.py']]; print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['models.py','schemas.py','routers/applications.py','services/email_service.py','main.py']]; print\\('OK'\\)\")",
+      "Bash(grep -v \"^$\")"
     ],
     "additionalDirectories": [
       "/tmp",

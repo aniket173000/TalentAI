@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { Application, Job, JobListResponse } from '../types'
+import { Application, CandidateStatus, Job, JobListResponse } from '../types'
 
 type Tab = 'jobs' | 'applications'
 type SortField = 'created_at' | 'total_applicants' | 'avg_score'
@@ -14,10 +14,22 @@ const STATUS_BADGE: Record<string, string> = {
   closed: 'bg-red-50 text-red-600 border-red-200',
 }
 
-const APP_STATUS_COLORS: Record<string, string> = {
-  accepted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-red-50 text-red-600 border-red-200',
-  displaced: 'bg-amber-50 text-amber-600 border-amber-200',
+const CANDIDATE_STATUS_OPTIONS: { value: CandidateStatus; label: string }[] = [
+  { value: 'pool_accepted',       label: 'Shortlisted'        },
+  { value: 'under_review',        label: 'Under Review'       },
+  { value: 'interview_scheduled', label: 'Interview Stage'    },
+  { value: 'offer_extended',      label: 'Offer Extended'     },
+  { value: 'interview_rejected',  label: 'Interview Rejected' },
+  { value: 'rejected',            label: 'Rejected'           },
+]
+
+const CANDIDATE_STATUS_BADGE: Record<CandidateStatus, string> = {
+  rejected:            'bg-red-50 text-red-600 border-red-200',
+  pool_accepted:       'bg-emerald-50 text-emerald-700 border-emerald-200',
+  under_review:        'bg-blue-50 text-blue-700 border-blue-200',
+  interview_scheduled: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  offer_extended:      'bg-purple-50 text-purple-700 border-purple-200',
+  interview_rejected:  'bg-red-50 text-red-600 border-red-200',
 }
 
 const PER_PAGE = 20
@@ -91,6 +103,35 @@ export default function RecruiterPortal() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loadingApps, setLoadingApps] = useState(false)
   const [expandedApp, setExpandedApp] = useState<number | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
+  const [pendingReject, setPendingReject] = useState<{ appId: number } | null>(null)
+  const [feedbackText, setFeedbackText] = useState('')
+
+  const updateCandidateStatus = async (appId: number, newStatus: CandidateStatus, feedback?: string) => {
+    setUpdatingStatus(appId)
+    try {
+      await api.patch(`/applications/${appId}/status`, {
+        candidate_status: newStatus,
+        ...(feedback !== undefined ? { feedback } : {}),
+      })
+      setApplications(prev =>
+        prev.map(a => a.id === appId ? { ...a, candidate_status: newStatus } : a)
+      )
+    } catch {
+      // ignore — leave existing status
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  const handleStatusChange = (appId: number, value: CandidateStatus) => {
+    if (value === 'interview_rejected') {
+      setPendingReject({ appId })
+      setFeedbackText('')
+    } else {
+      updateCandidateStatus(appId, value)
+    }
+  }
 
   useEffect(() => {
     if (tab !== 'applications') return
@@ -295,6 +336,47 @@ export default function RecruiterPortal() {
         </div>
       )}
 
+      {/* ── Interview Rejection Feedback Modal ── */}
+      {pendingReject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Interview Rejection</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Provide feedback for the candidate. This will be included in the notification email and visible on their status page.
+            </p>
+            <textarea
+              value={feedbackText}
+              onChange={e => setFeedbackText(e.target.value)}
+              placeholder="e.g. Did not demonstrate sufficient experience with distributed systems during the technical interview."
+              rows={4}
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition resize-none"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setPendingReject(null)}
+                className="flex-1 border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await updateCandidateStatus(
+                    pendingReject.appId,
+                    'interview_rejected',
+                    feedbackText.trim() || undefined,
+                  )
+                  setPendingReject(null)
+                }}
+                disabled={updatingStatus === pendingReject.appId}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50"
+              >
+                {updatingStatus === pendingReject.appId ? 'Saving…' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── APPLICATIONS TAB ── */}
       {tab === 'applications' && (
         <div>
@@ -347,6 +429,19 @@ export default function RecruiterPortal() {
                           <div className="text-right">
                             <p className="text-lg font-bold text-brand-blue">{app.match_score.toFixed(1)}%</p>
                             <p className="text-xs text-slate-400">match</p>
+                          </div>
+                          {/* Status change dropdown — stop propagation so it doesn't toggle expand */}
+                          <div onClick={e => e.stopPropagation()}>
+                            <select
+                              value={app.candidate_status ?? 'pool_accepted'}
+                              disabled={updatingStatus === app.id}
+                              onChange={e => handleStatusChange(app.id, e.target.value as CandidateStatus)}
+                              className={`text-xs font-semibold rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition ${CANDIDATE_STATUS_BADGE[app.candidate_status as CandidateStatus] ?? 'bg-slate-50 text-slate-500 border-slate-200'} ${updatingStatus === app.id ? 'opacity-50' : ''}`}
+                            >
+                              {CANDIDATE_STATUS_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
                           </div>
                           <span className="text-slate-300">{expandedApp === app.id ? '▲' : '▼'}</span>
                         </div>
@@ -409,9 +504,16 @@ export default function RecruiterPortal() {
                       <p className="text-xs text-slate-400">{app.candidate_email}</p>
                     </div>
                     <p className="text-sm font-semibold text-slate-500">{app.match_score.toFixed(1)}%</p>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${APP_STATUS_COLORS[app.status] ?? 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                      {app.status}
-                    </span>
+                    <select
+                      value={app.candidate_status ?? 'rejected'}
+                      disabled={updatingStatus === app.id}
+                      onChange={e => handleStatusChange(app.id, e.target.value as CandidateStatus)}
+                      className={`text-xs font-semibold rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition ${CANDIDATE_STATUS_BADGE[app.candidate_status as CandidateStatus] ?? 'bg-slate-50 text-slate-500 border-slate-200'} ${updatingStatus === app.id ? 'opacity-50' : ''}`}
+                    >
+                      {CANDIDATE_STATUS_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
                   </div>
                 ))}
               </div>

@@ -12,7 +12,13 @@ interface AuthContextType {
     password: string,
     fullName: string,
     role: 'recruiter' | 'candidate',
+    company?: string | null,
+    isThirdPartyRecruiter?: boolean,
   ) => Promise<void>
+  /** Redirect the browser to the LinkedIn OAuth flow for the given role. */
+  loginWithLinkedIn: (role: 'recruiter' | 'candidate') => void
+  /** Complete a LinkedIn OAuth flow: store the token returned in the callback URL. */
+  completeLinkedInLogin: (token: string, role: 'recruiter' | 'candidate') => Promise<void>
   logout: () => void
   /** Switch the active session to `role`. Returns false if no stored token exists for that role. */
   switchRole: (role: 'recruiter' | 'candidate') => Promise<boolean>
@@ -86,16 +92,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     fullName: string,
     role: 'recruiter' | 'candidate',
+    company?: string | null,
+    isThirdPartyRecruiter?: boolean,
   ) => {
     const r = await api.post<{ access_token: string; user: AuthUser }>('/auth/register', {
       email,
       password,
       full_name: fullName,
       role,
+      company: company ?? null,
+      is_third_party_recruiter: isThirdPartyRecruiter ?? false,
     })
     localStorage.setItem(`auth_token_${role}`, r.data.access_token)
     localStorage.setItem('active_role', role)
     setUser(r.data.user)
+    setActiveRole(role)
+  }
+
+  const loginWithLinkedIn = (role: 'recruiter' | 'candidate') => {
+    window.location.href = `/api/auth/linkedin/authorize?role=${role}`
+  }
+
+  const completeLinkedInLogin = async (token: string, role: 'recruiter' | 'candidate') => {
+    localStorage.setItem(`auth_token_${role}`, token)
+    localStorage.setItem('active_role', role)
+    const r = await api.get<AuthUser>('/auth/me')
+    setUser(r.data)
     setActiveRole(role)
   }
 
@@ -138,6 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         activeRole,
         login,
         register,
+        loginWithLinkedIn,
+        completeLinkedInLogin,
         logout,
         switchRole,
         hasLinkedRole,

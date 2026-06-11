@@ -85,6 +85,8 @@ def register(body: schemas.UserCreate, db: Session = Depends(get_db)):
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         role=body.role,
+        company=body.company.strip() if body.company else None,
+        is_third_party_recruiter=body.is_third_party_recruiter if body.role == "recruiter" else False,
     )
     db.add(user)
     db.commit()

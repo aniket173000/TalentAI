@@ -1,5 +1,6 @@
 import json
 import logging
+import secrets
 from datetime import datetime
 from typing import List, Optional
 
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from config import settings
 from database import SessionLocal, get_db
 from routers.auth import get_current_user, require_candidate, require_recruiter
 from services.ai_service import (
@@ -16,12 +18,31 @@ from services.ai_service import (
     rank_tied_candidates,
     screen_resume,
 )
-from services.email_service import send_acceptance_notification, send_rejection_email
+from services.email_service import (
+    send_acceptance_notification,
+    send_rejection_email,
+    send_status_change_email,
+)
 from services.file_parser import parse_resume
 from services.vector_service import rank_applications_by_vector
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/applications", tags=["applications"])
+
+
+def _score_tier(rank: int | None, total: int) -> str | None:
+    if rank is None or total == 0:
+        return None
+    pct = (rank / total) * 100
+    if pct <= 25:
+        return "Top 25"
+    if pct <= 50:
+        return "Top 50"
+    return "Top 100"
+
+
+def _status_url(token: str) -> str:
+    return f"{settings.FRONTEND_URL}/status/{token}"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -248,6 +269,7 @@ async def apply_to_job(
     recruiter_position = _rec.role.capitalize() if _rec else "Recruiter"
 
     def _save(status: str) -> models.Application:
+        candidate_status = "pool_accepted" if status == "accepted" else "rejected"
         app = models.Application(
             job_id=job_id,
             candidate_user_id=current_user.id,
@@ -257,6 +279,8 @@ async def apply_to_job(
             resume_filename=resume_file.filename or "resume",
             match_score=match_score,
             status=status,
+            candidate_status=candidate_status,
+            status_token=secrets.token_urlsafe(16),
             rank=None,
             strengths=json.dumps(strengths),
             gaps=json.dumps(gaps),
@@ -272,16 +296,16 @@ async def apply_to_job(
     if match_score < min_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
-
         background_tasks.add_task(
             send_rejection_email,
             candidate_email, candidate_name, job_title, job_company,
             match_score, strengths, gaps,
             recruiter_name, recruiter_email, recruiter_position,
         )
-
         return {
             "status": "rejected",
+            "candidate_status": "rejected",
+            "status_token": saved.status_token,
             "match_score": round(match_score, 1),
             "message": (
                 f"Your resume matched {match_score:.1f}% with this role. "
@@ -310,6 +334,7 @@ async def apply_to_job(
         app = _save("accepted")
         await _rerank(db, job_id)
         db.refresh(app)
+        total_pool = len(accepted) + 1
         background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
         background_tasks.add_task(
             _send_acceptance_with_explanation,
@@ -318,9 +343,12 @@ async def apply_to_job(
         )
         return {
             "status": "accepted",
+            "candidate_status": "pool_accepted",
+            "status_token": app.status_token,
+            "score_tier": _score_tier(app.rank, total_pool),
             "match_score": round(match_score, 1),
             "rank": app.rank,
-            "total_in_pool": len(accepted) + 1,
+            "total_in_pool": total_pool,
             "max_pool": max_count,
             "message": (
                 f"Congratulations! Your application was accepted and ranked "
@@ -337,7 +365,6 @@ async def apply_to_job(
     if match_score <= lowest.match_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
-
         background_tasks.add_task(
             send_rejection_email,
             candidate_email, candidate_name, job_title, job_company,
@@ -346,6 +373,8 @@ async def apply_to_job(
         )
         return {
             "status": "rejected",
+            "candidate_status": "rejected",
+            "status_token": saved.status_token,
             "match_score": round(match_score, 1),
             "message": (
                 f"The candidate pool is full. Your score ({match_score:.1f}%) "
@@ -362,23 +391,35 @@ async def apply_to_job(
     d_email = lowest.candidate_email
     d_name = lowest.candidate_name
     d_score = lowest.match_score
+    d_token = lowest.status_token
     d_strengths = json.loads(lowest.strengths or "[]")
     d_gaps = json.loads(lowest.gaps or "[]")
     d_suggestions = json.loads(lowest.improvement_suggestions or "[]")
 
     lowest.status = "displaced"
+    lowest.candidate_status = "rejected"   # ← assign status when displaced
     lowest.rank = None
     app = _save("accepted")
     await _rerank(db, job_id)
     db.refresh(app)
     background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
 
-    background_tasks.add_task(
-        send_rejection_email,
-        d_email, d_name, job_title, job_company,
-        d_score, d_strengths, d_gaps,
-        recruiter_name, recruiter_email, recruiter_position,
-    )
+    # Notify displaced candidate with updated status
+    if d_token:
+        background_tasks.add_task(
+            send_status_change_email,
+            d_email, d_name, job_title, job_company,
+            "rejected", _status_url(d_token),
+            recruiter_name, recruiter_email, recruiter_position,
+        )
+    else:
+        background_tasks.add_task(
+            send_rejection_email,
+            d_email, d_name, job_title, job_company,
+            d_score, d_strengths, d_gaps,
+            recruiter_name, recruiter_email, recruiter_position,
+        )
+
     background_tasks.add_task(
         _send_acceptance_with_explanation,
         app.id, job_id, candidate_email, candidate_name, job_title, match_score,
@@ -387,6 +428,9 @@ async def apply_to_job(
 
     return {
         "status": "accepted",
+        "candidate_status": "pool_accepted",
+        "status_token": app.status_token,
+        "score_tier": _score_tier(app.rank, max_count),
         "match_score": round(match_score, 1),
         "rank": app.rank,
         "total_in_pool": max_count,
@@ -457,6 +501,8 @@ def get_all_applications(
             "match_score": a.match_score,
             "rank": a.rank,
             "status": a.status,
+            "candidate_status": a.candidate_status or "received",
+            "status_token": a.status_token,
             "strengths": json.loads(a.strengths or "[]"),
             "gaps": json.loads(a.gaps or "[]"),
             "improvement_suggestions": json.loads(a.improvement_suggestions or "[]"),
@@ -465,6 +511,82 @@ def get_all_applications(
         }
         for a in apps
     ]
+
+
+# ── Public: candidate status by token ────────────────────────────────────────
+
+@router.get("/status/{token}", response_model=schemas.ApplicationStatusPublic)
+def get_application_status(token: str, db: Session = Depends(get_db)):
+    """Public endpoint — no login required. Returns candidate-facing status and score tier."""
+    app = db.query(models.Application).filter(
+        models.Application.status_token == token
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    total_in_pool = db.query(models.Application).filter(
+        models.Application.job_id == app.job_id,
+        models.Application.status == "accepted",
+    ).count()
+
+    # Show score tier for any candidate still in the accepted pool
+    tier = _score_tier(app.rank, total_in_pool) if app.status == "accepted" else None
+
+    return schemas.ApplicationStatusPublic(
+        candidate_status=app.candidate_status,
+        job_title=job.title,
+        company=job.company,
+        applied_at=app.applied_at,
+        score_tier=tier,
+        status_feedback=app.status_feedback,
+    )
+
+
+# ── Recruiter: update candidate status ───────────────────────────────────────
+
+@router.patch("/{app_id}/status")
+async def update_candidate_status(
+    app_id: int,
+    body: schemas.ApplicationStatusUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """Recruiter endpoint — change candidate_status and send notification email."""
+    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+    if not job or job.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this job posting.")
+
+    old_status = app.candidate_status
+    app.candidate_status = body.candidate_status
+    if body.feedback is not None:
+        app.status_feedback = body.feedback
+    db.commit()
+
+    if old_status != body.candidate_status and app.status_token:
+        background_tasks.add_task(
+            send_status_change_email,
+            app.candidate_email,
+            app.candidate_name,
+            job.title,
+            job.company,
+            body.candidate_status,
+            _status_url(app.status_token),
+            current_user.full_name,
+            current_user.email,
+            "Recruiter",
+            body.feedback or "",
+        )
+
+    return {"id": app.id, "candidate_status": app.candidate_status}
 
 
 # ── Recruiter: vector similarity re-ranking ───────────────────────────────────

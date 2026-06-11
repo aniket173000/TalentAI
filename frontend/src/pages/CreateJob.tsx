@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import EligibilityCriteriaEditor from '../components/EligibilityCriteriaEditor'
+import { useAuth } from '../context/AuthContext'
 import { EligibilityCriteria, Job } from '../types'
 
 const BLANK_CRITERIA: EligibilityCriteria = { min_years_experience: null, required_skills: [], required_education: null }
@@ -12,10 +13,17 @@ const labelCls = 'block text-sm font-semibold text-slate-700 mb-1.5'
 
 export default function CreateJob() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const jdFileRef = useRef<HTMLInputElement>(null)
 
+  // Lock company field for any recruiter who has a company on their profile
+  // (regardless of whether they authenticated via LinkedIn or email/password)
+  const profileCompany = user?.company ?? ''
+  const isInternalWithCompany = !!profileCompany && !user?.is_third_party_recruiter
+
   const [title, setTitle] = useState('')
-  const [company, setCompany] = useState('')
+  const [company, setCompany] = useState(profileCompany)
+  const [isThirdParty, setIsThirdParty] = useState(false)
   const [companyUrl, setCompanyUrl] = useState('')
   const [location, setLocation] = useState('')
   const [department, setDepartment] = useState('')
@@ -51,6 +59,7 @@ export default function CreateJob() {
       const fd = new FormData()
       fd.append('title', title.trim())
       fd.append('company', company.trim() || 'Our Company')
+      fd.append('is_third_party', String(isThirdParty))
       if (companyUrl.trim()) fd.append('company_url', companyUrl.trim())
       fd.append('location', location.trim() || 'Remote')
       fd.append('max_count', String(maxCount))
@@ -94,6 +103,33 @@ export default function CreateJob() {
 
       <form onSubmit={handleSubmit} className="space-y-8">
 
+        {/* Third-party recruiter disclosure — shown whenever recruiter has a company locked */}
+        {isInternalWithCompany && (
+          <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isThirdParty}
+                onChange={e => {
+                  setIsThirdParty(e.target.checked)
+                  // Switching back to internal: restore the profile company
+                  if (!e.target.checked) setCompany(profileCompany)
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+              />
+              <div>
+                <span className="text-sm font-semibold text-amber-800">
+                  I am posting this job as a third-party recruiter
+                </span>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Check this if you are recruiting on behalf of a client company rather than your own employer.
+                  The job will be labelled "Posted by third-party recruiter" on the job board.
+                </p>
+              </div>
+            </label>
+          </section>
+        )}
+
         {/* Basic Info */}
         <section className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-bold text-slate-800 mb-5">Basic Info</h2>
@@ -105,8 +141,23 @@ export default function CreateJob() {
             </div>
             <div>
               <label className={labelCls}>Company Name</label>
-              <input type="text" value={company} onChange={e => setCompany(e.target.value)}
-                placeholder="Acme Corp" className={inputCls} />
+              {/* Lock company to recruiter's profile when they are not posting as third-party */}
+              {isInternalWithCompany && !isThirdParty ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={company}
+                    readOnly
+                    className={`${inputCls} bg-slate-50 text-slate-500 cursor-not-allowed`}
+                  />
+                  <span className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
+                    ✓ Your company
+                  </span>
+                </div>
+              ) : (
+                <input type="text" value={company} onChange={e => setCompany(e.target.value)}
+                  placeholder="Acme Corp" className={inputCls} />
+              )}
             </div>
             <div>
               <label className={labelCls}>Location</label>

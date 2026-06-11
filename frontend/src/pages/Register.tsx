@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import LinkedInButton from '../components/LinkedInButton'
 import { useAuth } from '../context/AuthContext'
 
 export default function Register() {
-  const { register } = useAuth()
+  const { register, loginWithLinkedIn } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const prefilledRole = params.get('role') as 'candidate' | 'recruiter' | null
@@ -12,6 +13,8 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'candidate' | 'recruiter'>(prefilledRole ?? 'candidate')
+  const [company, setCompany] = useState('')
+  const [isThirdParty, setIsThirdParty] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -21,10 +24,14 @@ export default function Register() {
       setError('Password must be at least 8 characters.')
       return
     }
+    if (role === 'recruiter' && !isThirdParty && !company.trim()) {
+      setError('Please enter your company name, or check the third-party recruiter option.')
+      return
+    }
     setError('')
     setLoading(true)
     try {
-      await register(email, password, fullName, role)
+      await register(email, password, fullName, role, company.trim() || null, isThirdParty)
       navigate(role === 'recruiter' ? '/recruiter' : '/', { replace: true })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -79,6 +86,41 @@ export default function Register() {
             />
           </div>
 
+          {/* Recruiter-only: company + third-party flag */}
+          {role === 'recruiter' && (
+            <>
+              <label className="flex items-start gap-3 cursor-pointer rounded-xl border-2 border-slate-200 p-3 hover:border-slate-300 transition">
+                <input
+                  type="checkbox"
+                  checked={isThirdParty}
+                  onChange={e => { setIsThirdParty(e.target.checked); if (e.target.checked) setCompany('') }}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+                />
+                <span className="text-sm text-slate-700">
+                  <span className="font-semibold">I am a third-party recruiter</span>
+                  <span className="block text-slate-400 text-xs mt-0.5">I recruit on behalf of client companies, not as a direct employee.</span>
+                </span>
+              </label>
+
+              {!isThirdParty && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={company}
+                    onChange={e => setCompany(e.target.value)}
+                    placeholder="e.g. Acme Corp"
+                    required
+                    className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Jobs you post will be auto-assigned to this company.</p>
+                </div>
+              )}
+            </>
+          )}
+
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               Email Address
@@ -130,6 +172,19 @@ export default function Register() {
             </Link>
           </p>
         </form>
+
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-xs text-slate-400 font-medium">or sign up with</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+
+        <div className="mt-4">
+          <LinkedInButton
+            label={`Sign up as ${role === 'recruiter' ? 'Recruiter' : 'Job Seeker'} with LinkedIn`}
+            onClick={() => loginWithLinkedIn(role)}
+          />
+        </div>
       </div>
     </div>
   )

@@ -3,12 +3,24 @@ import { Link } from 'react-router-dom'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
-import { Application, ProjectScore } from '../types'
+import { Application, CandidateStatus, ProjectScore } from '../types'
 
-const STATUS_COLORS: Record<string, string> = {
-  accepted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-red-50 text-red-600 border-red-200',
-  displaced: 'bg-amber-50 text-amber-600 border-amber-200',
+const CANDIDATE_STATUS_COLORS: Record<CandidateStatus, string> = {
+  rejected:            'bg-red-50 text-red-600 border-red-200',
+  pool_accepted:       'bg-emerald-50 text-emerald-700 border-emerald-200',
+  under_review:        'bg-blue-50 text-blue-700 border-blue-200',
+  interview_scheduled: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  offer_extended:      'bg-purple-50 text-purple-700 border-purple-200',
+  interview_rejected:  'bg-red-50 text-red-600 border-red-200',
+}
+
+const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
+  rejected:            'Rejected',
+  pool_accepted:       'Shortlisted',
+  under_review:        'Under Review',
+  interview_scheduled: 'Interview Stage',
+  offer_extended:      'Offer Extended',
+  interview_rejected:  'Interview Not Passed',
 }
 
 function parseJson<T>(raw: T[] | string | null | undefined): T[] {
@@ -101,10 +113,10 @@ export default function CandidateDashboard() {
                     )}
                     <span
                       className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-                        STATUS_COLORS[app.status] || 'bg-slate-50 text-slate-500 border-slate-200'
+                        CANDIDATE_STATUS_COLORS[app.candidate_status] ?? 'bg-slate-50 text-slate-500 border-slate-200'
                       }`}
                     >
-                      {app.status}
+                      {CANDIDATE_STATUS_LABELS[app.candidate_status] ?? app.candidate_status}
                     </span>
                     <span className="text-slate-300">{isOpen ? '▲' : '▼'}</span>
                   </div>
@@ -211,13 +223,21 @@ export default function CandidateDashboard() {
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-slate-200">
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-4">
                       <Link
                         to={`/jobs/${app.job_id}`}
                         className="text-xs text-brand-blue hover:underline font-medium"
                       >
                         View job details →
                       </Link>
+                      {app.status_token && (
+                        <Link
+                          to={`/status/${app.status_token}`}
+                          className="text-xs text-slate-500 hover:text-brand-blue hover:underline font-medium"
+                        >
+                          Track application status →
+                        </Link>
+                      )}
                     </div>
                   </div>
                 )}

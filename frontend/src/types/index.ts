@@ -4,6 +4,9 @@ export interface AuthUser {
   full_name: string
   role: 'recruiter' | 'candidate'
   created_at: string
+  linkedin_verified: boolean
+  company: string | null
+  is_third_party_recruiter: boolean
 }
 
 export type JobStatus = 'draft' | 'published' | 'closed'
@@ -37,6 +40,7 @@ export interface Job {
   application_deadline: string | null
   published_at: string | null
   created_at: string
+  is_third_party: boolean
   total_applicants: number
   active_applications: number
   pool_count: number
@@ -68,6 +72,16 @@ export interface ProjectScore {
   notes: string
 }
 
+// AI-set: rejected | pool_accepted
+// Recruiter-set: under_review | interview_scheduled | offer_extended | interview_rejected
+export type CandidateStatus =
+  | 'rejected'
+  | 'pool_accepted'
+  | 'under_review'
+  | 'interview_scheduled'
+  | 'offer_extended'
+  | 'interview_rejected'
+
 export interface Application {
   id: number
   job_id: number
@@ -76,6 +90,8 @@ export interface Application {
   match_score: number
   rank: number | null
   status: 'accepted' | 'rejected' | 'displaced'
+  candidate_status: CandidateStatus
+  status_token: string | null
   strengths: string[] | string | null
   gaps: string[] | string | null
   improvement_suggestions: string[] | string | null
@@ -85,6 +101,9 @@ export interface Application {
 
 export interface ApplyResult {
   status: 'accepted' | 'rejected'
+  candidate_status: CandidateStatus
+  status_token: string | null
+  score_tier?: string | null
   match_score: number
   rank?: number
   total_in_pool?: number

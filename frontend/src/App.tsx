@@ -9,6 +9,8 @@ import CreateJob from './pages/CreateJob'
 import EditJob from './pages/EditJob'
 import Home from './pages/Home'
 import JobDetail from './pages/JobDetail'
+import ApplicationStatus from './pages/ApplicationStatus'
+import LinkedInCallback from './pages/LinkedInCallback'
 import Login from './pages/Login'
 import RecruiterPortal from './pages/RecruiterPortal'
 import Register from './pages/Register'
@@ -27,6 +29,8 @@ export default function App() {
               <Route path="/result" element={<ApplicationResult />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
+              <Route path="/status/:token" element={<ApplicationStatus />} />
 
               {/* Candidate-only */}
               <Route

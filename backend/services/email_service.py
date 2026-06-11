@@ -116,6 +116,66 @@ Best regards,
     )
 
 
+_STATUS_LABELS = {
+    "pool_accepted":        "Shortlisted",
+    "under_review":         "Under Review",
+    "interview_scheduled":  "Interview Stage",
+    "offer_extended":       "Offer Extended",
+    "rejected":             "Not Moving Forward",
+    "interview_rejected":   "Interview Not Passed",
+}
+
+_STATUS_MESSAGES = {
+    "pool_accepted":        "Great news! Your application has been shortlisted. A recruiter will be reviewing your profile shortly.",
+    "under_review":         "Your profile is currently being reviewed by our recruitment team.",
+    "interview_scheduled":  "You have been selected for the interview stage. Our team will reach out with the details.",
+    "offer_extended":       "We are delighted to extend an offer for this position! Please check your email for the offer details.",
+    "rejected":             "Thank you for your interest. After careful consideration, we will not be moving forward with your application at this time.",
+    "interview_rejected":   "Thank you for going through our interview process. Unfortunately, we have decided not to move forward after the interview stage.",
+}
+
+
+async def send_status_change_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company: str,
+    new_status: str,
+    status_url: str,
+    recruiter_name: str = "Recruitment Team",
+    recruiter_email: str = "",
+    recruiter_position: str = "Recruiter",
+    feedback: str = "",
+) -> None:
+    label = _STATUS_LABELS.get(new_status, new_status.replace("_", " ").title())
+    message = _STATUS_MESSAGES.get(new_status, "Your application status has been updated.")
+    signature = _build_signature(recruiter_name, recruiter_email, recruiter_position)
+
+    feedback_section = ""
+    if new_status == "interview_rejected" and feedback:
+        feedback_section = f"\nFeedback from the recruiter:\n{feedback}\n"
+
+    body = f"""Dear {candidate_name},
+
+Your application status for {job_title} at {company} has been updated.
+
+Status: {label}
+
+{message}
+{feedback_section}
+Track your application at any time:
+{status_url}
+
+Best regards,
+{signature}"""
+
+    await send_email(
+        candidate_email,
+        f"Application Update — {job_title} ({label})",
+        body,
+    )
+
+
 async def send_acceptance_notification(
     candidate_email: str,
     candidate_name: str,

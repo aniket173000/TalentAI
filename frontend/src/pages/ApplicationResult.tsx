@@ -115,17 +115,43 @@ export default function ApplicationResult() {
         )}
       </div>
 
-      <div className="mt-8 flex gap-3">
+      {/* Status tracking URL */}
+      {result.status_token && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-2">
+          <p className="text-xs font-semibold text-blue-700 mb-1">Track your application status</p>
+          <p className="text-xs text-slate-500 mb-2">Bookmark this link — no login required:</p>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/status/${result.status_token}`}
+              className="flex-1 text-xs text-brand-blue font-medium truncate hover:underline"
+            >
+              {window.location.origin}/status/{result.status_token}
+            </Link>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/status/${result.status_token}`)}
+              className="shrink-0 text-xs bg-white border border-blue-200 text-blue-600 rounded px-2 py-1 hover:bg-blue-50 transition-colors"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 flex gap-3">
         <Link
           to={`/`}
           className="flex-1 text-center border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-lg py-3 text-sm transition-colors"
         >
           Browse More Jobs
         </Link>
-        {accepted && (
-          <div className="flex-1 text-center bg-emerald-100 text-emerald-700 font-semibold rounded-lg py-3 text-sm">
-            Check your email for next steps
-          </div>
+        {accepted && result.status_token && (
+          <Link
+            to={`/status/${result.status_token}`}
+            className="flex-1 text-center bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-semibold rounded-lg py-3 text-sm transition-colors"
+          >
+            Track Status →
+          </Link>
         )}
       </div>
     </div>
