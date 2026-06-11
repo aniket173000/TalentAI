@@ -12,7 +12,6 @@ from database import SessionLocal, get_db
 from routers.auth import get_current_user, require_candidate, require_recruiter
 from services.ai_service import (
     generate_rank_explanation,
-    generate_rejection_email,
     get_embedding,
     rank_tied_candidates,
     screen_resume,
@@ -274,15 +273,12 @@ async def apply_to_job(
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
 
-        async def _send_below():
-            body = await generate_rejection_email(
-                candidate_name, job_title, job_company,
-                match_score, gaps, suggestions, "score_below_threshold",
-                recruiter_name, recruiter_email, recruiter_position,
-            )
-            await send_rejection_email(candidate_email, candidate_name, job_title, body, strengths, gaps)
-
-        background_tasks.add_task(_send_below)
+        background_tasks.add_task(
+            send_rejection_email,
+            candidate_email, candidate_name, job_title, job_company,
+            match_score, strengths, gaps,
+            recruiter_name, recruiter_email, recruiter_position,
+        )
 
         return {
             "status": "rejected",
@@ -342,15 +338,12 @@ async def apply_to_job(
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
 
-        async def _send_full():
-            body = await generate_rejection_email(
-                candidate_name, job_title, job_company,
-                match_score, gaps, suggestions, "pool_full",
-                recruiter_name, recruiter_email, recruiter_position,
-            )
-            await send_rejection_email(candidate_email, candidate_name, job_title, body, strengths, gaps)
-
-        background_tasks.add_task(_send_full)
+        background_tasks.add_task(
+            send_rejection_email,
+            candidate_email, candidate_name, job_title, job_company,
+            match_score, strengths, gaps,
+            recruiter_name, recruiter_email, recruiter_position,
+        )
         return {
             "status": "rejected",
             "match_score": round(match_score, 1),
@@ -380,15 +373,12 @@ async def apply_to_job(
     db.refresh(app)
     background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
 
-    async def _send_displaced():
-        body = await generate_rejection_email(
-            d_name, job_title, job_company,
-            d_score, d_gaps, d_suggestions, "displaced",
-            recruiter_name, recruiter_email, recruiter_position,
-        )
-        await send_rejection_email(d_email, d_name, job_title, body, d_strengths, d_gaps)
-
-    background_tasks.add_task(_send_displaced)
+    background_tasks.add_task(
+        send_rejection_email,
+        d_email, d_name, job_title, job_company,
+        d_score, d_strengths, d_gaps,
+        recruiter_name, recruiter_email, recruiter_position,
+    )
     background_tasks.add_task(
         _send_acceptance_with_explanation,
         app.id, job_id, candidate_email, candidate_name, job_title, match_score,

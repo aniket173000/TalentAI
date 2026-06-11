@@ -41,9 +41,39 @@ JOB DESCRIPTION:
 CANDIDATE RESUME:
 {resume_text[:3500]}
 
+STEP 1 — Extract experience facts before scoring:
+- required_years: exact years of experience stated in the JD (e.g. "9+ years" → 9). If a range is given, use the minimum. If unstated, use 0.
+- candidate_years: total professional years from the resume (sum all non-overlapping roles). Round to one decimal.
+- experience_ratio: candidate_years / required_years (cap at 1.0 if candidate meets or exceeds requirement). If required_years is 0, set ratio to 1.0.
+
+STEP 2 — Compute sub-scores (each 0-100):
+- skills_score: match of candidate's skills/tools to JD requirements
+- project_score: relevance and depth of candidate's projects to the role
+- experience_score: based on experience_ratio —
+    ratio >= 1.0  → 100
+    ratio >= 0.85 → 80
+    ratio >= 0.70 → 60
+    ratio >= 0.50 → 40
+    ratio >= 0.30 → 20
+    ratio <  0.30 → 0
+
+STEP 3 — Composite score: (skills_score × 0.35) + (project_score × 0.30) + (experience_score × 0.35)
+
+STEP 4 — Apply hard caps:
+- If experience_ratio < 0.50 (candidate has less than half the required experience): cap match_score at 55
+- If experience_ratio < 0.70: cap match_score at 70
+
 Return ONLY this JSON (no markdown):
 {{
-    "match_score": <composite 0-100: 40% skills, 35% project relevance, 25% experience>,
+    "match_score": <final capped composite score 0-100>,
+    "required_years": <number>,
+    "candidate_years": <number>,
+    "experience_ratio": <0.0-1.0>,
+    "sub_scores": {{
+        "skills": <0-100>,
+        "projects": <0-100>,
+        "experience": <0-100>
+    }},
     "project_scores": [
         {{
             "project_name": "<name as written in resume>",
@@ -59,12 +89,12 @@ Return ONLY this JSON (no markdown):
 }}
 
 Scoring guide:
-- 90-100: Exceptional — exceeds most requirements, strong project alignment
-- 80-89: Strong — meets core requirements, relevant projects
-- 70-79: Partial — meets some requirements, moderate project overlap
-- Below 70: Weak — significant skill or project gaps
+- 90-100: Exceptional — exceeds all requirements including experience
+- 80-89: Strong — meets core requirements with sufficient experience
+- 70-79: Partial — meets some requirements, moderate experience gap
+- Below 70: Weak — significant skill, project, or experience gaps
 
-Be rigorous. Award 80+ only for genuinely qualified candidates."""
+Be rigorous. Experience shortfalls must be reflected in the final score."""
 
         response = await _client().chat.completions.create(
             model=settings.AI_MODEL,

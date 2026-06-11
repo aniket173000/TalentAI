@@ -86,19 +86,33 @@ async def send_rejection_email(
     candidate_email: str,
     candidate_name: str,
     job_title: str,
-    email_body: str,
+    company: str,
+    match_score: float,
     strengths: list = [],
     gaps: list = [],
+    recruiter_name: str = "Recruitment Team",
+    recruiter_email: str = "",
+    recruiter_position: str = "Recruiter",
 ) -> None:
-    sections = (
-        _bullet_section("Your Strengths:", strengths)
-        + _bullet_section("Areas to Strengthen:", gaps)
-    )
-    full_body = email_body + ("\n" + sections.strip() if sections.strip() else "")
+    signature = _build_signature(recruiter_name, recruiter_email, recruiter_position)
+    strengths_section = _bullet_section("Your Strengths:", strengths[:3])
+    gaps_section = _bullet_section("Areas to Strengthen:", gaps[:3])
+
+    body = f"""Dear {candidate_name},
+
+Thank you for applying for the {job_title} position at {company}.
+
+After reviewing your profile (Match Score: {match_score:.1f}%), we are unable to move forward with your application at this time.
+{strengths_section}{gaps_section}
+We wish you the best in your job search.
+
+Best regards,
+{signature}"""
+
     await send_email(
         candidate_email,
         f"Update on Your Application — {job_title}",
-        full_body,
+        body,
     )
 
 
@@ -116,25 +130,22 @@ async def send_acceptance_notification(
     rank_explanation: str = "",
 ) -> None:
     signature = _build_signature(recruiter_name, recruiter_email, recruiter_position)
+    strengths_section = _bullet_section("Your Strengths:", strengths[:3])
+    gaps_section = _bullet_section("Areas to Strengthen:", gaps[:3])
 
-    strengths_section = _bullet_section("Your Strengths:", strengths)
-    gaps_section = _bullet_section("Areas to Strengthen:", gaps)
-
-    explanation_section = (
-        f"\nWhy you're ranked #{rank}:\n{rank_explanation}\n"
-        if rank_explanation else ""
+    rank1_section = (
+        f"\nWhat rank #1 has over you:\n{rank_explanation}\n"
+        if rank > 1 and rank_explanation else ""
     )
 
     body = f"""Dear {candidate_name},
 
-Thank you for applying for the {job_title} position. We're pleased to let you know that your application has been shortlisted!
+Your application for {job_title} has been shortlisted!
 
-Your AI Match Score: {match_score:.1f}%
-Current Rank in Pool: #{rank}
-{strengths_section}{gaps_section}{explanation_section}
-Your profile is now in our active candidate pool and a recruiter will be in touch shortly with next steps.
-
-We appreciate your interest and look forward to learning more about you.
+AI Match Score: {match_score:.1f}%
+Your Rank: #{rank}
+{strengths_section}{gaps_section}{rank1_section}
+A recruiter will be in touch shortly with next steps.
 
 Best regards,
 {signature}"""
