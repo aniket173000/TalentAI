@@ -38,6 +38,9 @@ _MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN application_deadline DATETIME",
     "ALTER TABLE jobs ADD COLUMN published_at DATETIME",
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_jobs_slug ON jobs (slug)",
+    # Company profile
+    "ALTER TABLE jobs ADD COLUMN company_url VARCHAR(500)",
+    "ALTER TABLE jobs ADD COLUMN company_logo_url VARCHAR(1000)",
 ]
 
 with engine.connect() as _conn:

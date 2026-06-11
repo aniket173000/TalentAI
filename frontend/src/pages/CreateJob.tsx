@@ -16,6 +16,7 @@ export default function CreateJob() {
 
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState('')
+  const [companyUrl, setCompanyUrl] = useState('')
   const [location, setLocation] = useState('')
   const [department, setDepartment] = useState('')
   const [employmentType, setEmploymentType] = useState('')
@@ -50,6 +51,7 @@ export default function CreateJob() {
       const fd = new FormData()
       fd.append('title', title.trim())
       fd.append('company', company.trim() || 'Our Company')
+      if (companyUrl.trim()) fd.append('company_url', companyUrl.trim())
       fd.append('location', location.trim() || 'Remote')
       fd.append('max_count', String(maxCount))
       fd.append('min_match_score', String(minScore))
@@ -102,7 +104,7 @@ export default function CreateJob() {
                 placeholder="e.g. Senior Backend Engineer" className={inputCls} required />
             </div>
             <div>
-              <label className={labelCls}>Company</label>
+              <label className={labelCls}>Company Name</label>
               <input type="text" value={company} onChange={e => setCompany(e.target.value)}
                 placeholder="Acme Corp" className={inputCls} />
             </div>
@@ -110,6 +112,14 @@ export default function CreateJob() {
               <label className={labelCls}>Location</label>
               <input type="text" value={location} onChange={e => setLocation(e.target.value)}
                 placeholder="Remote / Singapore" className={inputCls} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>
+                Company Website or LinkedIn URL
+                <span className="font-normal text-slate-400 ml-1">(optional — used to show your logo on the job board)</span>
+              </label>
+              <input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)}
+                placeholder="https://aspire.io  or  https://linkedin.com/company/aspire" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Department</label>

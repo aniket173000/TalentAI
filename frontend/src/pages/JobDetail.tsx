@@ -3,10 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import api from '../api/client'
 import JDFormatter from '../components/JDFormatter'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useAuth } from '../context/AuthContext'
 import { Application, Job } from '../types'
 
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>()
+  const { isRecruiter } = useAuth()
   const [job, setJob] = useState<Job | null>(null)
   const [leaderboard, setLeaderboard] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,20 +73,22 @@ export default function JobDetail() {
 
         {/* Sidebar */}
         <div className="flex flex-col gap-4">
-          {/* Apply CTA */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
-            <p className="text-slate-500 text-sm mb-4">
-              {spotsLeft > 0
-                ? 'AI screens your resume instantly. Score ≥ 80% to enter the pool.'
-                : 'The pool is full — a high-scoring resume can still displace the lowest-ranked candidate.'}
-            </p>
-            <Link
-              to={`/jobs/${job.id}/apply`}
-              className="block w-full bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-lg py-3 transition-colors"
-            >
-              Apply Now
-            </Link>
-          </div>
+          {/* Apply CTA — hidden for recruiters */}
+          {!isRecruiter && (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
+              <p className="text-slate-500 text-sm mb-4">
+                {spotsLeft > 0
+                  ? 'AI screens your resume instantly. Score ≥ 80% to enter the pool.'
+                  : 'The pool is full — a high-scoring resume can still displace the lowest-ranked candidate.'}
+              </p>
+              <Link
+                to={`/jobs/${job.id}/apply`}
+                className="block w-full bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-lg py-3 transition-colors"
+              >
+                Apply Now
+              </Link>
+            </div>
+          )}
 
           {/* Current leaderboard */}
           {leaderboard.length > 0 && (

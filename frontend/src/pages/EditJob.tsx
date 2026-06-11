@@ -27,6 +27,7 @@ export default function EditJob() {
   // Form state
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState('')
+  const [companyUrl, setCompanyUrl] = useState('')
   const [location, setLocation] = useState('')
   const [department, setDepartment] = useState('')
   const [employmentType, setEmploymentType] = useState('')
@@ -48,7 +49,7 @@ export default function EditJob() {
   // Track initial values to detect dirty state
   const initialRef = useRef<string>('')
 
-  const snapshot = () => JSON.stringify({ title, company, location, department, employmentType, remotePolicy, salaryMin, salaryMax, deadline, maxCount, minScore, jdText, criteria })
+  const snapshot = () => JSON.stringify({ title, company, companyUrl, location, department, employmentType, remotePolicy, salaryMin, salaryMax, deadline, maxCount, minScore, jdText, criteria })
 
   useEffect(() => {
     if (!jobId) return
@@ -60,6 +61,7 @@ export default function EditJob() {
       setJob(j)
       setTitle(j.title)
       setCompany(j.company)
+      setCompanyUrl(j.company_url || '')
       setLocation(j.location)
       setDepartment(j.department || '')
       setEmploymentType(j.employment_type || '')
@@ -105,7 +107,7 @@ export default function EditJob() {
     setSaveSuccess(false)
     try {
       const body: Record<string, unknown> = {
-        title, company, location, max_count: maxCount, min_match_score: minScore, jd_text: jdText,
+        title, company, company_url: companyUrl || '', location, max_count: maxCount, min_match_score: minScore, jd_text: jdText,
       }
       if (department) body.department = department
       if (employmentType) body.employment_type = employmentType
@@ -200,12 +202,20 @@ export default function EditJob() {
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputCls} required />
             </div>
             <div>
-              <label className={labelCls}>Company</label>
+              <label className={labelCls}>Company Name</label>
               <input type="text" value={company} onChange={e => setCompany(e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Location</label>
               <input type="text" value={location} onChange={e => setLocation(e.target.value)} className={inputCls} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>
+                Company Website or LinkedIn URL
+                <span className="font-normal text-slate-400 ml-1">(used to show logo on the job board)</span>
+              </label>
+              <input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)}
+                placeholder="https://aspire.io  or  https://linkedin.com/company/aspire" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Department</label>

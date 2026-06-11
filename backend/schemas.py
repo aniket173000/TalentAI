@@ -61,6 +61,7 @@ class JobCreate(BaseModel):
     title: str
     jd_text: str
     company: str = "Our Company"
+    company_url: Optional[str] = None
     location: str = "Remote"
     max_count: int = 10
     min_match_score: float = 80.0
@@ -77,6 +78,7 @@ class JobUpdate(BaseModel):
     title: Optional[str] = None
     jd_text: Optional[str] = None
     company: Optional[str] = None
+    company_url: Optional[str] = None
     location: Optional[str] = None
     max_count: Optional[int] = None
     min_match_score: Optional[float] = None
@@ -106,6 +108,8 @@ class JobResponse(BaseModel):
     title: str
     jd_text: str
     company: str
+    company_url: Optional[str] = None
+    company_logo_url: Optional[str] = None
     location: str
     max_count: int
     min_match_score: float

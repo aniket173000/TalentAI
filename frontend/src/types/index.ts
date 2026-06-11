@@ -22,6 +22,8 @@ export interface Job {
   title: string
   jd_text: string
   company: string
+  company_url: string | null
+  company_logo_url: string | null
   location: string
   max_count: number
   min_match_score: number

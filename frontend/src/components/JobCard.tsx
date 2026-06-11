@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { Job } from '../types'
 
 interface Props {
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export default function JobCard({ job }: Props) {
+  const { isRecruiter } = useAuth()
   const fillPct = Math.round((job.active_applications / job.max_count) * 100)
   const spotsLeft = job.max_count - job.active_applications
 
@@ -55,7 +57,7 @@ export default function JobCard({ job }: Props) {
           to={`/jobs/${job.id}`}
           className="text-sm font-semibold text-brand-blue hover:underline"
         >
-          View & Apply →
+          {isRecruiter ? 'View Details →' : 'View & Apply →'}
         </Link>
       </div>
     </div>

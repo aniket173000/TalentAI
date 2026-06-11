@@ -72,6 +72,8 @@ class Job(Base):
     remote_policy = Column(String(100), nullable=True)    # On-site/Remote/Hybrid
     application_deadline = Column(DateTime, nullable=True)
     published_at = Column(DateTime, nullable=True)
+    company_url = Column(String(500), nullable=True)      # company website or LinkedIn URL
+    company_logo_url = Column(String(1000), nullable=True) # resolved logo URL (auto-populated)
 
     applications = relationship("Application", back_populates="job")
     recruiter = relationship("User", foreign_keys=[recruiter_id])

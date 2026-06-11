@@ -11,16 +11,41 @@ import models
 import schemas
 from database import get_db
 from routers.auth import get_current_user, require_recruiter
+from services.company_logo import resolve_company_logo
 from services.file_parser import parse_docx, parse_pdf
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 _AUDITED_FIELDS = [
-    "title", "jd_text", "company", "location", "max_count", "min_match_score",
+    "title", "jd_text", "company", "company_url", "location", "max_count", "min_match_score",
     "department", "employment_type", "salary_range_min", "salary_range_max",
     "remote_policy", "application_deadline",
 ]
+
+
+# ── Logo helpers ──────────────────────────────────────────────────────────────
+
+def _cached_logo(db: Session, company: str, exclude_id: int = None) -> str | None:
+    """Return an already-resolved logo URL for `company`, avoiding repeat network calls."""
+    q = db.query(models.Job).filter(
+        models.Job.company == company,
+        models.Job.company_logo_url.isnot(None),
+    )
+    if exclude_id:
+        q = q.filter(models.Job.id != exclude_id)
+    row = q.first()
+    return row.company_logo_url if row else None
+
+
+def _resolve_logo(db: Session, company: str, company_url: str | None, exclude_id: int = None) -> str | None:
+    """Resolve a logo URL, using the DB cache before hitting the network."""
+    if not company_url:
+        return None
+    cached = _cached_logo(db, company, exclude_id=exclude_id)
+    if cached:
+        return cached
+    return resolve_company_logo(company_url)
 
 
 # ── Slug utility ──────────────────────────────────────────────────────────────
@@ -117,6 +142,7 @@ def _own_job(job_id: int, db: Session, current_user: models.User) -> models.Job:
 async def create_job(
     title: str = Form(...),
     company: str = Form(default="Our Company"),
+    company_url: Optional[str] = Form(default=None),
     location: str = Form(default="Remote"),
     max_count: int = Form(default=10),
     min_match_score: float = Form(default=80.0),
@@ -147,10 +173,15 @@ async def create_job(
     if len(final_jd.strip()) < 100:
         raise HTTPException(status_code=400, detail="Job description must be at least 100 characters.")
 
+    resolved_url = company_url or None
+    logo_url = _resolve_logo(db, company, resolved_url)
+
     job = models.Job(
         title=title,
         jd_text=final_jd,
         company=company,
+        company_url=resolved_url,
+        company_logo_url=logo_url,
         location=location,
         max_count=max_count,
         min_match_score=min_match_score,
@@ -291,6 +322,12 @@ def update_job(
             exclude_id=job.id,
         )
 
+    # Re-resolve logo when company_url is explicitly updated
+    if body.company_url is not None:
+        effective_url = body.company_url or None
+        effective_company = body.company or job.company
+        job.company_logo_url = _resolve_logo(db, effective_company, effective_url, exclude_id=job.id)
+
     # Eligibility criteria
     if body.eligibility_criteria is not None:
         old_criteria = job.criteria
@@ -326,6 +363,12 @@ def publish_job(
     _audit(db, job.id, current_user.id, "status", job.status, "published")
     job.status = "published"
     job.published_at = datetime.now(timezone.utc)
+
+    # Lazy logo resolution: covers jobs created before the feature existed,
+    # or jobs where resolution failed silently at creation time.
+    if not job.company_logo_url and job.company_url:
+        job.company_logo_url = _resolve_logo(db, job.company, job.company_url, exclude_id=job.id)
+
     db.commit()
     db.refresh(job)
     return _enrich(job, db)

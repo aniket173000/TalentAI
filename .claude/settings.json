@@ -14,7 +14,10 @@
       "Bash(git -C /Users/aniket/Desktop/Mark1Job push --force origin version1)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(xargs cat)",
-      "Bash(python -c \"import routers.applications; import services.email_service; print\\('OK'\\)\")"
+      "Bash(python -c \"import routers.applications; import services.email_service; print\\('OK'\\)\")",
+      "Bash(pip freeze *)",
+      "Bash(python -c \"from services.company_logo import resolve_company_logo; print\\('OK'\\)\")",
+      "Bash(python -c ' *)"
     ],
     "additionalDirectories": [
       "/tmp",

@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const prefilledRole = params.get('role') as 'candidate' | 'recruiter' | null
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'candidate' | 'recruiter'>('candidate')
+  const [role, setRole] = useState<'candidate' | 'recruiter'>(prefilledRole ?? 'candidate')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
