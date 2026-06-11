@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../api/client'
+import JDFormatter from '../components/JDFormatter'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { Application, Job } from '../types'
 
@@ -63,10 +64,8 @@ export default function JobDetail() {
         {/* JD */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="font-bold text-slate-800 text-lg mb-4">Job Description</h2>
-            <div className="prose prose-sm text-slate-600 max-w-none whitespace-pre-wrap leading-relaxed">
-              {job.jd_text}
-            </div>
+            <h2 className="font-bold text-slate-800 text-lg mb-5">Job Description</h2>
+            <JDFormatter text={job.jd_text} />
           </div>
         </div>
 

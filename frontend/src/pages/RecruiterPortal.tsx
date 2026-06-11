@@ -352,19 +352,41 @@ export default function RecruiterPortal() {
                         </div>
                       </button>
                       {expandedApp === app.id && (
-                        <div className="border-t border-slate-100 p-4 bg-slate-50 grid gap-4 sm:grid-cols-2">
-                          {strengths.length > 0 && (
-                            <div>
-                              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Strengths</p>
-                              <ul className="space-y-1">{strengths.map((s, i) => <li key={i} className="text-xs text-slate-600">• {s}</li>)}</ul>
-                            </div>
-                          )}
-                          {gaps.length > 0 && (
-                            <div>
-                              <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">Gaps</p>
-                              <ul className="space-y-1">{gaps.map((g, i) => <li key={i} className="text-xs text-slate-600">• {g}</li>)}</ul>
-                            </div>
-                          )}
+                        <div className="border-t border-slate-100 p-5 bg-slate-50 space-y-4">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            {strengths.length > 0 && (
+                              <div className="bg-white rounded-xl border border-emerald-100 p-4">
+                                <div className="flex items-center gap-1.5 mb-3">
+                                  <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold flex items-center justify-center">✓</span>
+                                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Strengths</p>
+                                </div>
+                                <ul className="space-y-2">
+                                  {strengths.map((s, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                      {s}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {gaps.length > 0 && (
+                              <div className="bg-white rounded-xl border border-amber-100 p-4">
+                                <div className="flex items-center gap-1.5 mb-3">
+                                  <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold flex items-center justify-center">!</span>
+                                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gaps</p>
+                                </div>
+                                <ul className="space-y-2">
+                                  {gaps.map((g, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                      {g}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

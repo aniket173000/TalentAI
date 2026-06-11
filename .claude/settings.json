@@ -12,7 +12,9 @@
       "Bash(git -C /Users/aniket/Desktop/Mark1Job gc --prune=now --quiet)",
       "Bash(git -C /Users/aniket/Desktop/Mark1Job log --oneline version1)",
       "Bash(git -C /Users/aniket/Desktop/Mark1Job push --force origin version1)",
-      "Bash(./node_modules/.bin/tsc --noEmit)"
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(xargs cat)",
+      "Bash(python -c \"import routers.applications; import services.email_service; print\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "/tmp",
