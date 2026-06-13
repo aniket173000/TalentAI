@@ -103,6 +103,7 @@ export default function RecruiterPortal() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loadingApps, setLoadingApps] = useState(false)
   const [expandedApp, setExpandedApp] = useState<number | null>(null)
+  const [resumeOpenApp, setResumeOpenApp] = useState<number | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
   const [pendingReject, setPendingReject] = useState<{ appId: number } | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
@@ -448,6 +449,30 @@ export default function RecruiterPortal() {
                       </button>
                       {expandedApp === app.id && (
                         <div className="border-t border-slate-100 p-5 bg-slate-50 space-y-4">
+
+                          {/* ── Contact info ── */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-4">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Candidate Info</p>
+                            <div className="grid sm:grid-cols-3 gap-3">
+                              <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Name</p>
+                                <p className="text-sm font-medium text-slate-800">{app.candidate_name}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
+                                <a href={`mailto:${app.candidate_email}`} className="text-sm text-brand-blue hover:underline break-all">{app.candidate_email}</a>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
+                                {app.phone
+                                  ? <a href={`tel:${app.phone}`} className="text-sm text-brand-blue hover:underline">{app.phone}</a>
+                                  : <p className="text-sm text-slate-400 italic">Not provided</p>
+                                }
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ── Strengths & Gaps ── */}
                           <div className="grid gap-4 sm:grid-cols-2">
                             {strengths.length > 0 && (
                               <div className="bg-white rounded-xl border border-emerald-100 p-4">
@@ -469,7 +494,7 @@ export default function RecruiterPortal() {
                               <div className="bg-white rounded-xl border border-amber-100 p-4">
                                 <div className="flex items-center gap-1.5 mb-3">
                                   <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold flex items-center justify-center">!</span>
-                                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gaps</p>
+                                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gaps / Weaknesses</p>
                                 </div>
                                 <ul className="space-y-2">
                                   {gaps.map((g, i) => (
@@ -482,6 +507,31 @@ export default function RecruiterPortal() {
                               </div>
                             )}
                           </div>
+
+                          {/* ── Resume ── */}
+                          {app.resume_text && (
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                              <button
+                                onClick={() => setResumeOpenApp(resumeOpenApp === app.id ? null : app.id)}
+                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-slate-400 text-sm">📄</span>
+                                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                                    Resume{app.resume_filename ? ` — ${app.resume_filename}` : ''}
+                                  </p>
+                                </div>
+                                <span className="text-slate-400 text-xs">{resumeOpenApp === app.id ? '▲ Collapse' : '▼ View'}</span>
+                              </button>
+                              {resumeOpenApp === app.id && (
+                                <div className="border-t border-slate-100 p-4">
+                                  <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto bg-slate-50 rounded-lg p-3">
+                                    {app.resume_text}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

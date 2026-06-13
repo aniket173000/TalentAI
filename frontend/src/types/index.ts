@@ -87,6 +87,9 @@ export interface Application {
   job_id: number
   candidate_name: string
   candidate_email: string
+  phone: string | null
+  resume_text: string | null
+  resume_filename: string | null
   match_score: number
   rank: number | null
   status: 'accepted' | 'rejected' | 'displaced'
@@ -97,6 +100,69 @@ export interface Application {
   improvement_suggestions: string[] | string | null
   project_scores: ProjectScore[] | string | null
   applied_at: string
+}
+
+export interface CareerUpgradeArea {
+  area: string
+  why: string
+  sub_skills: string[]
+}
+
+export interface CareerProfile {
+  detected_role: string
+  detected_level_label: string
+  next_level_label: string
+  strengths: string[]
+  weaknesses: string[]
+  upgrade_path: CareerUpgradeArea[]
+  summary: string
+}
+
+export interface VaultResume {
+  id: number
+  filename: string
+  is_primary: boolean
+  uploaded_at: string
+}
+
+export interface UserProfile {
+  id: number
+  full_name: string
+  email: string
+  role: 'recruiter' | 'candidate'
+  phone: string | null
+  company: string | null
+  is_third_party_recruiter: boolean
+  linkedin_verified: boolean
+  created_at: string | null
+  resume_filename: string | null          // null = no resume uploaded yet
+  career_profile: CareerProfile | null    // null = not yet analysed (or new resume uploaded)
+  career_profile_updated_at: string | null
+  resumes: VaultResume[]
+}
+
+export interface MagicMatchJob {
+  job_id: number
+  title: string
+  company: string
+  location: string
+  slug: string | null
+  department: string | null
+  employment_type: string | null
+  remote_policy: string | null
+  salary_range_min: number | null
+  salary_range_max: number | null
+  company_logo_url: string | null
+  min_match_score: number
+  similarity_score: number  // 0–100
+}
+
+export interface MagicMatchResult {
+  matches: MagicMatchJob[]
+  total: number
+  resets_at: string        // ISO date "YYYY-MM-DD"
+  message?: string
+  from_cache?: boolean
 }
 
 export interface ApplyResult {

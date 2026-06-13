@@ -1,10 +1,11 @@
+import hashlib
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 import models
@@ -24,7 +25,7 @@ from services.email_service import (
     send_status_change_email,
 )
 from services.file_parser import parse_resume
-from services.vector_service import rank_applications_by_vector
+from services.vector_service import cosine_similarity, rank_applications_by_vector
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/applications", tags=["applications"])
@@ -161,19 +162,40 @@ async def _send_acceptance_with_explanation(
         )
 
 
+async def _store_profile_embedding(user_id: int, resume_text: str) -> None:
+    """Background task: compute and cache a candidate's profile embedding after a new resume upload."""
+    try:
+        emb = await get_embedding(resume_text)
+        with SessionLocal() as session:
+            user = session.query(models.User).filter(models.User.id == user_id).first()
+            if user:
+                user.profile_embedding = json.dumps(emb)
+                session.commit()
+    except Exception as exc:
+        logger.warning(f"Profile embedding update failed for user {user_id}: {exc}")
+
+
 async def _store_embeddings(app_id: int, resume_text: str, job_id: int) -> None:
     """
     Background task: compute resume + JD embeddings and persist them.
-    Uses its own DB session (safe for background execution).
+    Also refreshes the candidate's cached profile_embedding so magic-match is always current.
     """
     try:
         resume_emb = await get_embedding(resume_text)
+        emb_json = json.dumps(resume_emb)
         with SessionLocal() as session:
             app = session.query(models.Application).filter(
                 models.Application.id == app_id
             ).first()
             if app:
-                app.resume_embedding = json.dumps(resume_emb)
+                app.resume_embedding = emb_json
+                # Keep candidate's profile_embedding in sync with their latest resume
+                if app.candidate_user_id:
+                    user = session.query(models.User).filter(
+                        models.User.id == app.candidate_user_id
+                    ).first()
+                    if user:
+                        user.profile_embedding = emb_json
 
             # Cache JD embedding on the job (only computed once)
             job = session.query(models.Job).filter(models.Job.id == job_id).first()
@@ -186,15 +208,74 @@ async def _store_embeddings(app_id: int, resume_text: str, job_id: int) -> None:
         logger.warning(f"Embedding computation skipped for application {app_id}: {exc}")
 
 
+# ── Apply helpers ─────────────────────────────────────────────────────────────
+
+def _resume_hash(text: str) -> str:
+    return hashlib.md5(text.strip().encode()).hexdigest()
+
+
+@router.get("/check/{job_id}")
+def check_prior_application(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_candidate),
+):
+    """
+    Returns whether the candidate has already applied to this job and whether their
+    current profile resume is the same as the one used in their last application.
+    """
+    existing = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.candidate_user_id == current_user.id,
+        )
+        .order_by(models.Application.applied_at.desc())
+        .first()
+    )
+    if not existing:
+        return {
+            "has_applied": False, "same_resume": False,
+            "previous_match_score": None, "usable_vault_ids": [],
+        }
+
+    applied_hash = _resume_hash(existing.resume_text) if existing.resume_text else None
+
+    same_resume = False
+    if current_user.resume_text and applied_hash:
+        same_resume = _resume_hash(current_user.resume_text) == applied_hash
+
+    # Vault resumes that differ from the one already applied with
+    usable_vault_ids: list[int] = []
+    if applied_hash:
+        vault = db.query(models.UserResume).filter(
+            models.UserResume.user_id == current_user.id
+        ).all()
+        usable_vault_ids = [
+            r.id for r in vault
+            if _resume_hash(r.resume_text) != applied_hash
+        ]
+
+    return {
+        "has_applied": True,
+        "same_resume": same_resume,
+        "previous_match_score": round(existing.match_score, 1),
+        "previous_status": existing.status,
+        "usable_vault_ids": usable_vault_ids,
+    }
+
+
 # ── Apply ─────────────────────────────────────────────────────────────────────
 
 @router.post("/apply/{job_id}")
 async def apply_to_job(
     job_id: int,
     background_tasks: BackgroundTasks,
-    candidate_name: str = Form(...),
-    candidate_email: str = Form(...),
-    resume_file: UploadFile = File(...),
+    confirmed_reapply: bool = Query(False),
+    candidate_name: Optional[str] = Form(None),
+    candidate_email: Optional[str] = Form(None),
+    resume_file: Optional[UploadFile] = File(None),
+    resume_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_candidate),  # must be logged in as candidate
 ):
@@ -218,16 +299,92 @@ async def apply_to_job(
         if deadline < datetime.now(_tz.utc):
             raise HTTPException(status_code=403, detail="The application deadline for this position has passed.")
 
-    # 2. Parse resume ──────────────────────────────────────────────────────────
-    content = await resume_file.read()
-    resume_text = parse_resume(content, resume_file.filename or "resume")
-    if not resume_text or len(resume_text.strip()) < 50:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not extract text from resume. Please upload a valid PDF, DOCX, or TXT file.",
-        )
+    # Resolve name / email — fall back to profile values
+    resolved_name = (candidate_name or current_user.full_name or "").strip()
+    resolved_email = (candidate_email or current_user.email or "").strip()
 
-    # 3. AI screening (eligibility criteria injected into JD context) ──────────
+    # 2. Resolve resume ────────────────────────────────────────────────────────
+    if resume_id is not None:
+        # Use a specific vault resume chosen by the candidate
+        vault_entry = db.query(models.UserResume).filter(
+            models.UserResume.id == resume_id,
+            models.UserResume.user_id == current_user.id,
+        ).first()
+        if not vault_entry:
+            raise HTTPException(status_code=404, detail="Selected resume not found in your vault.")
+        resume_text = vault_entry.resume_text
+        resume_filename = vault_entry.filename
+        confirmed_reapply = True  # vault selection is always an explicit choice
+    elif resume_file and resume_file.filename:
+        content = await resume_file.read()
+        resume_text = parse_resume(content, resume_file.filename)
+        resume_filename = resume_file.filename
+        if not resume_text or len(resume_text.strip()) < 50:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract text from resume. Please upload a valid PDF, DOCX, or TXT file.",
+            )
+        # Persist to profile + vault if the candidate has no resume yet
+        if not current_user.resume_text:
+            current_user.resume_text = resume_text
+            current_user.resume_filename = resume_filename
+            current_user.career_profile = None
+            current_user.profile_embedding = None
+            new_vault = models.UserResume(
+                user_id=current_user.id, filename=resume_filename,
+                resume_text=resume_text, is_primary=True,
+            )
+            db.add(new_vault)
+            db.commit()
+            background_tasks.add_task(_store_profile_embedding, current_user.id, resume_text)
+    else:
+        # No file / vault ID — use the active profile resume
+        if not current_user.resume_text:
+            raise HTTPException(
+                status_code=400,
+                detail="No resume on file. Please upload a resume to your profile before applying.",
+            )
+        resume_text = current_user.resume_text
+        resume_filename = current_user.resume_filename or "resume"
+
+    # 3. Duplicate-application guard ───────────────────────────────────────────
+    prior = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.candidate_user_id == current_user.id,
+        )
+        .order_by(models.Application.applied_at.desc())
+        .first()
+    )
+    if prior:
+        same = prior.resume_text and _resume_hash(prior.resume_text) == _resume_hash(resume_text)
+        if same:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "same_resume",
+                    "message": (
+                        "You have already applied to this job with the same resume. "
+                        "Please update your resume with skills relevant to this role before reapplying."
+                    ),
+                    "previous_match_score": round(prior.match_score, 1),
+                },
+            )
+        if not confirmed_reapply:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "reapply_confirmation_required",
+                    "message": (
+                        "You have already applied to this job. "
+                        "Please confirm that your new resume better matches the job requirements."
+                    ),
+                    "previous_match_score": round(prior.match_score, 1),
+                },
+            )
+
+    # 4. AI screening (eligibility criteria injected into JD context) ──────────
     effective_jd = job.jd_text
     if job.criteria:
         criteria_lines = []
@@ -273,10 +430,10 @@ async def apply_to_job(
         app = models.Application(
             job_id=job_id,
             candidate_user_id=current_user.id,
-            candidate_name=candidate_name,
-            candidate_email=candidate_email,
+            candidate_name=resolved_name,
+            candidate_email=resolved_email,
             resume_text=resume_text,
-            resume_filename=resume_file.filename or "resume",
+            resume_filename=resume_filename,
             match_score=match_score,
             status=status,
             candidate_status=candidate_status,
@@ -292,13 +449,13 @@ async def apply_to_job(
         db.refresh(app)
         return app
 
-    # 4. Below threshold → instant rejection ───────────────────────────────────
+    # 5. Below threshold → instant rejection ───────────────────────────────────
     if match_score < min_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
         background_tasks.add_task(
             send_rejection_email,
-            candidate_email, candidate_name, job_title, job_company,
+            resolved_email, resolved_name, job_title, job_company,
             match_score, strengths, gaps,
             recruiter_name, recruiter_email, recruiter_position,
         )
@@ -338,7 +495,7 @@ async def apply_to_job(
         background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
         background_tasks.add_task(
             _send_acceptance_with_explanation,
-            app.id, job_id, candidate_email, candidate_name, job_title, match_score,
+            app.id, job_id, resolved_email, resolved_name, job_title, match_score,
             recruiter_name, recruiter_email, recruiter_position, strengths, gaps,
         )
         return {
@@ -367,7 +524,7 @@ async def apply_to_job(
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
         background_tasks.add_task(
             send_rejection_email,
-            candidate_email, candidate_name, job_title, job_company,
+            resolved_email, resolved_name, job_title, job_company,
             match_score, strengths, gaps,
             recruiter_name, recruiter_email, recruiter_position,
         )
@@ -422,7 +579,7 @@ async def apply_to_job(
 
     background_tasks.add_task(
         _send_acceptance_with_explanation,
-        app.id, job_id, candidate_email, candidate_name, job_title, match_score,
+        app.id, job_id, resolved_email, resolved_name, job_title, match_score,
         recruiter_name, recruiter_email, recruiter_position, strengths, gaps,
     )
 
@@ -493,11 +650,22 @@ def get_all_applications(
         .order_by(models.Application.applied_at.desc())
         .all()
     )
+
+    # Build a map of user_id → phone for candidates who have accounts
+    user_ids = [a.candidate_user_id for a in apps if a.candidate_user_id]
+    phone_map: dict[int, str | None] = {}
+    if user_ids:
+        users = db.query(models.User.id, models.User.phone).filter(models.User.id.in_(user_ids)).all()
+        phone_map = {u.id: u.phone for u in users}
+
     return [
         {
             "id": a.id,
             "candidate_name": a.candidate_name,
             "candidate_email": a.candidate_email,
+            "phone": phone_map.get(a.candidate_user_id) if a.candidate_user_id else None,
+            "resume_text": a.resume_text,
+            "resume_filename": a.resume_filename,
             "match_score": a.match_score,
             "rank": a.rank,
             "status": a.status,
@@ -587,6 +755,176 @@ async def update_candidate_status(
         )
 
     return {"id": app.id, "candidate_status": app.candidate_status}
+
+
+# ── Magic Match — daily AI-powered job recommendations ────────────────────────
+
+async def _compute_jd_embedding(job_id: int, jd_text: str) -> None:
+    """Background task: embed a job's JD and cache it so future magic-match calls can rank it."""
+    try:
+        emb = await get_embedding(jd_text)
+        with SessionLocal() as session:
+            job = session.query(models.Job).filter(models.Job.id == job_id).first()
+            if job and not job.jd_embedding:
+                job.jd_embedding = json.dumps(emb)
+                session.commit()
+    except Exception as exc:
+        logger.warning(f"Magic-match JD embedding failed for job {job_id}: {exc}")
+
+
+@router.get("/magic-match")
+async def magic_match_jobs(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_candidate),
+):
+    """
+    Return up to 5 published jobs semantically matched to the candidate's resume.
+
+    Rate-limited to 1 call per calendar day. Embedding is cached on the user row
+    so repeated calls within the same day skip re-computation.
+    """
+    today_str = date.today().isoformat()
+    reset_str = (date.today() + timedelta(days=1)).isoformat()
+
+    # ── 1. Rate-limit check — return cached results for repeat calls today ────
+    if current_user.magic_match_date == today_str:
+        if current_user.magic_match_cache:
+            try:
+                cached = json.loads(current_user.magic_match_cache)
+                cached["resets_at"] = reset_str
+                cached["from_cache"] = True
+                return cached
+            except Exception:
+                pass
+        return {
+            "matches": [],
+            "total": 0,
+            "resets_at": reset_str,
+            "from_cache": True,
+            "message": "No matches were found in today's session.",
+        }
+
+    # ── 2. Resolve candidate embedding ───────────────────────────────────────
+    # Priority: cached profile_embedding → latest app resume_embedding → compute fresh
+    candidate_emb: list[float] | None = None
+
+    if current_user.profile_embedding:
+        try:
+            candidate_emb = json.loads(current_user.profile_embedding)
+        except Exception:
+            candidate_emb = None
+
+    if candidate_emb is None:
+        # Try the most recent application that already has an embedding
+        recent_with_emb = (
+            db.query(models.Application)
+            .filter(
+                models.Application.candidate_user_id == current_user.id,
+                models.Application.resume_embedding.isnot(None),
+            )
+            .order_by(models.Application.applied_at.desc())
+            .first()
+        )
+        if recent_with_emb:
+            candidate_emb = json.loads(recent_with_emb.resume_embedding)
+            # Warm the cache so tomorrow's call is instant
+            current_user.profile_embedding = recent_with_emb.resume_embedding
+            db.commit()
+
+    if candidate_emb is None:
+        # No pre-computed embedding — find the most recent resume text and embed it now
+        latest_app = (
+            db.query(models.Application)
+            .filter(models.Application.candidate_user_id == current_user.id)
+            .order_by(models.Application.applied_at.desc())
+            .first()
+        )
+        if not latest_app:
+            raise HTTPException(
+                status_code=400,
+                detail="No resume on file. Apply to at least one job first to activate Magic Match.",
+            )
+        try:
+            candidate_emb = await get_embedding(latest_app.resume_text)
+            current_user.profile_embedding = json.dumps(candidate_emb)
+            db.commit()
+        except Exception as exc:
+            logger.error(f"Magic-match: failed to embed candidate {current_user.id}: {exc}")
+            raise HTTPException(
+                status_code=503,
+                detail="Could not build your profile embedding right now. Try again in a moment.",
+            )
+
+    # ── 3. Jobs the candidate has already applied to ──────────────────────────
+    applied_ids: set[int] = {
+        r[0]
+        for r in db.query(models.Application.job_id)
+        .filter(models.Application.candidate_user_id == current_user.id)
+        .all()
+    }
+
+    # ── 4. Candidate-eligible published jobs ──────────────────────────────────
+    base_q = db.query(models.Job).filter(models.Job.status == "published")
+    if applied_ids:
+        base_q = base_q.filter(~models.Job.id.in_(applied_ids))
+
+    all_unapplied = base_q.all()
+
+    if not all_unapplied:
+        current_user.magic_match_date = today_str
+        db.commit()
+        return {"matches": [], "total": 0, "resets_at": reset_str,
+                "message": "No new jobs available right now — check back later!"}
+
+    # Split into embedded (can rank) vs unembedded (queue for background indexing)
+    embedded_jobs = [j for j in all_unapplied if j.jd_embedding]
+    unembedded_jobs = [j for j in all_unapplied if not j.jd_embedding]
+
+    # Enqueue JD embedding for up to 20 unembedded jobs so future calls rank them
+    for j in unembedded_jobs[:20]:
+        background_tasks.add_task(_compute_jd_embedding, j.id, j.jd_text)
+
+    # ── 5. Rank embedded jobs by cosine similarity ────────────────────────────
+    scored: list[tuple[float, models.Job]] = []
+    for job in embedded_jobs:
+        try:
+            sim = cosine_similarity(candidate_emb, json.loads(job.jd_embedding))
+            scored.append((sim, job))
+        except Exception:
+            pass
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top5 = [item for item in scored if item[0] * 100 >= 70][:5]
+
+    # ── 6. Mark daily usage and cache results ────────────────────────────────
+    result = {
+        "matches": [
+            {
+                "job_id": job.id,
+                "title": job.title,
+                "company": job.company,
+                "location": job.location,
+                "slug": job.slug,
+                "department": job.department,
+                "employment_type": job.employment_type,
+                "remote_policy": job.remote_policy,
+                "salary_range_min": job.salary_range_min,
+                "salary_range_max": job.salary_range_max,
+                "company_logo_url": job.company_logo_url,
+                "min_match_score": job.min_match_score,
+                "similarity_score": round(sim * 100, 1),
+            }
+            for sim, job in top5
+        ],
+        "total": len(top5),
+    }
+    current_user.magic_match_date = today_str
+    current_user.magic_match_cache = json.dumps(result)
+    db.commit()
+
+    result["resets_at"] = reset_str
+    return result
 
 
 # ── Recruiter: vector similarity re-ranking ───────────────────────────────────

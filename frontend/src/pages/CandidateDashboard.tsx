@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
-import { Application, CandidateStatus, ProjectScore } from '../types'
+import { Application, CandidateStatus, MagicMatchJob, MagicMatchResult, ProjectScore } from '../types'
 
 const CANDIDATE_STATUS_COLORS: Record<CandidateStatus, string> = {
   rejected:            'bg-red-50 text-red-600 border-red-200',
@@ -33,9 +33,18 @@ function parseJson<T>(raw: T[] | string | null | undefined): T[] {
 
 export default function CandidateDashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [apps, setApps] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<number | null>(null)
+
+  // Magic Match state
+  const [magicMatches, setMagicMatches] = useState<MagicMatchJob[] | null>(null)
+  const [magicLoading, setMagicLoading] = useState(false)
+  const [magicError, setMagicError] = useState<string | null>(null)
+  const [magicResetsAt, setMagicResetsAt] = useState<string | null>(null)
+  const [magicOpen, setMagicOpen] = useState(false)
+  const [magicFromCache, setMagicFromCache] = useState(false)
 
   useEffect(() => {
     api
@@ -44,6 +53,29 @@ export default function CandidateDashboard() {
       .catch(() => setApps([]))
       .finally(() => setLoading(false))
   }, [])
+
+  const fetchMagicMatch = async () => {
+    setMagicLoading(true)
+    setMagicError(null)
+    try {
+      const r = await api.get<MagicMatchResult>('/applications/magic-match')
+      setMagicMatches(r.data.matches)
+      setMagicResetsAt(r.data.resets_at)
+      setMagicFromCache(r.data.from_cache ?? false)
+      if (r.data.message) setMagicError(r.data.message)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: { message?: string } | string } } })
+        ?.response?.data?.detail
+      if (typeof detail === 'object' && detail?.message) {
+        setMagicError(detail.message)
+        setMagicResetsAt((detail as { resets_at?: string }).resets_at ?? null)
+      } else {
+        setMagicError(typeof detail === 'string' ? detail : 'Could not load magic matches right now.')
+      }
+    } finally {
+      setMagicLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -60,6 +92,128 @@ export default function CandidateDashboard() {
         <p className="text-slate-500 text-sm mt-1">
           Welcome back, {user?.full_name}. Here's your application history.
         </p>
+      </div>
+
+      {/* ── Magic Match ─────────────────────────────────────────────────────── */}
+      <div className="mb-8 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 overflow-hidden">
+        <button
+          onClick={() => {
+            if (!magicOpen) {
+              setMagicOpen(true)
+              if (magicMatches === null && !magicLoading) fetchMagicMatch()
+            } else {
+              setMagicOpen(false)
+            }
+          }}
+          className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-white/30 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">✨</span>
+            <div>
+              <p className="font-bold text-indigo-900 text-sm">Magic Match</p>
+              <p className="text-xs text-indigo-600">AI-powered job recommendations tailored to your resume — refreshes daily</p>
+            </div>
+          </div>
+          <span className="text-indigo-400 text-sm font-semibold">{magicOpen ? '▲ Hide' : '▼ Show'}</span>
+        </button>
+
+        {magicOpen && (
+          <div className="border-t border-indigo-100 px-6 py-5">
+            {magicLoading && (
+              <div className="flex items-center gap-3 py-4">
+                <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin shrink-0" />
+                <p className="text-sm text-indigo-700">Finding your best matches…</p>
+              </div>
+            )}
+
+            {!magicLoading && magicError && magicMatches === null && (
+              <div className="py-4 text-center">
+                <p className="text-sm text-slate-600">{magicError}</p>
+                {magicResetsAt && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Resets on {new Date(magicResetsAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!magicLoading && magicMatches !== null && magicMatches.length === 0 && (
+              <p className="text-sm text-slate-500 py-4 text-center">
+                {magicError ?? 'No new jobs to match right now — check back tomorrow!'}
+              </p>
+            )}
+
+            {!magicLoading && magicMatches && magicMatches.length > 0 && (
+              <div className="space-y-3">
+                {magicResetsAt && (
+                  <p className="text-xs text-indigo-500 mb-1">
+                    {magicFromCache ? 'Showing today\'s saved matches — ' : 'Today\'s picks — '}
+                    refreshes{' '}
+                    {new Date(magicResetsAt).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  </p>
+                )}
+                {magicMatches.map((match, i) => (
+                  <div
+                    key={match.job_id}
+                    className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4 hover:border-indigo-300 transition-colors"
+                  >
+                    {/* Rank bubble */}
+                    <div className="shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
+                      #{i + 1}
+                    </div>
+
+                    {/* Company logo */}
+                    {match.company_logo_url ? (
+                      <img src={match.company_logo_url} alt={match.company} className="w-8 h-8 rounded object-contain shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold shrink-0">
+                        {match.company.charAt(0)}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-800 text-sm truncate">{match.title}</p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {match.company}
+                        {match.location ? ` · ${match.location}` : ''}
+                        {match.employment_type ? ` · ${match.employment_type}` : ''}
+                        {match.remote_policy ? ` · ${match.remote_policy}` : ''}
+                      </p>
+                      {(match.salary_range_min || match.salary_range_max) && (
+                        <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                          {match.salary_range_min && match.salary_range_max
+                            ? `$${match.salary_range_min.toLocaleString()} – $${match.salary_range_max.toLocaleString()}`
+                            : match.salary_range_min
+                            ? `From $${match.salary_range_min.toLocaleString()}`
+                            : `Up to $${match.salary_range_max!.toLocaleString()}`}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Similarity badge */}
+                    <div className="shrink-0 text-center">
+                      <div className={`text-sm font-extrabold ${
+                        match.similarity_score >= 80 ? 'text-emerald-600'
+                          : match.similarity_score >= 60 ? 'text-amber-600'
+                          : 'text-slate-500'
+                      }`}>
+                        {match.similarity_score.toFixed(0)}%
+                      </div>
+                      <div className="text-[10px] text-slate-400">match</div>
+                    </div>
+
+                    <button
+                      onClick={() => navigate(`/jobs/${match.job_id}`)}
+                      className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg px-3 py-2 transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {apps.length === 0 ? (

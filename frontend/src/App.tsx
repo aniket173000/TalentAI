@@ -12,6 +12,7 @@ import JobDetail from './pages/JobDetail'
 import ApplicationStatus from './pages/ApplicationStatus'
 import LinkedInCallback from './pages/LinkedInCallback'
 import Login from './pages/Login'
+import Profile from './pages/Profile'
 import RecruiterPortal from './pages/RecruiterPortal'
 import Register from './pages/Register'
 
@@ -46,6 +47,16 @@ export default function App() {
                 element={
                   <ProtectedRoute role="candidate">
                     <CandidateDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Profile — both roles */}
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
                   </ProtectedRoute>
                 }
               />

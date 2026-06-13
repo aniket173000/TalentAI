@@ -35,3 +35,6 @@ class ClaudeStrategy(AIStrategy):
 
     async def get_embedding(self, text):
         raise NotImplementedError(self._MSG)
+
+    async def generate_career_profile(self, resume_text):
+        raise NotImplementedError(self._MSG)

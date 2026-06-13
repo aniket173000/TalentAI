@@ -53,3 +53,7 @@ async def generate_rank_explanation(
 
 async def get_embedding(text: str) -> list[float]:
     return await get_ai_strategy().get_embedding(text)
+
+
+async def generate_career_profile(resume_text: str) -> dict:
+    return await get_ai_strategy().generate_career_profile(resume_text)

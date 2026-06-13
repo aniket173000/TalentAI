@@ -26,7 +26,37 @@ class User(Base):
     company = Column(String(255), nullable=True)
     is_third_party_recruiter = Column(Boolean, default=False)
 
+    # Magic Match — candidate job recommendations
+    profile_embedding = Column(Text, nullable=True)      # cached embedding of latest resume
+    magic_match_date = Column(String(10), nullable=True)  # ISO date of last magic match call (rate-limit)
+    magic_match_cache = Column(Text, nullable=True)       # JSON of last magic match results for today
+
+    # Personal profile
+    phone = Column(String(50), nullable=True)
+
+    # Candidate's profile resume (independent of any specific job application)
+    resume_text = Column(Text, nullable=True)
+    resume_filename = Column(String(255), nullable=True)
+
+    # Candidate career insights (AI-generated from latest resume)
+    career_profile = Column(Text, nullable=True)              # JSON blob — see CareerProfile schema
+    career_profile_updated_at = Column(DateTime, nullable=True)
+
     applications = relationship("Application", back_populates="user")
+    resumes = relationship("UserResume", back_populates="user", order_by="desc(UserResume.uploaded_at)")
+
+
+class UserResume(Base):
+    __tablename__ = "user_resumes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    filename = Column(String(255), nullable=False)
+    resume_text = Column(Text, nullable=False)
+    is_primary = Column(Boolean, default=False)
+    uploaded_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User", back_populates="resumes")
 
 
 class EligibilityCriteria(Base):

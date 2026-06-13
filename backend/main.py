@@ -11,6 +11,7 @@ from database import SessionLocal, engine
 from routers import applications, jobs
 from routers import auth as auth_router
 from routers import linkedin_auth as linkedin_auth_router
+from routers import profile as profile_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -54,6 +55,19 @@ _MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN is_third_party BOOLEAN DEFAULT 0",
     # Recruiter feedback for interview_rejected status
     "ALTER TABLE applications ADD COLUMN status_feedback TEXT",
+    # Magic Match — candidate job recommendation system
+    "ALTER TABLE users ADD COLUMN profile_embedding TEXT",
+    "ALTER TABLE users ADD COLUMN magic_match_date VARCHAR(10)",
+    "ALTER TABLE users ADD COLUMN magic_match_cache TEXT",
+    # Personal profile
+    "ALTER TABLE users ADD COLUMN phone VARCHAR(50)",
+    "ALTER TABLE users ADD COLUMN resume_text TEXT",
+    "ALTER TABLE users ADD COLUMN resume_filename VARCHAR(255)",
+    # Candidate career insights
+    "ALTER TABLE users ADD COLUMN career_profile TEXT",
+    "ALTER TABLE users ADD COLUMN career_profile_updated_at DATETIME",
+    # Resume vault — up to 3 saved resumes per candidate
+    "CREATE TABLE IF NOT EXISTS user_resumes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), filename VARCHAR(255) NOT NULL, resume_text TEXT NOT NULL, is_primary BOOLEAN DEFAULT 0, uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
 ]
 
 with engine.connect() as _conn:
@@ -125,6 +139,7 @@ app.include_router(auth_router.router)
 app.include_router(linkedin_auth_router.router)
 app.include_router(jobs.router)
 app.include_router(applications.router)
+app.include_router(profile_router.router)
 
 
 @app.get("/health")

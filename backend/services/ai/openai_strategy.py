@@ -253,3 +253,47 @@ Address the candidate directly (use "you"/"your"). Be specific, not generic."""
             input=text[:8000],
         )
         return response.data[0].embedding
+
+    async def generate_career_profile(self, resume_text: str) -> dict:
+        prompt = f"""You are a senior engineering career coach. Analyse this resume and produce a structured career profile.
+
+RESUME:
+{resume_text[:4000]}
+
+Tasks:
+1. Identify the candidate's current role title and seniority level (e.g. "Junior SDE", "SDE 2 / Mid-Level", "SDE 3 / Senior", "Staff Engineer", "Engineering Manager").
+2. Determine the natural next career step (e.g. SDE 1 → SDE 2, SDE 2 → SDE 3 / Senior, Senior → Staff/Lead).
+3. List 4-6 concrete strengths visible in the resume (specific skills, technologies, or demonstrated behaviors).
+4. List 3-5 weaknesses or gaps that would hold them back at the next level.
+5. For the upgrade path, list 3-5 skill areas they must develop to reach the next level. Each area must have:
+   - area: the broad skill area name
+   - why: one sentence on why it matters at the next level
+   - sub_skills: 3-5 concrete, actionable sub-skills or topics to learn/practice
+
+Return ONLY this JSON (no markdown, no extra text):
+{{
+  "detected_role": "<current job title as written in resume>",
+  "detected_level_label": "<e.g. Mid-Level Software Engineer (SDE 2)>",
+  "next_level_label": "<e.g. Senior Software Engineer (SDE 3)>",
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>", "<strength 4>"],
+  "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
+  "upgrade_path": [
+    {{
+      "area": "<skill area name>",
+      "why": "<one sentence on why this matters at the next level>",
+      "sub_skills": ["<concrete sub-skill 1>", "<concrete sub-skill 2>", "<concrete sub-skill 3>"]
+    }}
+  ],
+  "summary": "<2-3 sentences: where they stand today and the one most important thing to focus on>"
+}}
+
+Be specific. Use the actual technologies from their resume. Avoid generic advice."""
+
+        response = await _client().chat.completions.create(
+            model=settings.AI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
+            max_tokens=1200,
+        )
+        return json.loads(response.choices[0].message.content)

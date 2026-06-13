@@ -66,3 +66,12 @@ class AIStrategy(ABC):
     @abstractmethod
     async def get_embedding(self, text: str) -> list[float]:
         """Return a dense float vector for the given text (e.g. 1536-d for text-embedding-3-small)."""
+
+    @abstractmethod
+    async def generate_career_profile(self, resume_text: str) -> dict:
+        """
+        Analyse a resume and return a career profile dict with keys:
+          detected_role (str), detected_level_label (str), next_level_label (str),
+          strengths (list[str]), weaknesses (list[str]), summary (str),
+          upgrade_path (list[{area, why, sub_skills}]).
+        """

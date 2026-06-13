@@ -60,10 +60,10 @@ export default function Navbar() {
 
           {isAuthenticated ? (
             <div className="flex items-center gap-3 border-l border-navy-700 pl-6">
-              <div className="text-right hidden sm:block">
+              <Link to="/profile" className="text-right hidden sm:block hover:opacity-80 transition-opacity">
                 <p className="text-white text-xs font-semibold leading-tight">{user?.full_name}</p>
-                <p className="text-slate-400 text-xs capitalize">{activeRole}</p>
-              </div>
+                <p className="text-slate-400 text-xs capitalize">{activeRole} · Profile</p>
+              </Link>
 
               {/* Switch role button — shown when the other role has a stored token */}
               {hasLinkedRole(otherRole) ? (
