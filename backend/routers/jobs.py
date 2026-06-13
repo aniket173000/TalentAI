@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 import models
@@ -13,6 +13,7 @@ from database import get_db
 from routers.auth import get_current_user, require_recruiter
 from services.company_logo import resolve_company_logo
 from services.file_parser import parse_docx, parse_pdf
+from services.jd_parser import jd_needs_parse, parse_job_requirements, reset_parse_status
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
@@ -89,6 +90,16 @@ def _enrich(job: models.Job, db: Session) -> schemas.JobResponse:
             required_skills=json.loads(job.criteria.required_skills or "[]"),
             required_education=job.criteria.required_education,
         )
+
+    # JD parse status + structured requirements
+    resp.jd_parse_status = job.jd_parse_status
+    resp.jd_parse_error = job.jd_parse_error if job.jd_parse_status == "failed" else None
+    if job.jd_parse_status == "done" and job.jd_requirements:
+        try:
+            resp.jd_requirements = schemas.JDRequirements(**json.loads(job.jd_requirements))
+        except Exception:
+            resp.jd_requirements = None
+
     return resp
 
 
@@ -317,10 +328,13 @@ def get_job(job_id: int, db: Session = Depends(get_db)):
 def update_job(
     job_id: int,
     body: schemas.JobUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_recruiter),
 ):
     job = _own_job(job_id, db, current_user)
+
+    jd_text_changed = body.jd_text is not None and body.jd_text != job.jd_text
 
     for field in _AUDITED_FIELDS:
         new_val = getattr(body, field, None)
@@ -360,6 +374,13 @@ def update_job(
         _audit(db, job.id, current_user.id, "eligibility_criteria", old_repr, new_repr)
         _save_criteria(db, job.id, body.eligibility_criteria)
 
+    # JD text changed — invalidate cached requirements and re-parse if published
+    if jd_text_changed:
+        reset_parse_status(job)
+        if job.status == "published":
+            job.jd_parse_status = "pending"
+            background_tasks.add_task(parse_job_requirements, job.id)
+
     db.commit()
     db.refresh(job)
     return _enrich(job, db)
@@ -370,6 +391,7 @@ def update_job(
 @router.post("/{job_id}/publish", response_model=schemas.JobResponse)
 def publish_job(
     job_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_recruiter),
 ):
@@ -384,6 +406,11 @@ def publish_job(
     # or jobs where resolution failed silently at creation time.
     if not job.company_logo_url and job.company_url:
         job.company_logo_url = _resolve_logo(db, job.company, job.company_url, exclude_id=job.id)
+
+    # Trigger JD requirement parsing if not already done for this JD text
+    if jd_needs_parse(job):
+        job.jd_parse_status = "pending"
+        background_tasks.add_task(parse_job_requirements, job.id)
 
     db.commit()
     db.refresh(job)
@@ -404,6 +431,50 @@ def unpublish_job(
     db.commit()
     db.refresh(job)
     return _enrich(job, db)
+
+
+# ── JD Requirement Parsing ────────────────────────────────────────────────────
+
+@router.post("/{job_id}/parse-requirements")
+async def trigger_parse_requirements(
+    job_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """
+    Manually trigger (or re-trigger) JD requirement parsing for a job.
+    Returns immediately — parsing runs in the background.
+    Poll GET /api/jobs/{job_id} and check jd_parse_status for completion.
+    """
+    job = _own_job(job_id, db, current_user)
+
+    # Force a re-parse even if status is already "done"
+    reset_parse_status(job)
+    job.jd_parse_status = "pending"
+    db.commit()
+
+    background_tasks.add_task(parse_job_requirements, job.id)
+    return {"message": "JD parsing started.", "jd_parse_status": "pending"}
+
+
+@router.get("/{job_id}/requirements")
+def get_job_requirements(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """
+    Return the parsed JDRequirements for a job.
+    Status field tells the caller whether parsing is complete.
+    """
+    job = _own_job(job_id, db, current_user)
+    return {
+        "job_id": job.id,
+        "jd_parse_status": job.jd_parse_status,
+        "jd_parse_error": job.jd_parse_error if job.jd_parse_status == "failed" else None,
+        "requirements": json.loads(job.jd_requirements) if job.jd_requirements else None,
+    }
 
 
 # ── Audit log ─────────────────────────────────────────────────────────────────

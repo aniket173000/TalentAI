@@ -59,5 +59,9 @@ async def generate_career_profile(resume_text: str) -> dict:
     return await get_ai_strategy().generate_career_profile(resume_text)
 
 
+async def parse_jd_requirements(jd_text: str, job_title: str) -> dict:
+    return await get_ai_strategy().parse_jd_requirements(jd_text, job_title)
+
+
 async def extract_structured_profile(resume_text: str) -> dict:
     return await get_ai_strategy().extract_structured_profile(resume_text)

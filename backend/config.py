@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     LINKEDIN_CLIENT_SECRET: str = ""
     LINKEDIN_REDIRECT_URI: str = "http://localhost:8000/api/auth/linkedin/callback"
 
+    # ── Semantic Skills Matching (E5-S2) ─────────────────────────────────────
+    # Provider: "openai" (uses EMBEDDING_MODEL) | "sentence_transformer" (local)
+    SEMANTIC_EMBEDDER: str = "openai"
+    # Cosine similarity threshold to classify a skill as matched (0.75 per spec)
+    SKILL_MATCH_THRESHOLD: float = 0.75
+    # LRU cache entries for skill embeddings (one entry per unique skill phrase)
+    EMBEDDING_CACHE_SIZE: int = 10_000
+    # Local model name when SEMANTIC_EMBEDDER=sentence_transformer
+    SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
+
     # ── AWS S3 (resume file storage) ─────────────────────────────────────────
     # Leave blank to run without S3 — text-only fallback will be used.
     AWS_ACCESS_KEY_ID: str = ""

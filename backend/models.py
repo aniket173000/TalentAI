@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Text, DateTime, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, Float, Text, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -171,10 +171,54 @@ class Job(Base):
     company_logo_url = Column(String(1000), nullable=True) # resolved logo URL (auto-populated)
     is_third_party = Column(Boolean, default=False)         # posted by a third-party recruiter
 
+    # JD Parsing (E5-S1) — structured requirements extracted by AI
+    jd_requirements = Column(Text, nullable=True)           # JSON blob of JDRequirements
+    jd_parse_status = Column(String(20), nullable=True)     # None | "pending" | "done" | "failed"
+    jd_parse_error = Column(Text, nullable=True)            # error message if status=="failed"
+
     applications = relationship("Application", back_populates="job")
     recruiter = relationship("User", foreign_keys=[recruiter_id])
     criteria = relationship("EligibilityCriteria", back_populates="job", uselist=False)
     audit_logs = relationship("JobAuditLog", order_by="desc(JobAuditLog.changed_at)")
+
+
+class CandidateJobScore(Base):
+    """
+    Composite suitability score for one candidate-job pair — E5-S6.
+
+    Records are immutable once written; re-scoring creates a new row.
+    The inputs_hash captures all scoring inputs so idempotency can be checked
+    without re-running expensive embedding calls.
+
+    Composite = Skills(30) + Experience(30) + Education(20) + Projects(20) = 100.
+    """
+    __tablename__ = "candidate_job_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    candidate_profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=True)
+
+    model_version = Column(String(20), nullable=False)
+
+    # Sub-scores
+    skills_score = Column(Float, nullable=True)
+    experience_score = Column(Float, nullable=True)
+    education_score = Column(Float, nullable=True)
+    projects_score = Column(Float, nullable=True)
+    composite_score = Column(Float, nullable=False)
+
+    # Full breakdown JSON
+    breakdown = Column(Text, nullable=True)
+
+    # SHA-256 of all scoring inputs — used for idempotency
+    inputs_hash = Column(String(64), nullable=False, index=True)
+
+    scored_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_candidate_job_scores_app_job", "application_id", "job_id"),
+    )
 
 
 class Application(Base):

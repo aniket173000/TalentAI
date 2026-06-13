@@ -77,6 +77,29 @@ class AIStrategy(ABC):
         """
 
     @abstractmethod
+    async def parse_jd_requirements(self, jd_text: str, job_title: str) -> dict:
+        """
+        Parse a job description into structured hiring requirements.
+
+        Returns a dict matching the JDRequirements schema (minus version/jd_hash/parsed_at,
+        which are stamped by the caller):
+          seniority            (str | None)   Junior/Mid/Senior/Lead/Principal/Executive
+          industry             (str | None)
+          job_function         (str | None)
+          min_years_experience (int | None)
+          max_years_experience (int | None)
+          education_level      (str | None)   Diploma/Bachelor/Master/PhD
+          education_field      (str | None)
+          required_skill_groups (list[dict])  [{skills, match_type, required, context}]
+            match_type="any"  → OR  (candidate needs ONE of the skills)
+            match_type="all"  → AND (candidate needs ALL the skills)
+          preferred_skills     (list[str])    flat nice-to-have skills
+          key_responsibilities (list[str])
+
+        Malformed JSON must trigger up to 3 automatic retries before raising.
+        """
+
+    @abstractmethod
     async def extract_structured_profile(self, resume_text: str) -> dict:
         """
         Extract structured fields from free-form resume text.

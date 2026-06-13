@@ -137,6 +137,11 @@ class JobResponse(BaseModel):
     avg_score: float = 0.0
     eligibility_criteria: Optional[EligibilityCriteriaResponse] = None
 
+    # JD parsing (E5-S1) — set by router, never read direct from ORM
+    jd_parse_status: Optional[str] = None              # None | "pending" | "done" | "failed"
+    jd_parse_error: Optional[str] = None               # non-null only when status=="failed"
+    jd_requirements: Optional["JDRequirements"] = None   # parsed when status=="done"
+
     class Config:
         from_attributes = True
 
@@ -213,6 +218,7 @@ class ProjectEntry(BaseModel):
     name: str
     description: Optional[str] = None
     technologies: List[str] = []
+    url: Optional[str] = None   # GitHub/demo URL — counted as open-source signal
 
 
 class ConfidenceScores(BaseModel):
@@ -260,3 +266,56 @@ class ExtractProfileRequest(BaseModel):
     """Request body for the extract endpoint."""
     resume_text: str
     application_id: Optional[int] = None   # link result to an application row
+
+
+# ── JD Requirements (E5-S1) ───────────────────────────────────────────────────
+
+SeniorityLevel = Literal["Junior", "Mid", "Senior", "Lead", "Principal", "Executive"]
+
+
+class SkillGroup(BaseModel):
+    """
+    One logical requirement from the JD.
+
+    match_type="any"  → OR  — candidate needs at least ONE skill (e.g. "Java or Python")
+    match_type="all"  → AND — candidate needs ALL skills  (e.g. "React and TypeScript")
+    required=True     → must-have; missing this group penalises the candidate
+    required=False    → nice-to-have; used only for bonus scoring
+    """
+    skills: List[str]
+    match_type: Literal["any", "all"]
+    required: bool
+    context: str = ""   # original phrase from JD — for explainability
+
+
+class JDRequirements(BaseModel):
+    """
+    Structured requirements extracted from a job description by the AI parser.
+    Stored as a JSON blob on Job.jd_requirements.
+    Version-stamped so the scoring engine can adapt to schema evolution.
+    """
+    version: str
+    jd_hash: str        # SHA-256 of jd_text — used to skip re-parsing unchanged JDs
+    parsed_at: str
+
+    # Role context
+    seniority: Optional[SeniorityLevel] = None
+    industry: Optional[str] = None
+    job_function: Optional[str] = None
+
+    # Experience gate
+    min_years_experience: Optional[int] = None
+    max_years_experience: Optional[int] = None
+
+    # Education gate
+    education_level: Optional[Literal["Diploma", "Bachelor", "Master", "PhD"]] = None
+    education_field: Optional[str] = None
+
+    # Skills — the core structured output consumed by the scoring engine
+    required_skill_groups: List[SkillGroup] = []
+    preferred_skills: List[str] = []
+
+    key_responsibilities: List[str] = []
+
+# Resolve forward references after all models are defined
+JobResponse.model_rebuild()

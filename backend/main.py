@@ -13,6 +13,8 @@ from routers import auth as auth_router
 from routers import linkedin_auth as linkedin_auth_router
 from routers import profile as profile_router
 from routers import resume_profile as resume_profile_router
+from routers import scores as scores_router
+from routers import semantic as semantic_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -72,11 +74,19 @@ _MIGRATIONS = [
     # S3 original file keys
     "ALTER TABLE applications ADD COLUMN resume_file_key VARCHAR(500)",
     "ALTER TABLE user_resumes ADD COLUMN file_key VARCHAR(500)",
+    # JD Parsing — structured requirements extracted by AI (E5-S1)
+    "ALTER TABLE jobs ADD COLUMN jd_requirements TEXT",
+    "ALTER TABLE jobs ADD COLUMN jd_parse_status VARCHAR(20)",
+    "ALTER TABLE jobs ADD COLUMN jd_parse_error TEXT",
     # Structured resume extraction (CandidateProfile + SkillReviewQueue)
     "CREATE TABLE IF NOT EXISTS candidate_profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id), application_id INTEGER REFERENCES applications(id), source_resume_hash VARCHAR(64), full_name VARCHAR(255), email VARCHAR(255), phone VARCHAR(100), location VARCHAR(255), total_yoe REAL, work_history TEXT, raw_skills TEXT, normalized_skills TEXT, unmapped_skills TEXT, education TEXT, projects TEXT, certifications TEXT, confidence_scores TEXT, taxonomy_version VARCHAR(50), extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
     "CREATE INDEX IF NOT EXISTS ix_candidate_profiles_user_id ON candidate_profiles (user_id)",
     "CREATE INDEX IF NOT EXISTS ix_candidate_profiles_resume_hash ON candidate_profiles (source_resume_hash)",
     "CREATE TABLE IF NOT EXISTS skill_review_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, skill_name VARCHAR(255) NOT NULL UNIQUE, occurrence_count INTEGER NOT NULL DEFAULT 1, first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP, last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    # Composite suitability scores — E5-S6
+    "CREATE TABLE IF NOT EXISTS candidate_job_scores (id INTEGER PRIMARY KEY AUTOINCREMENT, application_id INTEGER NOT NULL REFERENCES applications(id), job_id INTEGER NOT NULL REFERENCES jobs(id), candidate_profile_id INTEGER REFERENCES candidate_profiles(id), model_version VARCHAR(20) NOT NULL, skills_score REAL, experience_score REAL, education_score REAL, projects_score REAL, composite_score REAL NOT NULL, breakdown TEXT, inputs_hash VARCHAR(64) NOT NULL, scored_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE INDEX IF NOT EXISTS ix_candidate_job_scores_app_job ON candidate_job_scores (application_id, job_id)",
+    "CREATE INDEX IF NOT EXISTS ix_candidate_job_scores_inputs_hash ON candidate_job_scores (inputs_hash)",
 ]
 
 with engine.connect() as _conn:
@@ -150,6 +160,8 @@ app.include_router(jobs.router)
 app.include_router(applications.router)
 app.include_router(profile_router.router)
 app.include_router(resume_profile_router.router)
+app.include_router(semantic_router.router)
+app.include_router(scores_router.router)
 
 
 @app.get("/health")

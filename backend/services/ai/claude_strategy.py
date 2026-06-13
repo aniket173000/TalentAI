@@ -39,5 +39,8 @@ class ClaudeStrategy(AIStrategy):
     async def generate_career_profile(self, resume_text):
         raise NotImplementedError(self._MSG)
 
+    async def parse_jd_requirements(self, jd_text, job_title):
+        raise NotImplementedError(self._MSG)
+
     async def extract_structured_profile(self, resume_text):
         raise NotImplementedError(self._MSG)

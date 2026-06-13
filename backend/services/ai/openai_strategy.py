@@ -341,6 +341,119 @@ Confidence score rules:
             f"extract_structured_profile failed after 3 attempts: {last_exc}"
         )
 
+    async def parse_jd_requirements(self, jd_text: str, job_title: str) -> dict:
+        system = (
+            "You are a precise JD requirements parser. "
+            "Extract structured hiring requirements from job descriptions. "
+            "Always respond with valid JSON only — no markdown, no prose."
+        )
+
+        user = f"""Parse this job description and extract structured hiring requirements.
+
+JOB TITLE: {job_title}
+
+JOB DESCRIPTION:
+{jd_text[:4000]}
+
+════════════════════════════════════════════════════
+CRITICAL RULES — read carefully before responding
+════════════════════════════════════════════════════
+
+RULE 1 — SKILL GROUPS (most important):
+Every technical skill requirement becomes a SkillGroup. The key question per requirement:
+"Does the candidate need ALL these skills, or is ONE of them enough?"
+
+  OR  → match_type = "any"  (candidate satisfies this group with ANY ONE skill)
+  AND → match_type = "all"  (candidate must have ALL skills in the group)
+
+  Required vs preferred:
+  - Words like "must", "required", "essential", "strong experience in", "proficiency in" → required=true
+  - Words like "nice to have", "preferred", "plus", "bonus", "ideally", "familiarity with" → required=false
+  - required=false skills ALSO go into preferred_skills (flat list) for easy access
+
+RULE 2 — RECOGNISE OR PATTERNS:
+These all produce ONE SkillGroup with match_type="any":
+  "Python or Java"              → skills: ["Python", "Java"],        match_type: "any"
+  "React/Angular/Vue"           → skills: ["React", "Angular", "Vue"], match_type: "any"
+  "either MySQL or PostgreSQL"  → skills: ["MySQL", "PostgreSQL"],   match_type: "any"
+  "AWS or GCP cloud"            → skills: ["AWS", "GCP"],            match_type: "any"
+  "experience in Java, Go, or Rust" → skills: ["Java", "Go", "Rust"], match_type: "any"
+
+RULE 3 — RECOGNISE AND PATTERNS:
+"React and TypeScript required" → TWO separate SkillGroups, each match_type="all"
+  Group 1: skills: ["React"],      match_type: "all", required: true
+  Group 2: skills: ["TypeScript"], match_type: "all", required: true
+
+RULE 4 — PREFERRED SKILLS (never in required_skill_groups):
+"Docker/Kubernetes is a plus"          → preferred_skills: ["Docker", "Kubernetes"]
+"AWS or GCP experience preferred"      → preferred_skills: ["AWS", "GCP"]
+"Familiarity with GraphQL is a bonus"  → preferred_skills: ["GraphQL"]
+Never put preferred items into required_skill_groups.
+
+RULE 5 — SENIORITY:
+Infer seniority from the job title first, then explicit mentions, then years required:
+  0-2 years   → Junior
+  2-5 years   → Mid
+  5-8 years   → Senior
+  8-12 years  → Lead
+  12+ years   → Principal
+"Lead", "Staff", "Principal" in title → use those directly.
+
+RULE 6 — EDUCATION:
+Only extract if explicitly stated. "Degree preferred" → null (not required).
+"Bachelor's required" → education_level: "Bachelor"
+
+════════════════════════════════════════════════════
+
+Return ONLY this JSON (no markdown, no extra text):
+{{
+  "seniority": "Junior|Mid|Senior|Lead|Principal|Executive or null",
+  "industry": "<industry sector or null>",
+  "job_function": "Engineering|Product|Data|Design|Marketing|Sales|Operations|Finance|Legal|HR or null",
+  "min_years_experience": <integer or null>,
+  "max_years_experience": <integer or null>,
+  "education_level": "Diploma|Bachelor|Master|PhD or null",
+  "education_field": "<field name or null>",
+  "required_skill_groups": [
+    {{
+      "skills": ["<skill1>", "<skill2>"],
+      "match_type": "any|all",
+      "required": true,
+      "context": "<exact phrase from JD that produced this group>"
+    }}
+  ],
+  "preferred_skills": ["<skill1>", "<skill2>"],
+  "key_responsibilities": ["<responsibility 1>", "<responsibility 2>", "<responsibility 3>"]
+}}
+
+Constraints:
+- required_skill_groups must contain ONLY required=true groups
+- preferred_skills is a flat deduped list — no duplicates from required_skill_groups
+- key_responsibilities: at most 5 items, each under 15 words
+- Normalise skill names to common canonical form (e.g. "ReactJS" → "React", "Postgres" → "PostgreSQL")"""
+
+        last_exc: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                response = await _client().chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    max_tokens=1500,
+                )
+                return json.loads(response.choices[0].message.content)
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                last_exc = exc
+                logger.warning("parse_jd_requirements attempt %d failed: %s", attempt, exc)
+
+        raise RuntimeError(
+            f"parse_jd_requirements failed after 3 attempts: {last_exc}"
+        )
+
     async def generate_career_profile(self, resume_text: str) -> dict:
         prompt = f"""You are a senior engineering career coach. Analyse this resume and produce a structured career profile.
 
