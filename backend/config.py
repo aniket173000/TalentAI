@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     LINKEDIN_CLIENT_SECRET: str = ""
     LINKEDIN_REDIRECT_URI: str = "http://localhost:8000/api/auth/linkedin/callback"
 
+    # ── AWS S3 (resume file storage) ─────────────────────────────────────────
+    # Leave blank to run without S3 — text-only fallback will be used.
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    S3_BUCKET: str = ""
+    # Pre-signed URL expiry in seconds (default 15 min)
+    S3_PRESIGN_EXPIRY: int = 900
+
     class Config:
         env_file = ".env"
 

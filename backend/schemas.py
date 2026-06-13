@@ -191,3 +191,72 @@ class ApplicationStatusUpdate(BaseModel):
         "under_review", "interview_scheduled", "offer_extended", "interview_rejected",
     ]
     feedback: Optional[str] = None  # required (strongly recommended) for interview_rejected
+
+
+# ── Structured Resume Profile ─────────────────────────────────────────────────
+
+class WorkEntry(BaseModel):
+    company: str
+    title: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None   # "Present" is a valid value
+    description: Optional[str] = None
+
+
+class EducationEntry(BaseModel):
+    degree: str
+    institution: str
+    year: Optional[str] = None
+
+
+class ProjectEntry(BaseModel):
+    name: str
+    description: Optional[str] = None
+    technologies: List[str] = []
+
+
+class ConfidenceScores(BaseModel):
+    full_name: float = 0.0
+    email: float = 0.0
+    phone: float = 0.0
+    location: float = 0.0
+    total_yoe: float = 0.0
+    work_history: float = 0.0
+    raw_skills: float = 0.0
+    education: float = 0.0
+    projects: float = 0.0
+    certifications: float = 0.0
+
+
+class ExtractedResumeProfile(BaseModel):
+    """Full structured profile returned from the extract endpoint."""
+    id: int
+    user_id: Optional[int] = None
+    application_id: Optional[int] = None
+
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    total_yoe: Optional[float] = None
+
+    work_history: List[WorkEntry] = []
+    raw_skills: List[str] = []
+    normalized_skills: List[str] = []
+    unmapped_skills: List[str] = []
+    education: List[EducationEntry] = []
+    projects: List[ProjectEntry] = []
+    certifications: List[str] = []
+
+    confidence_scores: Optional[ConfidenceScores] = None
+    taxonomy_version: Optional[str] = None
+    extracted_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ExtractProfileRequest(BaseModel):
+    """Request body for the extract endpoint."""
+    resume_text: str
+    application_id: Optional[int] = None   # link result to an application row

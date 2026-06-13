@@ -103,7 +103,9 @@ export default function RecruiterPortal() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loadingApps, setLoadingApps] = useState(false)
   const [expandedApp, setExpandedApp] = useState<number | null>(null)
-  const [resumeOpenApp, setResumeOpenApp] = useState<number | null>(null)
+  const [resumeDrawer, setResumeDrawer] = useState<Application | null>(null)
+  const [drawerFile, setDrawerFile] = useState<{ url: string; content_type: string } | null>(null)
+  const [drawerFileLoading, setDrawerFileLoading] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
   const [pendingReject, setPendingReject] = useState<{ appId: number } | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
@@ -134,6 +136,23 @@ export default function RecruiterPortal() {
     }
   }
 
+  // Fetch presigned URL whenever the resume drawer opens
+  useEffect(() => {
+    if (!resumeDrawer) { setDrawerFile(null); return }
+    setDrawerFileLoading(true)
+    setDrawerFile(null)
+    api.get<{ available: boolean; url?: string; content_type?: string }>(
+      `/applications/${resumeDrawer.id}/resume-url`
+    )
+      .then(r => {
+        if (r.data.available && r.data.url) {
+          setDrawerFile({ url: r.data.url, content_type: r.data.content_type ?? '' })
+        }
+      })
+      .catch(() => {}) // fall through to text display
+      .finally(() => setDrawerFileLoading(false))
+  }, [resumeDrawer])
+
   useEffect(() => {
     if (tab !== 'applications') return
     api.get<JobListResponse>('/jobs/my', { params: { per_page: 100 } })
@@ -152,6 +171,17 @@ export default function RecruiterPortal() {
 
   const accepted = applications.filter(a => a.status === 'accepted').sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const others = applications.filter(a => a.status !== 'accepted')
+
+  const downloadResume = (app: Application) => {
+    const name = (app.resume_filename ?? 'resume').replace(/\.(pdf|docx|doc)$/i, '.txt')
+    const blob = new Blob([app.resume_text ?? ''], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const normalizeList = (v: string[] | string | null | undefined): string[] => {
     if (!v) return []
@@ -510,27 +540,13 @@ export default function RecruiterPortal() {
 
                           {/* ── Resume ── */}
                           {app.resume_text && (
-                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                              <button
-                                onClick={() => setResumeOpenApp(resumeOpenApp === app.id ? null : app.id)}
-                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-slate-400 text-sm">📄</span>
-                                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                                    Resume{app.resume_filename ? ` — ${app.resume_filename}` : ''}
-                                  </p>
-                                </div>
-                                <span className="text-slate-400 text-xs">{resumeOpenApp === app.id ? '▲ Collapse' : '▼ View'}</span>
-                              </button>
-                              {resumeOpenApp === app.id && (
-                                <div className="border-t border-slate-100 p-4">
-                                  <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto bg-slate-50 rounded-lg p-3">
-                                    {app.resume_text}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
+                            <button
+                              onClick={() => setResumeDrawer(app)}
+                              className="flex items-center gap-2 text-sm font-semibold text-brand-blue hover:text-blue-700 border border-brand-blue/30 hover:border-brand-blue bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
+                            >
+                              <span>📄</span>
+                              View Full Resume
+                            </button>
                           )}
                         </div>
                       )}
@@ -546,29 +562,236 @@ export default function RecruiterPortal() {
               <h3 className="font-bold text-slate-500 mb-4 text-sm uppercase tracking-wide">
                 Rejected / Displaced ({others.length})
               </h3>
-              <div className="space-y-2">
-                {others.map(app => (
-                  <div key={app.id} className="bg-white rounded-lg border border-slate-200 flex items-center gap-4 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700">{app.candidate_name}</p>
-                      <p className="text-xs text-slate-400">{app.candidate_email}</p>
+              <div className="space-y-3">
+                {others.map(app => {
+                  const strengths = normalizeList(app.strengths)
+                  const gaps = normalizeList(app.gaps)
+                  return (
+                    <div key={app.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                      <button
+                        onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
+                        className="w-full flex items-center gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="w-8 h-8 rounded-full bg-red-50 text-red-400 text-xs font-bold flex items-center justify-center shrink-0">✕</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800 text-sm">{app.candidate_name}</p>
+                          <p className="text-slate-400 text-xs">{app.candidate_email}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-slate-400">{app.match_score.toFixed(1)}%</p>
+                            <p className="text-xs text-slate-400">match</p>
+                          </div>
+                          <div onClick={e => e.stopPropagation()}>
+                            <select
+                              value={app.candidate_status ?? 'rejected'}
+                              disabled={updatingStatus === app.id}
+                              onChange={e => handleStatusChange(app.id, e.target.value as CandidateStatus)}
+                              className={`text-xs font-semibold rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition ${CANDIDATE_STATUS_BADGE[app.candidate_status as CandidateStatus] ?? 'bg-slate-50 text-slate-500 border-slate-200'} ${updatingStatus === app.id ? 'opacity-50' : ''}`}
+                            >
+                              {CANDIDATE_STATUS_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <span className="text-slate-300">{expandedApp === app.id ? '▲' : '▼'}</span>
+                        </div>
+                      </button>
+
+                      {expandedApp === app.id && (
+                        <div className="border-t border-slate-100 p-5 bg-slate-50 space-y-4">
+
+                          {/* Contact info */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-4">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Candidate Info</p>
+                            <div className="grid sm:grid-cols-3 gap-3">
+                              <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Name</p>
+                                <p className="text-sm font-medium text-slate-800">{app.candidate_name}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
+                                <a href={`mailto:${app.candidate_email}`} className="text-sm text-brand-blue hover:underline break-all">{app.candidate_email}</a>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
+                                {app.phone
+                                  ? <a href={`tel:${app.phone}`} className="text-sm text-brand-blue hover:underline">{app.phone}</a>
+                                  : <p className="text-sm text-slate-400 italic">Not provided</p>
+                                }
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Rejection reason banner */}
+                          <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-start gap-2">
+                            <span className="text-red-400 text-sm mt-0.5">⚠</span>
+                            <p className="text-xs text-red-700">
+                              {app.status === 'displaced'
+                                ? 'Displaced — a stronger candidate entered the pool after this application was accepted.'
+                                : `Score ${app.match_score.toFixed(1)}% did not meet the minimum threshold for this role.`}
+                            </p>
+                          </div>
+
+                          {/* Strengths & Gaps */}
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            {strengths.length > 0 && (
+                              <div className="bg-white rounded-xl border border-emerald-100 p-4">
+                                <div className="flex items-center gap-1.5 mb-3">
+                                  <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold flex items-center justify-center">✓</span>
+                                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Strengths</p>
+                                </div>
+                                <ul className="space-y-2">
+                                  {strengths.map((s, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                      {s}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {gaps.length > 0 && (
+                              <div className="bg-white rounded-xl border border-amber-100 p-4">
+                                <div className="flex items-center gap-1.5 mb-3">
+                                  <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold flex items-center justify-center">!</span>
+                                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gaps / Weaknesses</p>
+                                </div>
+                                <ul className="space-y-2">
+                                  {gaps.map((g, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                      {g}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Resume */}
+                          {app.resume_text && (
+                            <button
+                              onClick={() => setResumeDrawer(app)}
+                              className="flex items-center gap-2 text-sm font-semibold text-brand-blue hover:text-blue-700 border border-brand-blue/30 hover:border-brand-blue bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
+                            >
+                              <span>📄</span>
+                              View Full Resume
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm font-semibold text-slate-500">{app.match_score.toFixed(1)}%</p>
-                    <select
-                      value={app.candidate_status ?? 'rejected'}
-                      disabled={updatingStatus === app.id}
-                      onChange={e => handleStatusChange(app.id, e.target.value as CandidateStatus)}
-                      className={`text-xs font-semibold rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition ${CANDIDATE_STATUS_BADGE[app.candidate_status as CandidateStatus] ?? 'bg-slate-50 text-slate-500 border-slate-200'} ${updatingStatus === app.id ? 'opacity-50' : ''}`}
-                    >
-                      {CANDIDATE_STATUS_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Resume Side Drawer ────────────────────────────────────────────────── */}
+      {resumeDrawer && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="flex-1 bg-black/40 backdrop-blur-sm"
+            onClick={() => setResumeDrawer(null)}
+          />
+          {/* Panel */}
+          <div className="w-full max-w-3xl bg-white h-full flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 shrink-0 gap-4">
+              <div className="min-w-0">
+                <p className="font-bold text-slate-800 truncate">{resumeDrawer.candidate_name}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {resumeDrawer.resume_filename ?? 'Resume'} · {resumeDrawer.match_score.toFixed(1)}% match
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Download: use S3 URL if available, else generate text file */}
+                {drawerFile ? (
+                  <a
+                    href={drawerFile.url}
+                    download={resumeDrawer.resume_filename ?? 'resume'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-semibold bg-brand-blue hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition-colors"
+                  >
+                    ↓ Download
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => downloadResume(resumeDrawer)}
+                    className="flex items-center gap-1.5 text-xs font-semibold bg-brand-blue hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition-colors"
+                  >
+                    ↓ Download
+                  </button>
+                )}
+                <button
+                  onClick={() => setResumeDrawer(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors font-medium"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Resume body */}
+            <div className="flex-1 min-h-0">
+              {drawerFileLoading && (
+                <div className="flex items-center justify-center h-full text-slate-400 text-sm gap-2">
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Loading resume…
+                </div>
+              )}
+
+              {/* PDF — rendered natively in the browser */}
+              {!drawerFileLoading && drawerFile?.content_type === 'application/pdf' && (
+                <iframe
+                  src={drawerFile.url}
+                  title="Resume"
+                  className="w-full h-full border-0"
+                />
+              )}
+
+              {/* DOCX / DOC — can't render in browser; prompt download */}
+              {!drawerFileLoading && drawerFile && drawerFile.content_type !== 'application/pdf' && (
+                <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-3xl">📄</div>
+                  <div>
+                    <p className="font-semibold text-slate-700 mb-1">{resumeDrawer.resume_filename}</p>
+                    <p className="text-sm text-slate-400">Word documents can't be previewed in the browser.</p>
+                  </div>
+                  <a
+                    href={drawerFile.url}
+                    download={resumeDrawer.resume_filename ?? 'resume'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                  >
+                    ↓ Download to Open
+                  </a>
+                </div>
+              )}
+
+              {/* Fallback — no S3 file stored; show parsed text */}
+              {!drawerFileLoading && !drawerFile && (
+                <div className="h-full overflow-y-auto px-10 py-8">
+                  <div className="mb-4 flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    <span>⚠</span>
+                    Original file not available — showing extracted text.
+                  </div>
+                  <div className="text-sm text-slate-800 whitespace-pre-wrap leading-7 font-sans">
+                    {resumeDrawer.resume_text}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

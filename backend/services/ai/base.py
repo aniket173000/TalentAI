@@ -75,3 +75,24 @@ class AIStrategy(ABC):
           strengths (list[str]), weaknesses (list[str]), summary (str),
           upgrade_path (list[{area, why, sub_skills}]).
         """
+
+    @abstractmethod
+    async def extract_structured_profile(self, resume_text: str) -> dict:
+        """
+        Extract structured fields from free-form resume text.
+
+        Returns a dict with keys:
+          full_name      (str | None)
+          email          (str | None)
+          phone          (str | None)
+          location       (str | None)
+          total_yoe      (float | None)  — total professional years of experience
+          work_history   (list[dict])    — [{company, title, start_date, end_date, description}]
+          raw_skills     (list[str])     — skills exactly as written in the resume
+          education      (list[dict])    — [{degree, institution, year}]
+          projects       (list[dict])    — [{name, description, technologies}]
+          certifications (list[str])
+          confidence_scores (dict)       — {field_name: float 0.0-1.0} per extracted field
+
+        Malformed JSON must trigger up to 3 automatic retries before raising.
+        """

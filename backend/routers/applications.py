@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from config import settings
+from config import settings  # noqa: F401 — used in resume-url endpoint
 from database import SessionLocal, get_db
 from routers.auth import get_current_user, require_candidate, require_recruiter
 from services.ai_service import (
@@ -25,6 +25,7 @@ from services.email_service import (
     send_status_change_email,
 )
 from services.file_parser import parse_resume
+from services.storage_service import check_file_exists, get_presigned_url, upload_resume_file
 from services.vector_service import cosine_similarity, rank_applications_by_vector
 
 logger = logging.getLogger(__name__)
@@ -347,6 +348,23 @@ async def apply_to_job(
         resume_text = current_user.resume_text
         resume_filename = current_user.resume_filename or "resume"
 
+    # 2b. Upload original file to S3 (best-effort, non-blocking) ──────────────
+    _raw_bytes_for_s3: bytes | None = None
+    _s3_filename: str | None = None
+    if resume_file and resume_file.filename and resume_id is None:
+        # content was already read above; re-use it from the local variable
+        _raw_bytes_for_s3 = content          # type: ignore[name-defined]
+        _s3_filename = resume_file.filename
+    # vault resumes: file was already uploaded when originally added to vault
+
+    resume_file_key: str | None = None
+    if _raw_bytes_for_s3 and _s3_filename:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        resume_file_key = await loop.run_in_executor(
+            None, upload_resume_file, _raw_bytes_for_s3, _s3_filename, current_user.id
+        )
+
     # 3. Duplicate-application guard ───────────────────────────────────────────
     prior = (
         db.query(models.Application)
@@ -434,6 +452,7 @@ async def apply_to_job(
             candidate_email=resolved_email,
             resume_text=resume_text,
             resume_filename=resume_filename,
+            resume_file_key=resume_file_key,
             match_score=match_score,
             status=status,
             candidate_status=candidate_status,
@@ -679,6 +698,93 @@ def get_all_applications(
         }
         for a in apps
     ]
+
+
+# ── Recruiter: original resume file URL ──────────────────────────────────
+
+@router.get("/{app_id}/resume-url")
+def get_resume_url(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """
+    Return a short-lived pre-signed S3 URL for the candidate's original resume file.
+
+    Response:
+      available=True  → url, filename, content_type, expires_in
+      available=False → original file was not stored (S3 not configured or legacy row)
+    """
+    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+    if not job or job.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    if not app.resume_file_key:
+        return {"available": False}
+
+    url = get_presigned_url(app.resume_file_key, app.resume_filename or "resume")
+    if not url:
+        return {"available": False}
+
+    ext = (app.resume_filename or "").rsplit(".", 1)[-1].lower()
+    content_type_map = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
+        "txt": "text/plain",
+    }
+    return {
+        "available": True,
+        "url": url,
+        "filename": app.resume_filename,
+        "content_type": content_type_map.get(ext, "application/octet-stream"),
+        "expires_in": settings.S3_PRESIGN_EXPIRY,
+    }
+
+
+# ── Recruiter: S3 diagnostics for a specific application ─────────────────────
+
+@router.get("/{app_id}/s3-debug")
+def s3_debug(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """
+    Debug endpoint — returns S3 configuration and file existence check for an application.
+    Remove or restrict this endpoint before going to production.
+    """
+    from services.storage_service import s3_enabled, check_file_exists
+    from config import settings as _s
+
+    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+    if not job or job.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    file_key = app.resume_file_key
+    file_exists_in_s3 = check_file_exists(file_key) if file_key else False
+    presigned_url = None
+    if file_key and file_exists_in_s3:
+        presigned_url = get_presigned_url(file_key, app.resume_filename or "resume")
+
+    return {
+        "s3_enabled": s3_enabled(),
+        "configured_region": _s.AWS_REGION,
+        "configured_bucket": _s.S3_BUCKET,
+        "access_key_id_prefix": (_s.AWS_ACCESS_KEY_ID[:8] + "...") if _s.AWS_ACCESS_KEY_ID else None,
+        "resume_file_key": file_key,
+        "file_exists_in_s3": file_exists_in_s3,
+        "presigned_url_generated": presigned_url is not None,
+        "presigned_url_preview": (presigned_url[:120] + "...") if presigned_url else None,
+    }
 
 
 # ── Public: candidate status by token ────────────────────────────────────────

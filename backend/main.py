@@ -12,6 +12,7 @@ from routers import applications, jobs
 from routers import auth as auth_router
 from routers import linkedin_auth as linkedin_auth_router
 from routers import profile as profile_router
+from routers import resume_profile as resume_profile_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -68,6 +69,14 @@ _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN career_profile_updated_at DATETIME",
     # Resume vault — up to 3 saved resumes per candidate
     "CREATE TABLE IF NOT EXISTS user_resumes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), filename VARCHAR(255) NOT NULL, resume_text TEXT NOT NULL, is_primary BOOLEAN DEFAULT 0, uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    # S3 original file keys
+    "ALTER TABLE applications ADD COLUMN resume_file_key VARCHAR(500)",
+    "ALTER TABLE user_resumes ADD COLUMN file_key VARCHAR(500)",
+    # Structured resume extraction (CandidateProfile + SkillReviewQueue)
+    "CREATE TABLE IF NOT EXISTS candidate_profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id), application_id INTEGER REFERENCES applications(id), source_resume_hash VARCHAR(64), full_name VARCHAR(255), email VARCHAR(255), phone VARCHAR(100), location VARCHAR(255), total_yoe REAL, work_history TEXT, raw_skills TEXT, normalized_skills TEXT, unmapped_skills TEXT, education TEXT, projects TEXT, certifications TEXT, confidence_scores TEXT, taxonomy_version VARCHAR(50), extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE INDEX IF NOT EXISTS ix_candidate_profiles_user_id ON candidate_profiles (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_candidate_profiles_resume_hash ON candidate_profiles (source_resume_hash)",
+    "CREATE TABLE IF NOT EXISTS skill_review_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, skill_name VARCHAR(255) NOT NULL UNIQUE, occurrence_count INTEGER NOT NULL DEFAULT 1, first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP, last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
 ]
 
 with engine.connect() as _conn:
@@ -140,6 +149,7 @@ app.include_router(linkedin_auth_router.router)
 app.include_router(jobs.router)
 app.include_router(applications.router)
 app.include_router(profile_router.router)
+app.include_router(resume_profile_router.router)
 
 
 @app.get("/health")

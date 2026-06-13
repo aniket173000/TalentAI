@@ -254,6 +254,93 @@ Address the candidate directly (use "you"/"your"). Be specific, not generic."""
         )
         return response.data[0].embedding
 
+    async def extract_structured_profile(self, resume_text: str) -> dict:
+        system = (
+            "You are a precise resume parser. Extract structured information exactly as "
+            "it appears in the resume. Never invent information — if a field is missing "
+            "set it to null. Always respond with valid JSON only."
+        )
+        user = f"""Parse this resume and extract all structured fields.
+
+RESUME:
+{resume_text[:5000]}
+
+Return ONLY this JSON (no markdown, no extra text):
+{{
+  "full_name": "<full name or null>",
+  "email": "<email address or null>",
+  "phone": "<phone number or null>",
+  "location": "<city, country or null>",
+  "total_yoe": <total professional years as a float, or null>,
+  "work_history": [
+    {{
+      "company": "<company name>",
+      "title": "<job title>",
+      "start_date": "<month year, e.g. Jan 2021, or year>",
+      "end_date": "<month year or 'Present' or null>",
+      "description": "<key responsibilities / achievements in 1-3 sentences>"
+    }}
+  ],
+  "raw_skills": ["<skill exactly as written>", "..."],
+  "education": [
+    {{
+      "degree": "<degree name>",
+      "institution": "<university or school name>",
+      "year": "<graduation year or null>"
+    }}
+  ],
+  "projects": [
+    {{
+      "name": "<project name>",
+      "description": "<what it does in 1 sentence>",
+      "technologies": ["<tech1>", "<tech2>"]
+    }}
+  ],
+  "certifications": ["<certification name>"],
+  "confidence_scores": {{
+    "full_name": <0.0-1.0>,
+    "email": <0.0-1.0>,
+    "phone": <0.0-1.0>,
+    "location": <0.0-1.0>,
+    "total_yoe": <0.0-1.0>,
+    "work_history": <0.0-1.0>,
+    "raw_skills": <0.0-1.0>,
+    "education": <0.0-1.0>,
+    "projects": <0.0-1.0>,
+    "certifications": <0.0-1.0>
+  }}
+}}
+
+Confidence score rules:
+- 1.0  = field is clearly and unambiguously present in the resume
+- 0.7  = field is present but required inference or parsing
+- 0.4  = field is partially present or uncertain
+- 0.0  = field is absent or could not be determined"""
+
+        last_exc: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                response = await _client().chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    max_tokens=2000,
+                )
+                return json.loads(response.choices[0].message.content)
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                last_exc = exc
+                logger.warning(
+                    "extract_structured_profile attempt %d failed: %s", attempt, exc
+                )
+
+        raise RuntimeError(
+            f"extract_structured_profile failed after 3 attempts: {last_exc}"
+        )
+
     async def generate_career_profile(self, resume_text: str) -> dict:
         prompt = f"""You are a senior engineering career coach. Analyse this resume and produce a structured career profile.
 

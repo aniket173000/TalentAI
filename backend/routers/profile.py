@@ -10,8 +10,10 @@ from sqlalchemy.orm import Session
 import models
 from database import SessionLocal, get_db
 from routers.auth import get_current_user
+from config import settings
 from services.ai_service import generate_career_profile, get_embedding
 from services.file_parser import parse_resume
+from services.storage_service import get_presigned_url, upload_resume_file
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/profile", tags=["profile"])
@@ -96,9 +98,14 @@ async def _update_profile_embedding(user_id: int, resume_text: str) -> None:
 
 # ── Shared vault helper ───────────────────────────────────────────────────────
 
-def _add_to_vault(db: Session, user: models.User, filename: str, resume_text: str) -> None:
+def _add_to_vault(
+    db: Session,
+    user: models.User,
+    filename: str,
+    resume_text: str,
+    file_key: str | None = None,
+) -> None:
     """Add a resume to the vault, enforcing the 3-resume limit (removes oldest)."""
-    # Clear primary on all existing
     db.query(models.UserResume).filter(
         models.UserResume.user_id == user.id
     ).update({"is_primary": False})
@@ -122,6 +129,7 @@ def _add_to_vault(db: Session, user: models.User, filename: str, resume_text: st
         filename=filename,
         resume_text=resume_text,
         is_primary=True,
+        file_key=file_key,
     )
     db.add(new_entry)
 
@@ -182,7 +190,13 @@ async def upload_resume(
             detail="Could not extract text from this file. Please upload a valid PDF, DOCX, or TXT.",
         )
 
-    _add_to_vault(db, current_user, filename, resume_text)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    file_key = await loop.run_in_executor(
+        None, upload_resume_file, content, filename, current_user.id
+    )
+
+    _add_to_vault(db, current_user, filename, resume_text, file_key)
 
     current_user.resume_text = resume_text
     current_user.resume_filename = filename
@@ -259,6 +273,46 @@ def delete_vault_resume(
         db.commit()
 
     return _profile_response(current_user)
+
+
+@router.get("/resumes/{resume_id}/url")
+def get_vault_resume_url(
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Return a short-lived pre-signed S3 URL for a vault resume.
+    Only the owner can request this URL.
+    """
+    entry = db.query(models.UserResume).filter(
+        models.UserResume.id == resume_id,
+        models.UserResume.user_id == current_user.id,
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Resume not found.")
+
+    if not entry.file_key:
+        return {"available": False}
+
+    url = get_presigned_url(entry.file_key, entry.filename)
+    if not url:
+        return {"available": False}
+
+    ext = (entry.filename or "").rsplit(".", 1)[-1].lower()
+    content_type_map = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
+        "txt": "text/plain",
+    }
+    return {
+        "available": True,
+        "url": url,
+        "filename": entry.filename,
+        "content_type": content_type_map.get(ext, "application/octet-stream"),
+        "expires_in": settings.S3_PRESIGN_EXPIRY,
+    }
 
 
 @router.post("/refresh-career")

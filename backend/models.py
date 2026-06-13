@@ -4,6 +4,62 @@ from sqlalchemy.sql import func
 from database import Base
 
 
+class CandidateProfile(Base):
+    """
+    Structured resume data extracted via LLM.
+
+    One row per extraction; multiple rows can exist for the same user
+    (e.g. one per application, or one per resume upload).
+    Use source_resume_hash to avoid re-extracting identical resume text.
+    """
+    __tablename__ = "candidate_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True, index=True)
+    # SHA-256 of resume text — used to skip redundant extractions
+    source_resume_hash = Column(String(64), nullable=True, index=True)
+
+    # Core identity
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(100), nullable=True)
+    location = Column(String(255), nullable=True)
+    total_yoe = Column(Float, nullable=True)
+
+    # Structured JSON blobs
+    work_history = Column(Text, nullable=True)         # list[WorkEntry]
+    raw_skills = Column(Text, nullable=True)           # list[str] — as written in resume
+    normalized_skills = Column(Text, nullable=True)    # list[str] — canonical taxonomy names
+    unmapped_skills = Column(Text, nullable=True)      # list[str] — not in taxonomy
+    education = Column(Text, nullable=True)            # list[EducationEntry]
+    projects = Column(Text, nullable=True)             # list[ProjectEntry]
+    certifications = Column(Text, nullable=True)       # list[str]
+
+    # Quality monitoring
+    confidence_scores = Column(Text, nullable=True)    # dict[field, float 0-1]
+
+    # Reproducibility
+    taxonomy_version = Column(String(50), nullable=True)
+    extracted_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class SkillReviewQueue(Base):
+    """
+    Skills extracted from resumes that had no match in the taxonomy.
+    Used to guide future taxonomy expansion.
+    """
+    __tablename__ = "skill_review_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    skill_name = Column(String(255), nullable=False, unique=True)
+    occurrence_count = Column(Integer, default=1, nullable=False)
+    first_seen_at = Column(DateTime, server_default=func.now())
+    last_seen_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (UniqueConstraint("email", "role", name="uq_user_email_role"),)
@@ -55,6 +111,8 @@ class UserResume(Base):
     resume_text = Column(Text, nullable=False)
     is_primary = Column(Boolean, default=False)
     uploaded_at = Column(DateTime, server_default=func.now())
+    # S3 key for the original uploaded file (None = only parsed text available)
+    file_key = Column(String(500), nullable=True)
 
     user = relationship("User", back_populates="resumes")
 
@@ -146,6 +204,9 @@ class Application(Base):
     improvement_suggestions = Column(Text)
     project_scores = Column(Text, nullable=True)
     resume_embedding = Column(Text, nullable=True)
+
+    # S3 key for the original uploaded file (None = only parsed text available)
+    resume_file_key = Column(String(500), nullable=True)
 
     applied_at = Column(DateTime, server_default=func.now())
 
