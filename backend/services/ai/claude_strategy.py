@@ -42,5 +42,13 @@ class ClaudeStrategy(AIStrategy):
     async def parse_jd_requirements(self, jd_text, job_title):
         raise NotImplementedError(self._MSG)
 
+    async def generate_displacement_comparison(
+        self, rank1_resume, rank1_score, displaced_resume, displaced_score, jd_text, job_title
+    ):
+        raise NotImplementedError(self._MSG)
+
+    async def verify_skill_claims(self, skills, resume_text):
+        raise NotImplementedError(self._MSG)
+
     async def extract_structured_profile(self, resume_text):
         raise NotImplementedError(self._MSG)

@@ -100,6 +100,34 @@ class AIStrategy(ABC):
         """
 
     @abstractmethod
+    async def generate_displacement_comparison(
+        self,
+        rank1_resume: str,
+        rank1_score: float,
+        displaced_resume: str,
+        displaced_score: float,
+        jd_text: str,
+        job_title: str,
+    ) -> dict:
+        """
+        Compare the displaced candidate's profile against the rank-1 candidate.
+        Returns a dict with keys:
+          rank1_key_strengths  (list[str])  — what makes rank-1 stand out
+          comparison           (list[dict]) — [{area, rank1_has, you_have, improvement}]
+          encouragement        (str)        — closing motivational note
+        """
+
+    @abstractmethod
+    async def verify_skill_claims(self, skills: list[str], resume_text: str) -> dict:
+        """
+        For each skill in `skills`, determine whether the candidate's work history
+        or project descriptions in `resume_text` provide genuine evidence of that skill.
+
+        Returns a dict keyed by skill name:
+          { "skill": { "has_evidence": bool, "confidence": float 0-1, "reason": str } }
+        """
+
+    @abstractmethod
     async def extract_structured_profile(self, resume_text: str) -> dict:
         """
         Extract structured fields from free-form resume text.

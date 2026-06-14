@@ -176,6 +176,110 @@ Best regards,
     )
 
 
+async def send_displacement_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company: str,
+    displaced_score: float,
+    status_url: str | None,
+    comparison: dict | None,
+    recruiter_name: str = "Recruitment Team",
+    recruiter_email: str = "",
+    recruiter_position: str = "Recruiter",
+) -> None:
+    signature = _build_signature(recruiter_name, recruiter_email, recruiter_position)
+
+    comparison_section = ""
+    if comparison:
+        areas = comparison.get("comparison", [])
+        rank1_strengths = comparison.get("rank1_key_strengths", [])
+        encouragement = comparison.get("encouragement", "")
+
+        if rank1_strengths:
+            strengths_text = "\n".join(f"  • {s}" for s in rank1_strengths)
+            comparison_section += f"\nWhat made the stronger candidate stand out:\n{strengths_text}\n"
+
+        if areas:
+            comparison_section += "\n─────────────────────────────────────\nDetailed Comparison & Improvement Areas\n─────────────────────────────────────\n"
+            for item in areas:
+                comparison_section += (
+                    f"\n📌 {item.get('area', '')}\n"
+                    f"  Top candidate: {item.get('rank1_has', '')}\n"
+                    f"  Your profile:  {item.get('you_have', '')}\n"
+                    f"  → Work on:     {item.get('improvement', '')}\n"
+                )
+
+        if encouragement:
+            comparison_section += f"\n{encouragement}\n"
+
+    status_section = (
+        f"\nYou can still reapply with an updated resume before the position closes.\nTrack the job at: {status_url}\n"
+        if status_url else ""
+    )
+
+    body = f"""Dear {candidate_name},
+
+Your application for {job_title} at {company} was shortlisted, but has been displaced from the pool.
+
+Why this happened:
+A new candidate with a stronger profile entered the competition. As the lowest-ranked candidate in the pool at that time (your score: {displaced_score:.1f}%), your position was displaced to make room.
+
+This does not mean your profile is weak — you were shortlisted, which means you cleared the initial threshold. The pool simply filled with stronger matches.
+{comparison_section}{status_section}
+Best regards,
+{signature}"""
+
+    await send_email(
+        candidate_email,
+        f"Application Update — {job_title} (Displaced from Pool)",
+        body,
+    )
+
+
+async def send_rank_change_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company: str,
+    old_rank: int,
+    new_rank: int,
+    status_url: str,
+    recruiter_name: str = "Recruitment Team",
+    recruiter_email: str = "",
+    recruiter_position: str = "Recruiter",
+) -> None:
+    signature = _build_signature(recruiter_name, recruiter_email, recruiter_position)
+    moved = old_rank - new_rank  # positive = moved up, negative = moved down
+
+    if moved > 0:
+        direction_line = f"Your ranking has improved — you moved up from #{old_rank} to #{new_rank}."
+        subject_tag = "Rank Improved"
+    else:
+        direction_line = f"A strong new candidate joined the pool — your rank moved from #{old_rank} to #{new_rank}."
+        subject_tag = "Rank Updated"
+
+    body = f"""Dear {candidate_name},
+
+We have an update on your application for {job_title} at {company}.
+
+{direction_line}
+
+You remain in the shortlisted pool and your application is still active.
+
+Track your current standing at any time:
+{status_url}
+
+Best regards,
+{signature}"""
+
+    await send_email(
+        candidate_email,
+        f"Application Update — {job_title} ({subject_tag})",
+        body,
+    )
+
+
 async def send_acceptance_notification(
     candidate_email: str,
     candidate_name: str,

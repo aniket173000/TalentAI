@@ -221,6 +221,39 @@ class CandidateJobScore(Base):
     )
 
 
+class ResumeGamingAnalysis(Base):
+    """
+    Anti-gaming analysis for reapplications.
+    Created as a background task when a candidate reapplies to the same job.
+    Surfaces a risk signal to recruiters without blocking the candidate.
+    """
+    __tablename__ = "resume_gaming_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False, index=True)
+    prev_application_id = Column(Integer, ForeignKey("applications.id"), nullable=True)
+
+    # Feature 2 — skill diff + gap exploit
+    added_skills = Column(Text, nullable=True)           # JSON list[str]
+    skills_overlap_gaps = Column(Text, nullable=True)    # JSON list[str]: new skills matching prev gaps
+    gap_exploit_ratio = Column(Float, nullable=True)     # 0.0–1.0
+
+    # Feature 4 — claim verification
+    unsupported_skills = Column(Text, nullable=True)     # JSON list[str]
+    skill_evidence = Column(Text, nullable=True)         # JSON dict: skill → {has_evidence, confidence, reason}
+
+    # Feature 6 — embedding drift
+    resume_jd_similarity = Column(Float, nullable=True)       # cosine(new_resume, JD)
+    prev_resume_jd_similarity = Column(Float, nullable=True)  # cosine(prev_resume, JD)
+    similarity_delta = Column(Float, nullable=True)           # new − old (positive = converging to JD)
+    resume_self_similarity = Column(Float, nullable=True)     # cosine(new_resume, prev_resume)
+
+    # Composite risk
+    gaming_risk_score = Column(Float, nullable=True)   # 0.0–1.0
+    risk_level = Column(String(20), nullable=True)     # "none" | "low" | "medium" | "high"
+    analyzed_at = Column(DateTime, server_default=func.now())
+
+
 class Application(Base):
     __tablename__ = "applications"
 

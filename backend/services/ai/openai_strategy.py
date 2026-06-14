@@ -41,13 +41,25 @@ JOB DESCRIPTION:
 CANDIDATE RESUME:
 {resume_text[:3500]}
 
-STEP 1 — Extract experience facts before scoring:
-- required_years: exact years of experience stated in the JD (e.g. "9+ years" → 9). If a range is given, use the minimum. If unstated, use 0.
-- candidate_years: total professional years from the resume (sum all non-overlapping roles). Round to one decimal.
-- experience_ratio: candidate_years / required_years (cap at 1.0 if candidate meets or exceeds requirement). If required_years is 0, set ratio to 1.0.
+STEP 1 — Resolve technology OR conditions (do this FIRST, before scoring):
+Identify every "X or Y", "X (preferred) or another Z", "X / Y / Z" requirement in the JD.
+For each such requirement: if the candidate has ANY listed technology OR a strong equivalent in the same category, mark it as SATISFIED. Do NOT penalise for lacking the "preferred" option when an alternative is present and strong.
+Common equivalences to honour:
+- "Node.js or another backend language" → satisfied by strong Java, Go, Python, Ruby, Rust, etc.
+- "React or Angular or Vue" → satisfied by any one
+- "MySQL or PostgreSQL" → satisfied by either
+- "AWS or GCP or Azure" → satisfied by any one
+- "Kafka or RabbitMQ or SQS" → satisfied by any one
 
-STEP 2 — Compute sub-scores (each 0-100):
-- skills_score: match of candidate's skills/tools to JD requirements
+STEP 2 — Extract experience facts:
+- required_years: minimum years stated in the JD (range → use minimum; unstated → 0)
+- candidate_years: sum all non-overlapping professional roles. Round to one decimal.
+- experience_ratio: candidate_years / required_years, capped at 1.0. If required_years is 0, set 1.0.
+
+STEP 3 — Compute sub-scores (each 0-100):
+- skills_score: how well candidate skills match JD requirements, using the OR conditions resolved in STEP 1.
+  A requirement satisfied by an equivalent technology counts as FULLY met — do not apply a partial-credit penalty for using an alternative.
+  Only deduct for requirements that are genuinely unmet (no alternative present).
 - project_score: relevance and depth of candidate's projects to the role
 - experience_score: based on experience_ratio —
     ratio >= 1.0  → 100
@@ -57,11 +69,12 @@ STEP 2 — Compute sub-scores (each 0-100):
     ratio >= 0.30 → 20
     ratio <  0.30 → 0
 
-STEP 3 — Composite score: (skills_score × 0.35) + (project_score × 0.30) + (experience_score × 0.35)
-
-STEP 4 — Apply hard caps:
-- If experience_ratio < 0.50 (candidate has less than half the required experience): cap match_score at 55
-- If experience_ratio < 0.70: cap match_score at 70
+STEP 4 — Gaps and suggestions:
+- Only list a skill as a gap if it is a hard requirement AND no equivalent is present in the resume.
+- Do NOT list preferred/nice-to-have skills as gaps.
+- Do NOT list a skill as a gap if the candidate has a strong alternative that satisfies the same OR condition (per STEP 1).
+  Example: if JD says "Node.js (preferred) or another backend language" and candidate has strong Java/Go → Node.js is NOT a gap.
+- Verify each gap against the actual resume text before listing it — do not hallucinate missing skills.
 
 Return ONLY this JSON (no markdown):
 {{
@@ -94,7 +107,7 @@ Scoring guide:
 - 70-79: Partial — meets some requirements, moderate experience gap
 - Below 70: Weak — significant skill, project, or experience gaps
 
-Be rigorous. Experience shortfalls must be reflected in the final score."""
+Be rigorous on experience shortfalls. Be fair on technology alternatives — a strong Java engineer is not a weak Node.js engineer, they are a strong backend engineer who chose a different language."""
 
         response = await _client().chat.completions.create(
             model=settings.AI_MODEL,
@@ -105,7 +118,25 @@ Be rigorous. Experience shortfalls must be reflected in the final score."""
             response_format={"type": "json_object"},
             temperature=0.1,
         )
-        return json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content)
+
+        # Recompute composite from sub_scores to prevent the LLM from ignoring the formula.
+        # The LLM is trusted for sub_scores (which reflect its semantic analysis) but not
+        # for the final arithmetic — it routinely applies holistic bias instead of the formula.
+        sub = result.get("sub_scores", {})
+        skills_s = float(sub.get("skills", 0))
+        projects_s = float(sub.get("projects", 0))
+        exp_s = float(sub.get("experience", 0))
+        if skills_s or projects_s or exp_s:
+            composite = (skills_s * 0.35) + (projects_s * 0.30) + (exp_s * 0.35)
+            exp_ratio = float(result.get("experience_ratio", 1.0))
+            if exp_ratio < 0.50:
+                composite = min(composite, 55.0)
+            elif exp_ratio < 0.70:
+                composite = min(composite, 70.0)
+            result["match_score"] = round(composite, 1)
+
+        return result
 
     async def generate_rejection_email(
         self,
@@ -253,6 +284,113 @@ Address the candidate directly (use "you"/"your"). Be specific, not generic."""
             input=text[:8000],
         )
         return response.data[0].embedding
+
+    async def generate_displacement_comparison(
+        self,
+        rank1_resume: str,
+        rank1_score: float,
+        displaced_resume: str,
+        displaced_score: float,
+        jd_text: str,
+        job_title: str,
+    ) -> dict:
+        prompt = f"""You are a career coach helping a candidate understand why they were displaced from a job shortlist.
+
+A stronger candidate (Score: {rank1_score:.1f}%) has entered the pool, displacing this candidate (Score: {displaced_score:.1f}%).
+
+JOB TITLE: {job_title}
+JOB DESCRIPTION (excerpt):
+{jd_text[:1500]}
+
+TOP CANDIDATE RESUME (rank #1 — do NOT reveal their name):
+{rank1_resume[:2000]}
+
+DISPLACED CANDIDATE RESUME:
+{displaced_resume[:2000]}
+
+Compare the two profiles specifically against this job's requirements. Identify 3-5 areas where the top candidate is stronger.
+
+Return ONLY this JSON (no markdown):
+{{
+  "rank1_key_strengths": [
+    "<specific strength 1 — be concrete, e.g. '5 years Golang in fintech at scale' not 'more experience'>",
+    "<specific strength 2>",
+    "<specific strength 3>"
+  ],
+  "comparison": [
+    {{
+      "area": "<skill or experience area, e.g. 'Distributed Systems', 'NoSQL Databases'>",
+      "rank1_has": "<what the top candidate demonstrates in this area — be specific>",
+      "you_have": "<what the displaced candidate has in this area — be honest but fair, 'none mentioned' if absent>",
+      "improvement": "<1-2 concrete, actionable steps the displaced candidate can take to close this gap>"
+    }}
+  ],
+  "encouragement": "<2-3 sentences: acknowledge their strengths, name the 1-2 most impactful things to work on, and encourage them to reapply with an updated resume>"
+}}
+
+Rules:
+- Never reveal the top candidate's name, company, or any personally identifiable information.
+- Be specific and honest — vague advice like 'gain more experience' is not helpful.
+- Limit comparison to at most 5 areas (the most impactful gaps only).
+- If the displaced candidate is actually competitive, say so honestly in encouragement."""
+
+        last_exc: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                response = await _client().chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                    temperature=0.3,
+                    max_tokens=1000,
+                )
+                return json.loads(response.choices[0].message.content)
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                last_exc = exc
+                logger.warning("generate_displacement_comparison attempt %d failed: %s", attempt, exc)
+
+        raise RuntimeError(f"generate_displacement_comparison failed after 3 attempts: {last_exc}")
+
+    async def verify_skill_claims(self, skills: list[str], resume_text: str) -> dict:
+        skills_list = "\n".join(f"- {s}" for s in skills)
+        prompt = f"""You are a recruiting analyst verifying whether a candidate's newly claimed skills
+are actually supported by their work experience and projects.
+
+Newly claimed skills:
+{skills_list}
+
+Candidate resume (work history, projects, certifications):
+{resume_text[:4000]}
+
+For each claimed skill, determine if the resume's work experience or project descriptions
+genuinely demonstrate evidence of that skill. Be strict — keyword appearances alone are
+not evidence; look for actual usage in context (job responsibilities, project descriptions).
+
+Return ONLY a JSON object — one key per skill (exact spelling from the list above):
+{{
+  "<skill_name>": {{
+    "has_evidence": true or false,
+    "confidence": <0.0-1.0>,
+    "reason": "<one sentence>"
+  }}
+}}"""
+
+        last_exc: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                response = await _client().chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    max_tokens=600,
+                )
+                return json.loads(response.choices[0].message.content)
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                last_exc = exc
+                logger.warning("verify_skill_claims attempt %d failed: %s", attempt, exc)
+
+        raise RuntimeError(f"verify_skill_claims failed after 3 attempts: {last_exc}")
 
     async def extract_structured_profile(self, resume_text: str) -> dict:
         system = (

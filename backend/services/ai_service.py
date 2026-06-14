@@ -65,3 +65,20 @@ async def parse_jd_requirements(jd_text: str, job_title: str) -> dict:
 
 async def extract_structured_profile(resume_text: str) -> dict:
     return await get_ai_strategy().extract_structured_profile(resume_text)
+
+
+async def verify_skill_claims(skills: list[str], resume_text: str) -> dict:
+    return await get_ai_strategy().verify_skill_claims(skills, resume_text)
+
+
+async def generate_displacement_comparison(
+    rank1_resume: str,
+    rank1_score: float,
+    displaced_resume: str,
+    displaced_score: float,
+    jd_text: str,
+    job_title: str,
+) -> dict:
+    return await get_ai_strategy().generate_displacement_comparison(
+        rank1_resume, rank1_score, displaced_resume, displaced_score, jd_text, job_title
+    )

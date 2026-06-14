@@ -21,6 +21,8 @@ from services.ai_service import (
 )
 from services.email_service import (
     send_acceptance_notification,
+    send_displacement_email,
+    send_rank_change_email,
     send_rejection_email,
     send_status_change_email,
 )
@@ -49,9 +51,10 @@ def _status_url(token: str) -> str:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _rerank(db: Session, job_id: int) -> None:
+async def _rerank(db: Session, job_id: int) -> list[dict]:
     """Assign contiguous ranks 1..N to accepted applications.
-    Equal scores are broken by AI resume comparison; fallback is applied_at."""
+    Equal scores are broken by AI resume comparison; fallback is applied_at.
+    Returns a list of rank-change dicts for candidates whose rank shifted."""
     accepted = (
         db.query(models.Application)
         .filter(
@@ -66,7 +69,10 @@ async def _rerank(db: Session, job_id: int) -> None:
     )
 
     if not accepted:
-        return
+        return []
+
+    # Snapshot ranks before reordering (None = new entrant, skip from diff)
+    old_ranks = {a.id: a.rank for a in accepted}
 
     # Group consecutive entries by rounded score to find ties
     ordered: list = []
@@ -102,6 +108,21 @@ async def _rerank(db: Session, job_id: int) -> None:
     for pos, app in enumerate(ordered):
         app.rank = pos + 1
     db.commit()
+
+    # Compute rank changes for existing pool members (skip new entrants with old_rank=None)
+    changes = []
+    for app in ordered:
+        old = old_ranks.get(app.id)
+        if old is not None and old != app.rank:
+            changes.append({
+                "app_id": app.id,
+                "candidate_email": app.candidate_email,
+                "candidate_name": app.candidate_name,
+                "old_rank": old,
+                "new_rank": app.rank,
+                "status_token": app.status_token,
+            })
+    return changes
 
 
 async def _send_acceptance_with_explanation(
@@ -161,6 +182,70 @@ async def _send_acceptance_with_explanation(
             recruiter_name, recruiter_email, recruiter_position,
             strengths, gaps, rank_explanation,
         )
+
+
+async def _send_displacement_notification(
+    displaced_app_id: int,
+    job_id: int,
+    d_email: str,
+    d_name: str,
+    d_score: float,
+    d_token: str | None,
+    job_title: str,
+    job_company: str,
+    recruiter_name: str,
+    recruiter_email: str,
+    recruiter_position: str,
+) -> None:
+    """Background task: generate rank-1 comparison then send displacement email."""
+    from services.ai_service import generate_displacement_comparison
+
+    comparison = None
+    try:
+        with SessionLocal() as session:
+            rank1 = (
+                session.query(models.Application)
+                .filter(
+                    models.Application.job_id == job_id,
+                    models.Application.status == "accepted",
+                    models.Application.rank == 1,
+                )
+                .first()
+            )
+            displaced = (
+                session.query(models.Application)
+                .filter(models.Application.id == displaced_app_id)
+                .first()
+            )
+            job = session.query(models.Job).filter(models.Job.id == job_id).first()
+
+            if rank1 and displaced and job:
+                comparison = await generate_displacement_comparison(
+                    rank1.resume_text, rank1.match_score,
+                    displaced.resume_text, d_score,
+                    job.jd_text, job_title,
+                )
+    except Exception as exc:
+        logger.warning("Displacement comparison failed for app %d: %s", displaced_app_id, exc)
+
+    status_url = _status_url(d_token) if d_token else None
+    await send_displacement_email(
+        d_email, d_name, job_title, job_company,
+        d_score, status_url, comparison,
+        recruiter_name, recruiter_email, recruiter_position,
+    )
+
+
+async def _run_gaming_analysis(
+    new_app_id: int,
+    prev_app_id: int,
+    new_resume_text: str,
+    prev_resume_text: str,
+    job_id: int,
+) -> None:
+    """Background task: run resume gaming analysis for reapplications."""
+    from services.gaming.analyzer import analyze_reapplication
+    await analyze_reapplication(new_app_id, prev_app_id, job_id, new_resume_text, prev_resume_text)
 
 
 async def _store_profile_embedding(user_id: int, resume_text: str) -> None:
@@ -472,6 +557,10 @@ async def apply_to_job(
     if match_score < min_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
+        if prior:
+            background_tasks.add_task(
+                _run_gaming_analysis, saved.id, prior.id, resume_text, prior.resume_text, job_id
+            )
         background_tasks.add_task(
             send_rejection_email,
             resolved_email, resolved_name, job_title, job_company,
@@ -508,10 +597,23 @@ async def apply_to_job(
     # 6. Pool not full → add directly ──────────────────────────────────────────
     if len(accepted) < max_count:
         app = _save("accepted")
-        await _rerank(db, job_id)
+        rank_changes = await _rerank(db, job_id)
         db.refresh(app)
         total_pool = len(accepted) + 1
         background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
+        if prior:
+            background_tasks.add_task(
+                _run_gaming_analysis, app.id, prior.id, resume_text, prior.resume_text, job_id
+            )
+        for change in rank_changes:
+            background_tasks.add_task(
+                send_rank_change_email,
+                change["candidate_email"], change["candidate_name"],
+                job_title, job_company,
+                change["old_rank"], change["new_rank"],
+                _status_url(change["status_token"]),
+                recruiter_name, recruiter_email, recruiter_position,
+            )
         background_tasks.add_task(
             _send_acceptance_with_explanation,
             app.id, job_id, resolved_email, resolved_name, job_title, match_score,
@@ -541,6 +643,10 @@ async def apply_to_job(
     if match_score <= lowest.match_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
+        if prior:
+            background_tasks.add_task(
+                _run_gaming_analysis, saved.id, prior.id, resume_text, prior.resume_text, job_id
+            )
         background_tasks.add_task(
             send_rejection_email,
             resolved_email, resolved_name, job_title, job_company,
@@ -576,25 +682,31 @@ async def apply_to_job(
     lowest.candidate_status = "rejected"   # ← assign status when displaced
     lowest.rank = None
     app = _save("accepted")
-    await _rerank(db, job_id)
+    rank_changes = await _rerank(db, job_id)
     db.refresh(app)
     background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
+    if prior:
+        background_tasks.add_task(
+            _run_gaming_analysis, app.id, prior.id, resume_text, prior.resume_text, job_id
+        )
+    for change in rank_changes:
+        background_tasks.add_task(
+            send_rank_change_email,
+            change["candidate_email"], change["candidate_name"],
+            job_title, job_company,
+            change["old_rank"], change["new_rank"],
+            _status_url(change["status_token"]),
+            recruiter_name, recruiter_email, recruiter_position,
+        )
 
-    # Notify displaced candidate with updated status
-    if d_token:
-        background_tasks.add_task(
-            send_status_change_email,
-            d_email, d_name, job_title, job_company,
-            "rejected", _status_url(d_token),
-            recruiter_name, recruiter_email, recruiter_position,
-        )
-    else:
-        background_tasks.add_task(
-            send_rejection_email,
-            d_email, d_name, job_title, job_company,
-            d_score, d_strengths, d_gaps,
-            recruiter_name, recruiter_email, recruiter_position,
-        )
+    # Notify displaced candidate with comparison against rank-1
+    background_tasks.add_task(
+        _send_displacement_notification,
+        lowest.id, job_id,
+        d_email, d_name, d_score, d_token,
+        job_title, job_company,
+        recruiter_name, recruiter_email, recruiter_position,
+    )
 
     background_tasks.add_task(
         _send_acceptance_with_explanation,
@@ -784,6 +896,52 @@ def s3_debug(
         "file_exists_in_s3": file_exists_in_s3,
         "presigned_url_generated": presigned_url is not None,
         "presigned_url_preview": (presigned_url[:120] + "...") if presigned_url else None,
+    }
+
+
+# ── Recruiter: gaming analysis ───────────────────────────────────────────────
+
+@router.get("/{app_id}/gaming-analysis")
+def get_gaming_analysis(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """
+    Returns resume gaming analysis for a reapplication.
+    Returns {"available": false} if the candidate is a first-time applicant or analysis is still running.
+    """
+    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+    if not job or job.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    analysis = (
+        db.query(models.ResumeGamingAnalysis)
+        .filter(models.ResumeGamingAnalysis.application_id == app_id)
+        .first()
+    )
+
+    if not analysis:
+        return {"available": False}
+
+    return {
+        "available": True,
+        "risk_level": analysis.risk_level,
+        "gaming_risk_score": analysis.gaming_risk_score,
+        "added_skills": json.loads(analysis.added_skills or "[]"),
+        "skills_overlap_gaps": json.loads(analysis.skills_overlap_gaps or "[]"),
+        "gap_exploit_ratio": analysis.gap_exploit_ratio,
+        "unsupported_skills": json.loads(analysis.unsupported_skills or "[]"),
+        "skill_evidence": json.loads(analysis.skill_evidence or "{}"),
+        "resume_jd_similarity": analysis.resume_jd_similarity,
+        "prev_resume_jd_similarity": analysis.prev_resume_jd_similarity,
+        "similarity_delta": analysis.similarity_delta,
+        "resume_self_similarity": analysis.resume_self_similarity,
+        "analyzed_at": analysis.analyzed_at.isoformat() if analysis.analyzed_at else None,
     }
 
 
