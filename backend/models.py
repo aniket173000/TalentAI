@@ -170,6 +170,7 @@ class Job(Base):
     company_url = Column(String(500), nullable=True)      # company website or LinkedIn URL
     company_logo_url = Column(String(1000), nullable=True) # resolved logo URL (auto-populated)
     is_third_party = Column(Boolean, default=False)         # posted by a third-party recruiter
+    is_fresher_friendly = Column(Boolean, default=False)    # project-first scoring for interns/freshers
 
     # JD Parsing (E5-S1) — structured requirements extracted by AI
     jd_requirements = Column(Text, nullable=True)           # JSON blob of JDRequirements

@@ -31,7 +31,8 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('access_token','ERROR:'+str\\(d\\)\\)\\)\")",
       "Bash(curl -s http://localhost:8000/api/applications/39/gaming-analysis -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Iiwicm9sZSI6InJlY3J1aXRlciIsImV4cCI6MTc4MTU1NTIwMn0.ZQex4ik0-_yl9f1evpAUzF2Mm0-S_cj2VyuSipDPm6g')",
       "Bash(sqlite3 talentai.db ' *)",
-      "Bash(python3 -c \"from services.ai.openai_strategy import OpenAIStrategy; print\\('Import OK'\\)\")"
+      "Bash(python3 -c \"from services.ai.openai_strategy import OpenAIStrategy; print\\('Import OK'\\)\")",
+      "Bash(sqlite3 /Users/aniket/Desktop/Mark1Job/backend/talentai.db \"ALTER TABLE jobs ADD COLUMN is_fresher_friendly BOOLEAN DEFAULT 0;\")"
     ],
     "additionalDirectories": [
       "/tmp",

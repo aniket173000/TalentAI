@@ -3,6 +3,7 @@ import api from '../api/client'
 import CompanyCard from '../components/CompanyCard'
 import JobCard from '../components/JobCard'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useStudentMode } from '../context/StudentModeContext'
 import { Job, JobListResponse } from '../types'
 
 function getBestLogoUrl(companyJobs: Job[]): string | null {
@@ -23,6 +24,7 @@ function getBestLogoUrl(companyJobs: Job[]): string | null {
 }
 
 export default function Home() {
+  const { studentMode, toggleStudentMode } = useStudentMode()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -222,6 +224,30 @@ export default function Home() {
   // ── Company grid view ───────────────────────────────────────────────────────
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
+
+      {/* Student Mode Banner */}
+      {studentMode && (
+        <div className="mb-8 rounded-2xl overflow-hidden relative">
+          <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 px-6 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎓</span>
+              <div>
+                <p className="text-white font-bold text-sm">Student Mode is ON</p>
+                <p className="text-violet-200 text-xs mt-0.5">
+                  Readiness roadmaps · Project-First scoring · "Test My Chances" on every job
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={toggleStudentMode}
+              className="shrink-0 text-xs text-violet-200 hover:text-white border border-violet-400 hover:border-white rounded-full px-3 py-1 transition-colors"
+            >
+              Turn Off
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-extrabold text-navy-900 mb-3">Explore Top Companies</h1>

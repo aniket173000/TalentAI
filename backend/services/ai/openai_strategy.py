@@ -392,6 +392,96 @@ Return ONLY a JSON object — one key per skill (exact spelling from the list ab
 
         raise RuntimeError(f"verify_skill_claims failed after 3 attempts: {last_exc}")
 
+    async def generate_readiness_roadmap(
+        self,
+        jd_text: str,
+        resume_text: str,
+        job_title: str,
+        current_score: float,
+        gaps: list,
+        improvement_suggestions: list,
+        fresher_mode: bool = False,
+    ) -> dict:
+        mode_note = (
+            "This is a fresher/internship role. Focus on projects, coursework, and skills "
+            "buildable in weeks. Prioritise action over credentials."
+            if fresher_mode else
+            "This is a professional role. Balance ambition with realism."
+        )
+        prompt = f"""You are a brutally honest career coach. A candidate wants to know how ready they genuinely are for a specific job role.
+
+JOB TITLE: {job_title}
+{mode_note}
+
+JOB DESCRIPTION (key requirements):
+{jd_text[:2000]}
+
+CANDIDATE RESUME:
+{resume_text[:2500]}
+
+STEP 1 — Domain alignment check (do this first):
+Identify the PRIMARY domain of the role (e.g. Software Engineering, Product Management, Data Science, Marketing).
+Identify the PRIMARY domain of the candidate (e.g. their degree, job titles, project types).
+If the domains are DIFFERENT — the candidate needs a career transition, not just skill-building. This must heavily limit the readiness score.
+
+STEP 2 — Compute an HONEST readiness_score (0-100):
+Apply these hard caps BEFORE any other scoring:
+- Candidate's primary domain is DIFFERENT from the role's domain → max 30 (career switcher)
+- Candidate has NO practical projects or work in the role's domain → max 25
+- Candidate has some cross-domain skills (e.g. SQL, data analysis) but no direct domain experience → max 40
+- Candidate is from the same domain but missing 3+ key skills → max 65
+- Candidate is same-domain with 1-2 skill gaps → 65-84
+- Strong match with all key skills → 85-100
+Do NOT let adjacent skills (e.g. fintech business knowledge, product management) substitute for core technical skills when the role demands them.
+Do NOT inflate the score to be "encouraging" — an honest low score is more useful than a misleading high one.
+
+STEP 3 — Readiness label from score:
+< 25 → "Career Switch Required"
+25-39 → "Just Starting"
+40-59 → "Building Up"
+60-74 → "Getting There"
+75-84 → "Almost Ready"
+85-100 → "Ready to Apply"
+
+STEP 4 — Roadmap (ordered by impact, highest first):
+If this is a career switch, the roadmap should clearly say what fundamental reskilling is needed — not just small tweaks.
+If this is a skill gap, give concrete actionable steps.
+
+Return ONLY valid JSON (no markdown):
+{{
+    "readiness_score": <integer 0-100, computed per STEP 2>,
+    "readiness_label": "<label from STEP 3>",
+    "domain_gap": "<null if same domain, else short description: e.g. 'Product Manager → Backend Engineer requires full technical reskilling'>",
+    "roadmap": [
+        {{
+            "skill_area": "<specific area>",
+            "current": "<what they have now, honest>",
+            "action": "<concrete action: build X, learn Z, get certified in Y>",
+            "resource_hint": "<specific project or resource>",
+            "estimated_gain": <integer 2-20>
+        }}
+    ],
+    "quick_wins": ["<action completable today that genuinely helps>"],
+    "encouragement": "<one honest, realistic, motivating sentence — acknowledge the gap but give a clear direction>"
+}}
+
+Rules:
+- roadmap: 3-5 items. For career switchers, items should be about building foundational skills, not polish.
+- quick_wins: only list things actually useful given the real gap. If the gap is fundamental, say so (e.g. "Complete a 3-month Python course before anything else")
+- Be specific and honest. A 20% readiness score is NOT a failure — it is accurate information that helps the candidate plan realistically."""
+
+        response = await _client().chat.completions.create(
+            model=settings.AI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
+        )
+        result = json.loads(response.choices[0].message.content)
+        # Clamp readiness_score to valid range
+        if "readiness_score" in result:
+            result["readiness_score"] = max(0, min(100, int(result["readiness_score"])))
+        return result
+
     async def extract_structured_profile(self, resume_text: str) -> dict:
         system = (
             "You are a precise resume parser. Extract structured information exactly as "

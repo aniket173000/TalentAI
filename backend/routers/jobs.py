@@ -12,7 +12,7 @@ import schemas
 from database import get_db
 from routers.auth import get_current_user, require_recruiter
 from services.company_logo import resolve_company_logo
-from services.file_parser import parse_docx, parse_pdf
+from services.file_parser import parse_docx, parse_pdf, parse_resume
 from services.jd_parser import jd_needs_parse, parse_job_requirements, reset_parse_status
 
 logger = logging.getLogger(__name__)
@@ -164,6 +164,7 @@ async def create_job(
     remote_policy: Optional[str] = Form(default=None),
     application_deadline: Optional[datetime] = Form(default=None),
     is_third_party: bool = Form(default=False),
+    is_fresher_friendly: bool = Form(default=False),
     jd_text: Optional[str] = Form(default=None),
     jd_file: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
@@ -218,6 +219,7 @@ async def create_job(
         remote_policy=remote_policy,
         application_deadline=application_deadline,
         is_third_party=is_third_party,
+        is_fresher_friendly=is_fresher_friendly,
         recruiter_id=current_user.id,
         status="draft",
         slug=_unique_slug(db, title, location),
@@ -358,6 +360,10 @@ def update_job(
         effective_company = body.company or job.company
         job.company_logo_url = _resolve_logo(db, effective_company, effective_url, exclude_id=job.id)
 
+    # is_fresher_friendly is a simple toggle — not audited, just applied
+    if body.is_fresher_friendly is not None:
+        job.is_fresher_friendly = body.is_fresher_friendly
+
     # Eligibility criteria
     if body.eligibility_criteria is not None:
         old_criteria = job.criteria
@@ -478,6 +484,65 @@ def get_job_requirements(
 
 
 # ── Audit log ─────────────────────────────────────────────────────────────────
+
+@router.post("/{job_id}/practice-apply")
+async def practice_apply(
+    job_id: int,
+    resume_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Test your resume against a job description — zero commitment, full AI feedback.
+    Returns AI screening result + readiness roadmap. Does not create an application.
+    """
+    from services.ai_service import generate_readiness_roadmap, screen_resume
+
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job.status != "published":
+        raise HTTPException(status_code=400, detail="This job is not currently accepting applications.")
+
+    content = await resume_file.read()
+    resume_text = parse_resume(content, resume_file.filename or "resume.pdf")
+    if not resume_text or len(resume_text.strip()) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not extract text from resume. Please upload a valid PDF, DOCX, or TXT file.",
+        )
+
+    screening = await screen_resume(job.jd_text, resume_text, job.title)
+
+    # Project-First scoring: bump projects weight, lower experience weight for fresher roles
+    if job.is_fresher_friendly:
+        sub = screening.get("sub_scores", {})
+        skills_s = float(sub.get("skills", 0))
+        projects_s = float(sub.get("projects", 0))
+        exp_s = float(sub.get("experience", 0))
+        if skills_s or projects_s or exp_s:
+            composite = (skills_s * 0.35) + (projects_s * 0.40) + (exp_s * 0.25)
+            screening["match_score"] = round(composite, 1)
+            screening["scoring_mode"] = "fresher"
+
+    roadmap = await generate_readiness_roadmap(
+        jd_text=job.jd_text,
+        resume_text=resume_text,
+        job_title=job.title,
+        current_score=screening.get("match_score", 0),
+        gaps=screening.get("gaps", []),
+        improvement_suggestions=screening.get("improvement_suggestions", []),
+        fresher_mode=job.is_fresher_friendly,
+    )
+
+    return {
+        **screening,
+        "roadmap_data": roadmap,
+        "job_title": job.title,
+        "company": job.company,
+        "min_match_score": job.min_match_score,
+        "is_fresher_friendly": job.is_fresher_friendly,
+    }
+
 
 @router.get("/{job_id}/audit-log", response_model=List[schemas.JobAuditLogResponse])
 def get_audit_log(

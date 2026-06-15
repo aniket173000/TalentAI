@@ -78,6 +78,7 @@ class JobCreate(BaseModel):
     application_deadline: Optional[datetime] = None
     eligibility_criteria: Optional[EligibilityCriteriaIn] = None
     is_third_party: bool = False
+    is_fresher_friendly: bool = False
 
 
 class JobUpdate(BaseModel):
@@ -95,6 +96,7 @@ class JobUpdate(BaseModel):
     remote_policy: Optional[str] = None
     application_deadline: Optional[datetime] = None
     eligibility_criteria: Optional[EligibilityCriteriaIn] = None
+    is_fresher_friendly: Optional[bool] = None
 
 
 class JobAuditLogResponse(BaseModel):
@@ -130,6 +132,7 @@ class JobResponse(BaseModel):
     published_at: Optional[datetime] = None
     created_at: datetime
     is_third_party: bool = False
+    is_fresher_friendly: bool = False
     # Computed in router
     total_applicants: int = 0
     active_applications: int = 0   # accepted count (backwards compat)

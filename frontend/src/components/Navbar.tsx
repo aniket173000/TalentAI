@@ -1,10 +1,12 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useStudentMode } from '../context/StudentModeContext'
 
 export default function Navbar() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isRecruiter, isCandidate, logout, switchRole, hasLinkedRole, activeRole } = useAuth()
+  const { studentMode, toggleStudentMode } = useStudentMode()
 
   const linkClass = (path: string) =>
     `text-sm font-medium transition-colors ${
@@ -50,6 +52,24 @@ export default function Navbar() {
             <Link to="/dashboard" className={linkClass('/dashboard')}>
               My Applications
             </Link>
+          )}
+
+          {/* Student mode toggle — visible for candidates and unauthenticated users */}
+          {!isRecruiter && (
+            <button
+              onClick={toggleStudentMode}
+              title={studentMode ? 'Student Mode is ON — click to turn off' : 'Switch to Student Mode for readiness roadmaps & practice apply'}
+              className={`relative text-xs font-bold px-3.5 py-1.5 rounded-full border transition-all duration-300 ${
+                studentMode
+                  ? 'bg-gradient-to-r from-violet-500 to-pink-500 border-transparent text-white shadow-lg shadow-violet-500/40'
+                  : 'border-navy-600 text-slate-300 hover:border-violet-400 hover:text-violet-300'
+              }`}
+            >
+              {studentMode && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-navy-900" />
+              )}
+              🎓 {studentMode ? 'Student Mode' : 'Student Mode'}
+            </button>
           )}
 
           {isRecruiter && (

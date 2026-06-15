@@ -71,6 +71,20 @@ async def verify_skill_claims(skills: list[str], resume_text: str) -> dict:
     return await get_ai_strategy().verify_skill_claims(skills, resume_text)
 
 
+async def generate_readiness_roadmap(
+    jd_text: str,
+    resume_text: str,
+    job_title: str,
+    current_score: float,
+    gaps: list,
+    improvement_suggestions: list,
+    fresher_mode: bool = False,
+) -> dict:
+    return await get_ai_strategy().generate_readiness_roadmap(
+        jd_text, resume_text, job_title, current_score, gaps, improvement_suggestions, fresher_mode
+    )
+
+
 async def generate_displacement_comparison(
     rank1_resume: str,
     rank1_score: float,

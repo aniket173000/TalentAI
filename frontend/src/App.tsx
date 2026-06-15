@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
+import { StudentModeProvider } from './context/StudentModeContext'
 import Apply from './pages/Apply'
 import ApplicationResult from './pages/ApplicationResult'
 import CandidateDashboard from './pages/CandidateDashboard'
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <StudentModeProvider>
         <div className="min-h-screen bg-slate-50 flex flex-col">
           <Navbar />
           <main className="flex-1">
@@ -89,6 +91,7 @@ export default function App() {
             </Routes>
           </main>
         </div>
+        </StudentModeProvider>
       </AuthProvider>
     </BrowserRouter>
   )

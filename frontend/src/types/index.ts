@@ -41,6 +41,7 @@ export interface Job {
   published_at: string | null
   created_at: string
   is_third_party: boolean
+  is_fresher_friendly: boolean
   total_applicants: number
   active_applications: number
   pool_count: number
@@ -181,4 +182,37 @@ export interface ApplyResult {
   improvement_suggestions?: string[]
   project_scores?: ProjectScore[]
   summary?: string
+}
+
+export interface RoadmapItem {
+  skill_area: string
+  current: string
+  action: string
+  resource_hint?: string
+  estimated_gain: number
+}
+
+export interface ReadinessRoadmap {
+  readiness_score: number
+  readiness_label: string
+  domain_gap: string | null
+  roadmap: RoadmapItem[]
+  quick_wins: string[]
+  encouragement: string
+}
+
+export interface PracticeApplyResult {
+  match_score: number
+  strengths: string[]
+  gaps: string[]
+  improvement_suggestions: string[]
+  summary: string
+  sub_scores?: { skills: number; projects: number; experience: number }
+  project_scores?: ProjectScore[]
+  scoring_mode?: string
+  roadmap_data?: ReadinessRoadmap
+  job_title: string
+  company: string
+  min_match_score: number
+  is_fresher_friendly: boolean
 }

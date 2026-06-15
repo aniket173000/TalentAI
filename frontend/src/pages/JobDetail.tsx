@@ -3,16 +3,20 @@ import { Link, useParams } from 'react-router-dom'
 import api from '../api/client'
 import JDFormatter from '../components/JDFormatter'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PracticeApplyModal from '../components/PracticeApplyModal'
 import { useAuth } from '../context/AuthContext'
+import { useStudentMode } from '../context/StudentModeContext'
 import { Application, Job } from '../types'
 
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>()
   const { isRecruiter } = useAuth()
+  const { studentMode } = useStudentMode()
   const [job, setJob] = useState<Job | null>(null)
   const [leaderboard, setLeaderboard] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [practiceOpen, setPracticeOpen] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -35,6 +39,16 @@ export default function JobDetail() {
   const spotsLeft = job.max_count - job.active_applications
 
   return (
+    <>
+    {practiceOpen && job && (
+      <PracticeApplyModal
+        jobId={job.id}
+        jobTitle={job.title}
+        company={job.company}
+        isFresherFriendly={job.is_fresher_friendly}
+        onClose={() => setPracticeOpen(false)}
+      />
+    )}
     <div className="max-w-4xl mx-auto px-4 py-12 animate-fade-in">
       {/* Header */}
       <div className="bg-navy-900 text-white rounded-2xl p-8 mb-8">
@@ -75,18 +89,37 @@ export default function JobDetail() {
         <div className="flex flex-col gap-4">
           {/* Apply CTA — hidden for recruiters */}
           {!isRecruiter && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
-              <p className="text-slate-500 text-sm mb-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <p className="text-slate-500 text-sm text-center">
                 {spotsLeft > 0
                   ? 'AI screens your resume instantly. Score ≥ 80% to enter the pool.'
                   : 'The pool is full — a high-scoring resume can still displace the lowest-ranked candidate.'}
               </p>
               <Link
                 to={`/jobs/${job.id}/apply`}
-                className="block w-full bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-lg py-3 transition-colors"
+                className="block w-full bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-lg py-3 text-center transition-colors"
               >
                 Apply Now
               </Link>
+
+              {/* Practice Apply — always visible for candidates, glows in student mode */}
+              <button
+                onClick={() => setPracticeOpen(true)}
+                className={`block w-full font-semibold rounded-lg py-3 text-sm transition-all ${
+                  studentMode
+                    ? 'bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white shadow-md shadow-violet-200'
+                    : 'bg-slate-50 hover:bg-violet-50 text-violet-600 border border-violet-200 hover:border-violet-400'
+                }`}
+              >
+                ✨ Test My Chances
+              </button>
+
+              {job.is_fresher_friendly && (
+                <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Project-First scoring active
+                </div>
+              )}
             </div>
           )}
 
@@ -122,5 +155,6 @@ export default function JobDetail() {
         </div>
       </div>
     </div>
+    </>
   )
 }

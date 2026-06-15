@@ -128,6 +128,27 @@ class AIStrategy(ABC):
         """
 
     @abstractmethod
+    async def generate_readiness_roadmap(
+        self,
+        jd_text: str,
+        resume_text: str,
+        job_title: str,
+        current_score: float,
+        gaps: list,
+        improvement_suggestions: list,
+        fresher_mode: bool = False,
+    ) -> dict:
+        """
+        Generate a student-friendly readiness roadmap.
+
+        Returns a dict with keys:
+          readiness_label       (str)        — Just Starting | Building Up | Getting There | Almost Ready | Ready to Apply
+          roadmap               (list[dict]) — [{skill_area, current, action, resource_hint, estimated_gain}]
+          quick_wins            (list[str])  — actions completable today
+          encouragement         (str)        — one punchy motivating sentence
+        """
+
+    @abstractmethod
     async def extract_structured_profile(self, resume_text: str) -> dict:
         """
         Extract structured fields from free-form resume text.

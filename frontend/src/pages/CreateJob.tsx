@@ -37,6 +37,7 @@ export default function CreateJob() {
   const [jdText, setJdText] = useState('')
   const [jdFile, setJdFile] = useState<File | null>(null)
   const [criteria, setCriteria] = useState<EligibilityCriteria>(BLANK_CRITERIA)
+  const [isFresherFriendly, setIsFresherFriendly] = useState(false)
   const [showCriteria, setShowCriteria] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -70,6 +71,7 @@ export default function CreateJob() {
       if (salaryMin) fd.append('salary_range_min', salaryMin)
       if (salaryMax) fd.append('salary_range_max', salaryMax)
       if (deadline) fd.append('application_deadline', new Date(deadline).toISOString())
+      fd.append('is_fresher_friendly', String(isFresherFriendly))
       if (jdText.trim()) fd.append('jd_text', jdText.trim())
       if (jdFile) fd.append('jd_file', jdFile)
 
@@ -199,6 +201,28 @@ export default function CreateJob() {
               <label className={labelCls}>Application Deadline</label>
               <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} className={inputCls} />
             </div>
+          </div>
+
+          {/* Fresher-Friendly toggle */}
+          <div className={`mt-4 rounded-xl border p-4 cursor-pointer transition-colors ${isFresherFriendly ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-slate-50 hover:border-violet-200'}`}
+            onClick={() => setIsFresherFriendly(v => !v)}>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFresherFriendly}
+                onChange={e => setIsFresherFriendly(e.target.checked)}
+                onClick={e => e.stopPropagation()}
+                className="mt-0.5 h-4 w-4 rounded border-violet-400 text-violet-600 focus:ring-violet-500"
+              />
+              <div>
+                <span className="text-sm font-semibold text-slate-800">
+                  🎓 Fresher-Friendly Role (Project-First Scoring)
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Projects count for 40% of the match score (up from 30%). Ideal for internships, junior roles, and entry-level positions where candidates may lack formal experience.
+                </p>
+              </div>
+            </label>
           </div>
         </section>
 

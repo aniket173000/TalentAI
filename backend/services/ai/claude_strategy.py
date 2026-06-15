@@ -50,5 +50,10 @@ class ClaudeStrategy(AIStrategy):
     async def verify_skill_claims(self, skills, resume_text):
         raise NotImplementedError(self._MSG)
 
+    async def generate_readiness_roadmap(
+        self, jd_text, resume_text, job_title, current_score, gaps, improvement_suggestions, fresher_mode=False
+    ):
+        raise NotImplementedError(self._MSG)
+
     async def extract_structured_profile(self, resume_text):
         raise NotImplementedError(self._MSG)
