@@ -23,6 +23,11 @@ class UserResponse(BaseModel):
     linkedin_verified: bool = False
     company: Optional[str] = None
     is_third_party_recruiter: bool = False
+    college_name: Optional[str] = None
+    graduation_year: Optional[int] = None
+    is_graduated: Optional[bool] = None
+    college_logo_url: Optional[str] = None
+    onboarding_completed: bool = False
 
     class Config:
         from_attributes = True
@@ -79,6 +84,8 @@ class JobCreate(BaseModel):
     eligibility_criteria: Optional[EligibilityCriteriaIn] = None
     is_third_party: bool = False
     is_fresher_friendly: bool = False
+    is_campus_hiring: bool = False
+    campus_college_name: Optional[str] = None
 
 
 class JobUpdate(BaseModel):
@@ -133,6 +140,8 @@ class JobResponse(BaseModel):
     created_at: datetime
     is_third_party: bool = False
     is_fresher_friendly: bool = False
+    is_campus_hiring: bool = False
+    campus_college_name: Optional[str] = None
     # Computed in router
     total_applicants: int = 0
     active_applications: int = 0   # accepted count (backwards compat)
@@ -155,6 +164,25 @@ class JobListResponse(BaseModel):
     page: int
     pages: int
     per_page: int
+
+
+class CampusJobResponse(BaseModel):
+    id: int
+    title: str
+    company: str
+    company_logo_url: Optional[str] = None
+    location: str
+    employment_type: Optional[str] = None
+    remote_policy: Optional[str] = None
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    application_deadline: Optional[datetime] = None
+    slug: Optional[str] = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
@@ -319,6 +347,61 @@ class JDRequirements(BaseModel):
     preferred_skills: List[str] = []
 
     key_responsibilities: List[str] = []
+
+# ── College / University ──────────────────────────────────────────────────────
+
+class CollegeUpdate(BaseModel):
+    college_name: str
+    graduation_year: Optional[int] = None
+    is_graduated: bool = False
+    college_url: Optional[str] = None          # website or LinkedIn URL — logo resolved server-side
+    candidate_linkedin_url: Optional[str] = None
+    current_company: Optional[str] = None       # alumni only
+
+
+class CollegeAIInfo(BaseModel):
+    short_name: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    founded_year: Optional[int] = None
+    highlights: List[str] = []
+    talent_strengths: List[str] = []
+
+
+class CollegeCandidateEntry(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    graduation_year: Optional[int] = None
+    is_graduated: bool = False
+    candidate_linkedin_url: Optional[str] = None
+    current_company: Optional[str] = None
+
+
+class CollegeInfo(BaseModel):
+    college_name: str
+    short_name: Optional[str] = None
+    college_logo_url: Optional[str] = None
+    current_students: int = 0
+    alumni: int = 0
+    total: int = 0
+
+
+class CollegeTalentStats(BaseModel):
+    top_companies: List[str] = []
+    top_skills: List[str] = []
+
+
+class CollegeDetailResponse(BaseModel):
+    college_name: str
+    short_name: Optional[str] = None
+    college_logo_url: Optional[str] = None
+    website_url: Optional[str] = None
+    ai_info: Optional[CollegeAIInfo] = None
+    talent_stats: CollegeTalentStats = CollegeTalentStats()
+    current_students: List[CollegeCandidateEntry] = []
+    alumni: List[CollegeCandidateEntry] = []
+
 
 # Resolve forward references after all models are defined
 JobResponse.model_rebuild()

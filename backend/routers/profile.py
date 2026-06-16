@@ -29,6 +29,15 @@ class ProfileUpdate(BaseModel):
     company: Optional[str] = None
 
 
+class CollegeUpdateBody(BaseModel):
+    college_name: str
+    graduation_year: Optional[int] = None
+    is_graduated: bool = False
+    college_url: Optional[str] = None           # website or LinkedIn URL — logo resolved server-side
+    candidate_linkedin_url: Optional[str] = None
+    current_company: Optional[str] = None        # alumni current employer
+
+
 # ── Response helper ───────────────────────────────────────────────────────────
 
 def _profile_response(user: models.User) -> dict:
@@ -66,6 +75,13 @@ def _profile_response(user: models.User) -> dict:
             if user.career_profile_updated_at else None
         ),
         "resumes": vault,
+        "college_name": user.college_name,
+        "graduation_year": user.graduation_year,
+        "is_graduated": user.is_graduated,
+        "college_logo_url": user.college_logo_url,
+        "onboarding_completed": bool(user.onboarding_completed),
+        "candidate_linkedin_url": user.candidate_linkedin_url,
+        "current_company": user.current_company,
     }
 
 
@@ -313,6 +329,73 @@ def get_vault_resume_url(
         "content_type": content_type_map.get(ext, "application/octet-stream"),
         "expires_in": settings.S3_PRESIGN_EXPIRY,
     }
+
+
+async def _populate_college_record(college_name: str, college_url: str | None, user_id: int) -> None:
+    """Background task: resolve logo + generate AI info and persist to College table."""
+    import asyncio
+    import json as _json
+    from services.company_logo import resolve_company_logo
+    from services.ai_service import generate_college_info
+
+    try:
+        loop = asyncio.get_event_loop()
+        logo = await loop.run_in_executor(None, resolve_company_logo, college_url) if college_url else None
+        ai_info = await generate_college_info(college_name, college_url)
+
+        with SessionLocal() as session:
+            college = session.query(models.College).filter(models.College.name == college_name).first()
+            if college:
+                if logo and not college.logo_url:
+                    college.logo_url = logo
+                if not college.short_name and ai_info.get("short_name"):
+                    college.short_name = ai_info.get("short_name")
+                if not college.ai_info:
+                    college.ai_info = _json.dumps(ai_info)
+                if college_url and not college.website_url:
+                    college.website_url = college_url
+            else:
+                session.add(models.College(
+                    name=college_name,
+                    short_name=ai_info.get("short_name"),
+                    logo_url=logo,
+                    website_url=college_url,
+                    ai_info=_json.dumps(ai_info),
+                ))
+            session.commit()
+    except Exception as exc:
+        logger.error("College populate failed for %r: %s", college_name, exc)
+
+
+@router.patch("/college")
+async def update_college_info(
+    body: CollegeUpdateBody,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Save college/university details for the current candidate."""
+    if current_user.role != "candidate":
+        raise HTTPException(status_code=403, detail="Only candidates can set college info.")
+
+    college_name = body.college_name.strip()
+    current_user.college_name = college_name or None
+    current_user.graduation_year = body.graduation_year
+    current_user.is_graduated = body.is_graduated
+    current_user.onboarding_completed = True
+    current_user.candidate_linkedin_url = (body.candidate_linkedin_url or "").strip() or None
+    current_user.current_company = (body.current_company or "").strip() or None
+
+    # Ensure a College record exists; fire background task to fill AI info + logo
+    if college_name:
+        existing = db.query(models.College).filter(models.College.name == college_name).first()
+        if not existing:
+            db.add(models.College(name=college_name, website_url=(body.college_url or "").strip() or None))
+            db.flush()
+        background_tasks.add_task(_populate_college_record, college_name, (body.college_url or "").strip() or None, current_user.id)
+
+    db.commit()
+    return _profile_response(current_user)
 
 
 @router.post("/refresh-career")

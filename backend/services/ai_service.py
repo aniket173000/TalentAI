@@ -3,7 +3,88 @@ Thin compatibility wrapper — all logic lives in services/ai/.
 Delegates every call to the configured AIStrategy (Strategy pattern).
 Switch providers via AI_PROVIDER in .env without touching callers.
 """
+import json
+import logging
+
 from services.ai.factory import get_ai_strategy
+
+logger = logging.getLogger(__name__)
+
+
+async def generate_college_info(college_name: str, url: str | None = None) -> dict:
+    """
+    Use AI to generate structured metadata for a college / university.
+
+    Returns a dict with:
+      short_name       str        e.g. "IITB", "BITS", "MIT" (max 8 chars)
+      description      str        2-3 sentence recruiter-facing blurb
+      location         str        "City, Country"
+      founded_year     int|None
+      highlights       list[str]  3-4 things that make graduates stand out
+      talent_strengths list[str]  2-3 technical / professional strengths
+    """
+    from config import settings
+
+    url_hint = f"\nWebsite/LinkedIn: {url}" if url else ""
+    prompt = (
+        f"Given this college, return a JSON object with these exact keys:\n"
+        f"- short_name: the most widely recognized abbreviation (e.g. 'IITB' for 'IIT Bombay', "
+        f"'BITS' for 'BITS Pilani', 'MIT' for 'Massachusetts Institute of Technology'). Max 8 chars.\n"
+        f"- description: 2-3 sentences for recruiters, focusing on academic reputation and graduate quality.\n"
+        f"- location: 'City, Country' format.\n"
+        f"- founded_year: integer or null.\n"
+        f"- highlights: array of 3-4 bullet points about what makes graduates stand out to recruiters.\n"
+        f"- talent_strengths: array of 2-3 core technical or professional strengths of graduates.\n\n"
+        f"College: {college_name}{url_hint}\n\n"
+        f"Respond with valid JSON only."
+    )
+
+    try:
+        p = settings.AI_PROVIDER.lower()
+        if p == "openai":
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.3,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": "You are a college information expert. Return valid JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            return json.loads(resp.choices[0].message.content)
+
+        elif p == "claude":
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            resp = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=600,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+            # Strip markdown fences if present
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+            return json.loads(text)
+
+    except Exception as exc:
+        logger.warning("College AI info generation failed for %r: %s", college_name, exc)
+
+    # Fallback: derive short name from initials only
+    words = college_name.split()
+    short = "".join(w[0].upper() for w in words if w[0].isalpha())[:6]
+    return {
+        "short_name": short or college_name[:6].upper(),
+        "description": f"{college_name} is a higher education institution.",
+        "location": None,
+        "founded_year": None,
+        "highlights": [],
+        "talent_strengths": [],
+    }
 
 
 async def screen_resume(jd_text: str, resume_text: str, job_title: str) -> dict:

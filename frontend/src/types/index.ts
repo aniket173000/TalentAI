@@ -7,6 +7,13 @@ export interface AuthUser {
   linkedin_verified: boolean
   company: string | null
   is_third_party_recruiter: boolean
+  college_name: string | null
+  graduation_year: number | null
+  is_graduated: boolean | null
+  college_logo_url: string | null
+  onboarding_completed: boolean
+  candidate_linkedin_url: string | null
+  current_company: string | null
 }
 
 export type JobStatus = 'draft' | 'published' | 'closed'
@@ -42,6 +49,8 @@ export interface Job {
   created_at: string
   is_third_party: boolean
   is_fresher_friendly: boolean
+  is_campus_hiring: boolean
+  campus_college_name: string | null
   total_applicants: number
   active_applications: number
   pool_count: number
@@ -136,10 +145,77 @@ export interface UserProfile {
   is_third_party_recruiter: boolean
   linkedin_verified: boolean
   created_at: string | null
-  resume_filename: string | null          // null = no resume uploaded yet
-  career_profile: CareerProfile | null    // null = not yet analysed (or new resume uploaded)
+  resume_filename: string | null
+  career_profile: CareerProfile | null
   career_profile_updated_at: string | null
   resumes: VaultResume[]
+  college_name: string | null
+  graduation_year: number | null
+  is_graduated: boolean | null
+  college_logo_url: string | null
+  onboarding_completed: boolean
+  candidate_linkedin_url: string | null
+  current_company: string | null
+}
+
+export interface CollegeInfo {
+  college_name: string
+  short_name: string | null
+  college_logo_url: string | null
+  current_students: number
+  alumni: number
+  total: number
+}
+
+export interface CollegeAIInfo {
+  short_name: string | null
+  description: string | null
+  location: string | null
+  founded_year: number | null
+  highlights: string[]
+  talent_strengths: string[]
+}
+
+export interface CollegeCandidateEntry {
+  id: number
+  full_name: string
+  email: string
+  graduation_year: number | null
+  is_graduated: boolean
+  candidate_linkedin_url: string | null
+  current_company: string | null
+}
+
+export interface CollegeTalentStats {
+  top_companies: string[]
+  top_skills: string[]
+}
+
+export interface CollegeDetail {
+  college_name: string
+  short_name: string | null
+  college_logo_url: string | null
+  website_url: string | null
+  ai_info: CollegeAIInfo | null
+  talent_stats: CollegeTalentStats
+  current_students: CollegeCandidateEntry[]
+  alumni: CollegeCandidateEntry[]
+}
+
+export interface CampusJob {
+  id: number
+  title: string
+  company: string
+  company_logo_url: string | null
+  location: string
+  employment_type: string | null
+  remote_policy: string | null
+  salary_range_min: number | null
+  salary_range_max: number | null
+  application_deadline: string | null
+  slug: string | null
+  status: string
+  created_at: string
 }
 
 export interface MagicMatchJob {

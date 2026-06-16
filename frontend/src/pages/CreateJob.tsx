@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
 import EligibilityCriteriaEditor from '../components/EligibilityCriteriaEditor'
 import { useAuth } from '../context/AuthContext'
@@ -13,6 +13,7 @@ const labelCls = 'block text-sm font-semibold text-slate-700 mb-1.5'
 
 export default function CreateJob() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const jdFileRef = useRef<HTMLInputElement>(null)
 
@@ -21,8 +22,13 @@ export default function CreateJob() {
   const profileCompany = user?.company ?? ''
   const isInternalWithCompany = !!profileCompany && !user?.is_third_party_recruiter
 
+  // Campus hiring: pre-fill if coming from a college page (?campus=College+Name)
+  const campusParam = searchParams.get('campus') || ''
+
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState(profileCompany)
+  const [isCampusHiring, setIsCampusHiring] = useState(!!campusParam)
+  const [campusCollegeName, setCampusCollegeName] = useState(campusParam)
   const [isThirdParty, setIsThirdParty] = useState(false)
   const [companyUrl, setCompanyUrl] = useState('')
   const [location, setLocation] = useState('')
@@ -72,6 +78,8 @@ export default function CreateJob() {
       if (salaryMax) fd.append('salary_range_max', salaryMax)
       if (deadline) fd.append('application_deadline', new Date(deadline).toISOString())
       fd.append('is_fresher_friendly', String(isFresherFriendly))
+      fd.append('is_campus_hiring', String(isCampusHiring))
+      if (isCampusHiring && campusCollegeName.trim()) fd.append('campus_college_name', campusCollegeName.trim())
       if (jdText.trim()) fd.append('jd_text', jdText.trim())
       if (jdFile) fd.append('jd_file', jdFile)
 
@@ -221,6 +229,43 @@ export default function CreateJob() {
                 <p className="text-xs text-slate-500 mt-0.5">
                   Projects count for 40% of the match score (up from 30%). Ideal for internships, junior roles, and entry-level positions where candidates may lack formal experience.
                 </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Campus Hiring toggle */}
+          <div className={`mt-4 rounded-xl border p-4 cursor-pointer transition-colors ${isCampusHiring ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-200'}`}
+            onClick={() => setIsCampusHiring(v => !v)}>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isCampusHiring}
+                onChange={e => setIsCampusHiring(e.target.checked)}
+                onClick={e => e.stopPropagation()}
+                className="mt-0.5 h-4 w-4 rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-semibold text-slate-800">
+                  🏛️ Campus Hiring — Target a Specific College
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  This job will be visible only to candidates from the selected college, shown in the Campus Hiring section of that college's page.
+                </p>
+                {isCampusHiring && (
+                  <div className="mt-3" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={campusCollegeName}
+                      onChange={e => setCampusCollegeName(e.target.value)}
+                      placeholder="e.g. IIT Bombay"
+                      readOnly={!!campusParam}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 transition ${campusParam ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'border-indigo-200 bg-white'}`}
+                    />
+                    {campusParam && (
+                      <p className="text-xs text-indigo-600 mt-1 font-medium">🔒 Locked to {campusParam}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </label>
           </div>

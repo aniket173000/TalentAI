@@ -165,6 +165,8 @@ async def create_job(
     application_deadline: Optional[datetime] = Form(default=None),
     is_third_party: bool = Form(default=False),
     is_fresher_friendly: bool = Form(default=False),
+    is_campus_hiring: bool = Form(default=False),
+    campus_college_name: Optional[str] = Form(default=None),
     jd_text: Optional[str] = Form(default=None),
     jd_file: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
@@ -220,6 +222,8 @@ async def create_job(
         application_deadline=application_deadline,
         is_third_party=is_third_party,
         is_fresher_friendly=is_fresher_friendly,
+        is_campus_hiring=is_campus_hiring,
+        campus_college_name=campus_college_name if is_campus_hiring else None,
         recruiter_id=current_user.id,
         status="draft",
         slug=_unique_slug(db, title, location),
@@ -297,7 +301,10 @@ def list_jobs(
     per_page: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Job).filter(models.Job.status == "published")
+    q = db.query(models.Job).filter(
+        models.Job.status == "published",
+        models.Job.is_campus_hiring == False,  # noqa: E712
+    )
     if search:
         q = q.filter(models.Job.title.ilike(f"%{search}%"))
     q = q.order_by(models.Job.published_at.desc())

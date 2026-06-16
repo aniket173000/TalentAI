@@ -24,6 +24,8 @@ interface AuthContextType {
   switchRole: (role: 'recruiter' | 'candidate') => Promise<boolean>
   /** True if a valid token is stored for the given role (even if it's not the active one). */
   hasLinkedRole: (role: 'recruiter' | 'candidate') => boolean
+  /** Re-fetch /auth/me and update the user object in context. */
+  refreshUser: () => Promise<void>
   isAuthenticated: boolean
   isRecruiter: boolean
   isCandidate: boolean
@@ -145,6 +147,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasLinkedRole = (role: 'recruiter' | 'candidate'): boolean =>
     !!localStorage.getItem(`auth_token_${role}`)
 
+  const refreshUser = async () => {
+    const r = await api.get<AuthUser>('/auth/me')
+    setUser(r.data)
+  }
+
   const logout = () => {
     if (activeRole) localStorage.removeItem(`auth_token_${activeRole}`)
     localStorage.removeItem('active_role')
@@ -165,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         switchRole,
         hasLinkedRole,
+        refreshUser,
         isAuthenticated: !!user,
         isRecruiter: user?.role === 'recruiter',
         isCandidate: user?.role === 'candidate',

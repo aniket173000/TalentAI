@@ -88,13 +88,14 @@ def resolve_company_logo(company_url: str) -> str | None:
     if not hostname:
         return None
 
-    # ── LinkedIn: extract company slug, try common TLDs on Clearbit ────────
+    # ── LinkedIn: extract company or school slug, try common TLDs on Clearbit ──
     if "linkedin.com" in hostname:
-        m = re.search(r"linkedin\.com/company/([^/?#]+)", url)
+        # Matches both /company/<slug> and /school/<slug>
+        m = re.search(r"linkedin\.com/(?:company|school)/([^/?#]+)", url)
         if not m:
             return None
         slug = m.group(1).rstrip("/")
-        for tld in (".com", ".io", ".co", ".net", ".org", ".app"):
+        for tld in (".com", ".edu", ".ac.in", ".io", ".co", ".net", ".org", ".app"):
             candidate = _CLEARBIT.format(f"{slug}{tld}")
             if _head_ok(candidate):
                 logger.info("LinkedIn logo resolved via Clearbit: %s", candidate)

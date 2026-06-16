@@ -10,6 +10,7 @@ from config import settings
 from database import SessionLocal, engine
 from routers import applications, jobs
 from routers import auth as auth_router
+from routers import colleges as colleges_router
 from routers import linkedin_auth as linkedin_auth_router
 from routers import profile as profile_router
 from routers import resume_profile as resume_profile_router
@@ -87,6 +88,22 @@ _MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS candidate_job_scores (id INTEGER PRIMARY KEY AUTOINCREMENT, application_id INTEGER NOT NULL REFERENCES applications(id), job_id INTEGER NOT NULL REFERENCES jobs(id), candidate_profile_id INTEGER REFERENCES candidate_profiles(id), model_version VARCHAR(20) NOT NULL, skills_score REAL, experience_score REAL, education_score REAL, projects_score REAL, composite_score REAL NOT NULL, breakdown TEXT, inputs_hash VARCHAR(64) NOT NULL, scored_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
     "CREATE INDEX IF NOT EXISTS ix_candidate_job_scores_app_job ON candidate_job_scores (application_id, job_id)",
     "CREATE INDEX IF NOT EXISTS ix_candidate_job_scores_inputs_hash ON candidate_job_scores (inputs_hash)",
+    # College / university info for candidates
+    "ALTER TABLE users ADD COLUMN college_name VARCHAR(500)",
+    "ALTER TABLE users ADD COLUMN graduation_year INTEGER",
+    "ALTER TABLE users ADD COLUMN is_graduated BOOLEAN",
+    "ALTER TABLE users ADD COLUMN college_logo_url VARCHAR(1000)",
+    "ALTER TABLE users ADD COLUMN onboarding_completed BOOLEAN DEFAULT 0",
+    "CREATE INDEX IF NOT EXISTS ix_users_college_name ON users (college_name)",
+    # Candidate public profile fields
+    "ALTER TABLE users ADD COLUMN candidate_linkedin_url VARCHAR(500)",
+    "ALTER TABLE users ADD COLUMN current_company VARCHAR(255)",
+    # College directory table (one row per college, populated by first candidate + AI)
+    "CREATE TABLE IF NOT EXISTS colleges (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(500) NOT NULL UNIQUE, short_name VARCHAR(20), logo_url VARCHAR(1000), website_url VARCHAR(500), ai_info TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE INDEX IF NOT EXISTS ix_colleges_name ON colleges (name)",
+    # Campus hiring — job targeted at a specific college
+    "ALTER TABLE jobs ADD COLUMN is_campus_hiring BOOLEAN DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN campus_college_name VARCHAR(500)",
 ]
 
 with engine.connect() as _conn:
@@ -162,6 +179,7 @@ app.include_router(profile_router.router)
 app.include_router(resume_profile_router.router)
 app.include_router(semantic_router.router)
 app.include_router(scores_router.router)
+app.include_router(colleges_router.router)
 
 
 @app.get("/health")

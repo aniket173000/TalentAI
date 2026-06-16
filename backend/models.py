@@ -4,6 +4,23 @@ from sqlalchemy.sql import func
 from database import Base
 
 
+class College(Base):
+    """
+    One row per unique college name.
+    Created when the first candidate from that college completes onboarding.
+    AI-generated fields are populated as a background task.
+    """
+    __tablename__ = "colleges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(500), unique=True, nullable=False, index=True)
+    short_name = Column(String(20), nullable=True)          # AI: "IITB", "BITS", "MIT"
+    logo_url = Column(String(1000), nullable=True)
+    website_url = Column(String(500), nullable=True)        # college website or LinkedIn URL
+    ai_info = Column(Text, nullable=True)                   # JSON: description, highlights, etc.
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class CandidateProfile(Base):
     """
     Structured resume data extracted via LLM.
@@ -98,6 +115,15 @@ class User(Base):
     career_profile = Column(Text, nullable=True)              # JSON blob — see CareerProfile schema
     career_profile_updated_at = Column(DateTime, nullable=True)
 
+    # College / university info (candidates only)
+    college_name = Column(String(500), nullable=True)
+    graduation_year = Column(Integer, nullable=True)
+    is_graduated = Column(Boolean, nullable=True)             # True = alumnus, False = current student
+    college_logo_url = Column(String(1000), nullable=True)    # kept for backwards compat; College table is authoritative
+    onboarding_completed = Column(Boolean, default=False)
+    candidate_linkedin_url = Column(String(500), nullable=True)
+    current_company = Column(String(255), nullable=True)      # alumni: current employer
+
     applications = relationship("Application", back_populates="user")
     resumes = relationship("UserResume", back_populates="user", order_by="desc(UserResume.uploaded_at)")
 
@@ -176,6 +202,10 @@ class Job(Base):
     jd_requirements = Column(Text, nullable=True)           # JSON blob of JDRequirements
     jd_parse_status = Column(String(20), nullable=True)     # None | "pending" | "done" | "failed"
     jd_parse_error = Column(Text, nullable=True)            # error message if status=="failed"
+
+    # Campus hiring — job targeted at a specific college
+    is_campus_hiring = Column(Boolean, default=False)
+    campus_college_name = Column(String(500), nullable=True)
 
     applications = relationship("Application", back_populates="job")
     recruiter = relationship("User", foreign_keys=[recruiter_id])

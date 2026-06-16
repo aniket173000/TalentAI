@@ -19,14 +19,17 @@ export default function JobDetail() {
   const [practiceOpen, setPracticeOpen] = useState(false)
 
   useEffect(() => {
-    Promise.all([
-      api.get<Job>(`/jobs/${jobId}`),
-      api.get<Application[]>(`/applications/job/${jobId}`),
-    ])
-      .then(([jobRes, appRes]) => {
+    const isNumeric = /^\d+$/.test(jobId ?? '')
+    const jobFetch = isNumeric
+      ? api.get<Job>(`/jobs/${jobId}`)
+      : api.get<Job>(`/jobs/slug/${jobId}`)
+
+    jobFetch
+      .then(jobRes => {
         setJob(jobRes.data)
-        setLeaderboard(appRes.data)
+        return api.get<Application[]>(`/applications/job/${jobRes.data.id}`)
       })
+      .then(appRes => setLeaderboard(appRes.data))
       .catch(() => setError('Failed to load job details.'))
       .finally(() => setLoading(false))
   }, [jobId])

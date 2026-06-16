@@ -48,6 +48,10 @@ export default function Navbar() {
             Jobs
           </Link>
 
+          <Link to="/colleges" className={linkClass('/colleges')}>
+            Colleges
+          </Link>
+
           {isCandidate && (
             <Link to="/dashboard" className={linkClass('/dashboard')}>
               My Applications
