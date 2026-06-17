@@ -823,7 +823,7 @@ async def mark_referred_all(
                 post.title,
                 post.company_name,
                 referrer.full_name if referrer else "Referrer",
-                referrer.company or post.company_name if referrer else post.company_name,
+                (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name if referrer else post.company_name,
             )
     # Send not-referred emails to waitlist
     for app in waitlist_apps:
@@ -990,7 +990,7 @@ async def apply_to_referral(
             send_referral_pool_accepted_email,
             current_user.email, current_user.full_name, post.title, post.company_name,
             referrer.full_name if referrer else "Referrer",
-            referrer.company or post.company_name if referrer else post.company_name,
+            (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name if referrer else post.company_name,
             app.rank or 1, post.pool_size, match_score,
         )
         _notify_rank_changes(changes, post, db, bg)
@@ -1057,7 +1057,7 @@ async def apply_to_referral(
             send_referral_pool_accepted_email,
             current_user.email, current_user.full_name, post.title, post.company_name,
             referrer.full_name if referrer else "Referrer",
-            referrer.company or post.company_name if referrer else post.company_name,
+            (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name if referrer else post.company_name,
             app.rank or 1, post.pool_size, match_score,
         )
         _notify_rank_changes(changes, post, db, bg)
@@ -1090,7 +1090,7 @@ async def apply_to_referral(
             send_referral_waitlist_accepted_email,
             current_user.email, current_user.full_name, post.title, post.company_name,
             referrer.full_name if referrer else "Referrer",
-            referrer.company or post.company_name if referrer else post.company_name,
+            (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name if referrer else post.company_name,
             app.rank or 1, match_score,
         )
         _notify_rank_changes(changes, post, db, bg)
@@ -1151,7 +1151,7 @@ async def apply_to_referral(
             send_referral_waitlist_accepted_email,
             current_user.email, current_user.full_name, post.title, post.company_name,
             referrer.full_name if referrer else "Referrer",
-            referrer.company or post.company_name if referrer else post.company_name,
+            (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name if referrer else post.company_name,
             app.rank or 1, match_score,
         )
         _notify_rank_changes(changes, post, db, bg)
@@ -1260,8 +1260,8 @@ async def get_pool(
                 "email": c.email if c else "",
                 "college_name": c.college_name if c else None,
                 "college_logo_url": c.college_logo_url if c else None,
-                "current_company": c.current_company if c else None,
-                "candidate_linkedin_url": c.candidate_linkedin_url if c else None,
+                "current_company": (c.candidate_ext.current_company if c.candidate_ext else None) if c else None,
+                "candidate_linkedin_url": (c.candidate_ext.candidate_linkedin_url if c.candidate_ext else None) if c else None,
             } if c else None,
         }
 
@@ -1401,10 +1401,10 @@ def _post_response(post: models.ReferralPost, db: Session) -> dict:
         "referrer": {
             "id": referrer.id,
             "full_name": referrer.full_name,
-            "company": referrer.company or post.company_name,
+            "company": (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name,
             "linkedin_verified": referrer.linkedin_verified,
-            "current_company": referrer.current_company,
-            "candidate_linkedin_url": referrer.candidate_linkedin_url,
+            "current_company": referrer.candidate_ext.current_company if referrer.candidate_ext else None,
+            "candidate_linkedin_url": referrer.candidate_ext.candidate_linkedin_url if referrer.candidate_ext else None,
         } if referrer else None,
     }
 
@@ -1428,9 +1428,9 @@ def _post_public_summary(post: models.ReferralPost, db: Session) -> dict:
         "referrer": {
             "id": referrer.id,
             "full_name": referrer.full_name,
-            "company": referrer.company or post.company_name,
-            "current_company": referrer.current_company,
-            "candidate_linkedin_url": referrer.candidate_linkedin_url,
+            "company": (referrer.recruiter_ext.company if referrer.recruiter_ext else None) or post.company_name,
+            "current_company": referrer.candidate_ext.current_company if referrer.candidate_ext else None,
+            "candidate_linkedin_url": referrer.candidate_ext.candidate_linkedin_url if referrer.candidate_ext else None,
         } if referrer else None,
     }
 

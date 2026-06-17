@@ -112,6 +112,43 @@ def get_presigned_url(file_key: str, filename: str) -> str | None:
         return None
 
 
+def upload_avatar(content: bytes, user_id: int, filename: str) -> str | None:
+    """
+    Upload a profile avatar image to S3.
+
+    Stored under resumes/{user_id}/avatar/ so it uses the same IAM permission
+    path as resume uploads (no extra bucket policy needed).
+    Returns the S3 object key on success, or None on failure.
+    """
+    if not s3_enabled():
+        return None
+
+    ext = Path(filename).suffix.lower() or ".jpg"
+    ct_map = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }
+    content_type = ct_map.get(ext, "image/jpeg")
+    key = f"resumes/{user_id}/avatar/{uuid.uuid4().hex}{ext}"
+
+    try:
+        _client().put_object(
+            Bucket=settings.S3_BUCKET,
+            Key=key,
+            Body=content,
+            ContentType=content_type,
+            ContentDisposition=f'inline; filename="avatar{ext}"',
+        )
+        logger.info("Uploaded avatar to S3: %s", key)
+        return key
+    except Exception as exc:
+        logger.warning("Avatar S3 upload failed: %s", exc)
+        return None
+
+
 def check_file_exists(file_key: str) -> bool:
     """Check whether an object exists in S3 via head_object. Returns False on any error."""
     if not s3_enabled() or not file_key:

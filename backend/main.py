@@ -165,6 +165,31 @@ _MIGRATIONS = [
 
     # users table: add updated_at column (new schema addition)
     "ALTER TABLE users ADD COLUMN updated_at DATETIME",
+
+    # Application resume filename (was missing from original schema)
+    "ALTER TABLE applications ADD COLUMN resume_filename VARCHAR(255)",
+
+    # ── Profile enrichment ────────────────────────────────────────────────────
+    "ALTER TABLE users ADD COLUMN headline VARCHAR(255)",
+    "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)",
+
+    # ── Work experience ───────────────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS work_experiences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        company VARCHAR(255) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        location VARCHAR(255),
+        start_month INTEGER,
+        start_year INTEGER NOT NULL,
+        end_month INTEGER,
+        end_year INTEGER,
+        is_current BOOLEAN DEFAULT 0,
+        description TEXT,
+        order_index INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_work_experiences_user_id ON work_experiences (user_id)",
 ]
 
 with engine.connect() as _conn:

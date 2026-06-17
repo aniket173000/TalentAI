@@ -143,11 +143,37 @@ export interface VaultResume {
   uploaded_at: string
 }
 
+export interface WorkExperience {
+  id: number
+  company: string
+  title: string
+  location: string | null
+  start_month: number | null   // 1–12
+  start_year: number
+  end_month: number | null
+  end_year: number | null
+  is_current: boolean
+  description: string | null
+  order_index: number
+}
+
+export interface EducationRecord {
+  id: number
+  institution_name: string
+  degree_type: string | null
+  field_of_study: string | null
+  graduation_year: number | null
+  is_graduated: boolean | null
+  is_primary: boolean
+}
+
 export interface UserProfile {
   id: number
   full_name: string
   email: string
   phone: string | null
+  headline: string | null
+  avatar_url: string | null
   linkedin_verified: boolean
   created_at: string | null
 
@@ -167,6 +193,8 @@ export interface UserProfile {
   graduation_year: number | null
   is_graduated: boolean | null
   college_logo_url: string | null
+  education_records: EducationRecord[]
+  work_experiences: WorkExperience[]
 
   // Recruiter-specific
   company: string | null

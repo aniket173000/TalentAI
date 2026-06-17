@@ -302,6 +302,263 @@ def _resume_hash(text: str) -> str:
     return hashlib.md5(text.strip().encode()).hexdigest()
 
 
+async def _call_ai_tailor(system: str, user_msg: str) -> str:
+    """Shared AI caller for tailoring — tries OpenAI then Anthropic."""
+    raw: str | None = None
+
+    if settings.OPENAI_API_KEY:
+        try:
+            import openai as _oai
+            client = _oai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_msg},
+                ],
+                temperature=0.2,
+                response_format={"type": "json_object"},
+            )
+            raw = resp.choices[0].message.content
+        except Exception as exc:
+            logger.warning("OpenAI tailor failed: %s", exc)
+
+    if raw is None and getattr(settings, "ANTHROPIC_API_KEY", None):
+        try:
+            import anthropic as _ant
+            client = _ant.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            resp = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2048,
+                system=system,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+            raw = resp.content[0].text if resp.content else None
+        except Exception as exc:
+            logger.warning("Anthropic tailor failed: %s", exc)
+
+    if not raw:
+        raise RuntimeError("No AI provider available.")
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.rsplit("```", 1)[0].strip()
+    return raw
+
+
+# Minimum cosine similarity (resume vs JD) to allow tailoring.
+# Cross-domain embeddings naturally top at 0.65; anything below 0.22
+# means genuinely different occupational fields.
+_TAILOR_DOMAIN_GATE = 0.22
+
+# Maximum allowed semantic drift: similarity between the original resume
+# and the tailored version.  If the AI shifts domain heavily this drops.
+_TAILOR_DRIFT_FLOOR = 0.72
+
+
+async def _tailor_resume_with_ai(
+    resume_text: str,
+    jd_text: str,
+    job_title: str,
+    resume_emb: list | None = None,
+    jd_emb: list | None = None,
+) -> dict:
+    """
+    Three-layer tailoring pipeline:
+      1. Semantic pre-gate  — reject if resume and JD embeddings are too far apart.
+      2. Hardened AI prompt — explicit forbidden-changes list + self-assessed feasibility.
+      3. Semantic drift check — reject if tailored resume drifted too far from original.
+
+    Returns a plain dict.  Caller should check for an "error" key before using.
+    """
+
+    # ── Layer 1: Semantic pre-gate ────────────────────────────────────────────
+    pre_sim: float | None = None
+    if resume_emb and jd_emb:
+        pre_sim = cosine_similarity(resume_emb, jd_emb)
+    else:
+        try:
+            tasks = []
+            if resume_emb is None:
+                tasks.append(get_embedding(resume_text[:3000]))
+            if jd_emb is None:
+                tasks.append(get_embedding(jd_text[:3000]))
+            import asyncio as _asyncio
+            results = await _asyncio.gather(*tasks, return_exceptions=True)
+            idx = 0
+            if resume_emb is None and not isinstance(results[idx], Exception):
+                resume_emb = results[idx]
+                idx += 1
+            if jd_emb is None and idx < len(results) and not isinstance(results[idx], Exception):
+                jd_emb = results[idx]
+            if resume_emb and jd_emb:
+                pre_sim = cosine_similarity(resume_emb, jd_emb)
+        except Exception as exc:
+            logger.warning("Tailor pre-gate embedding failed: %s", exc)
+
+    if pre_sim is not None and pre_sim < _TAILOR_DOMAIN_GATE:
+        return {
+            "error": "incompatible_roles",
+            "similarity_score": round(pre_sim * 100, 1),
+            "message": (
+                f"Your resume's domain is too different from '{job_title}' "
+                f"({round(pre_sim * 100)}% semantic overlap). "
+                "Tailoring would require fabricating domain experience, which we never do. "
+                "Consider applying to roles that match your actual background."
+            ),
+        }
+
+    # ── Layer 2: Hardened AI prompt ───────────────────────────────────────────
+    SYSTEM = """You are a strict, honest resume coach. Your job is to optimise a candidate's
+resume for a specific role using ONLY what is already written in their resume.
+
+═══ WHAT YOU MAY DO ═══
+• Reorder sections and bullet points so the most relevant experience appears first.
+• Rephrase a bullet point using JD keywords ONLY when the underlying concept is
+  IDENTICAL — same tool, same domain, same type of work. Example: "processed bank
+  feeds" → "reconciled bank statement data" is allowed if the candidate did exactly
+  that. "Built REST APIs" → "reconciliation system development" is NOT allowed if
+  the candidate never worked in finance.
+• Write or improve a professional summary using only facts already in the resume.
+• Reorder the skills section to surface skills the JD explicitly requests
+  (that already exist in the resume).
+
+═══ WHAT YOU MUST NEVER DO ═══
+• Add any skill, tool, technology, certification, or domain concept absent from the resume.
+• Change job titles, company names, or employment dates.
+• Add metrics or achievements (numbers, percentages, dollar amounts) not in the resume.
+• Convert engineering/technical language into finance/legal/medical language when the
+  candidate has no background in those domains. A software engineer's resume must NOT
+  read like a finance professional's resume unless their resume already shows finance work.
+• Invent transferable-skill narratives that misrepresent what the candidate actually did.
+
+═══ SELF-ASSESSMENT ═══
+Before writing the tailored resume, honestly ask: "Can I make meaningful improvements
+without fabricating domain experience?" Set tailoring_feasibility accordingly:
+  "high"         — clear overlap, many genuine improvements possible
+  "medium"       — some overlap, limited but honest improvements possible
+  "low"          — minimal overlap, only cosmetic changes possible (summary + ordering)
+  "incompatible" — no genuine overlap; tailoring requires fabrication → set
+                   tailored_resume = "" and explain in changes[0]
+
+═══ OUTPUT FORMAT (strict JSON, no markdown) ═══
+{
+  "tailored_resume": "<full rewritten resume text, or empty string if incompatible>",
+  "changes": ["<verb + what changed — quote original snippet where possible>", ...],
+  "domain_fit_score": <integer 0-100, honest assessment of how well the resume fits>,
+  "tailoring_feasibility": "high" | "medium" | "low" | "incompatible"
+}
+Return at most 6 change strings."""
+
+    user_msg = (
+        f"Job Title: {job_title}\n\n"
+        f"Job Description (first 3000 chars):\n{jd_text[:3000]}\n\n"
+        f"Candidate Resume (first 4000 chars):\n{resume_text[:4000]}\n\n"
+        "Apply the rules above and return ONLY valid JSON."
+    )
+
+    raw = await _call_ai_tailor(SYSTEM, user_msg)
+    data = json.loads(raw)
+
+    feasibility = data.get("tailoring_feasibility", "medium")
+    domain_fit = int(data.get("domain_fit_score", 0))
+
+    if feasibility == "incompatible" or not data.get("tailored_resume", "").strip():
+        reason = (data.get("changes") or [""])[0] or (
+            f"The AI assessed this role as incompatible with your background "
+            f"(domain fit: {domain_fit}%). Tailoring would require fabricating experience."
+        )
+        return {
+            "error": "incompatible_roles",
+            "similarity_score": round((pre_sim or 0) * 100, 1),
+            "message": reason,
+        }
+
+    tailored_text = data["tailored_resume"]
+
+    # ── Layer 3: Semantic drift check ─────────────────────────────────────────
+    if resume_emb:
+        try:
+            tailored_emb = await get_embedding(tailored_text[:3000])
+            drift_sim = cosine_similarity(resume_emb, tailored_emb)
+            if drift_sim < _TAILOR_DRIFT_FLOOR:
+                logger.warning(
+                    "Tailor drift too high for job '%s': sim=%.3f (floor=%.2f)",
+                    job_title, drift_sim, _TAILOR_DRIFT_FLOOR,
+                )
+                return {
+                    "error": "excessive_drift",
+                    "message": (
+                        "The AI attempted to shift your resume too far from your actual background. "
+                        "This usually means the role requires domain expertise you don't yet have. "
+                        "Your original resume is the most honest representation."
+                    ),
+                }
+        except Exception as exc:
+            logger.warning("Tailor drift check failed (non-blocking): %s", exc)
+
+    return {
+        "tailored_resume": tailored_text,
+        "changes": data.get("changes", [])[:6],
+        "domain_fit_score": domain_fit,
+        "tailoring_feasibility": feasibility,
+    }
+
+
+@router.post("/tailor-resume/{job_id}")
+async def tailor_resume(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_candidate),
+):
+    """
+    AI-tailors the candidate's active profile resume for a specific job.
+
+    Three-layer guard: semantic pre-gate → hardened prompt → drift check.
+    Returns HTTP 422 with {error, message} when tailoring is unsafe.
+    """
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    cext = current_user.candidate_ext
+    if not cext or not cext.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="No resume on file. Upload a resume to your profile before tailoring.",
+        )
+
+    # Pass cached embeddings so we skip extra API calls when possible
+    resume_emb: list | None = None
+    jd_emb: list | None = None
+    if cext.profile_embedding:
+        try:
+            resume_emb = json.loads(cext.profile_embedding)
+        except Exception:
+            pass
+    if job.jd_embedding:
+        try:
+            jd_emb = json.loads(job.jd_embedding)
+        except Exception:
+            pass
+
+    try:
+        result = await _tailor_resume_with_ai(
+            cext.resume_text, job.jd_text, job.title, resume_emb, jd_emb
+        )
+    except Exception as exc:
+        logger.error("Resume tailoring failed for job %d: %s", job_id, exc)
+        raise HTTPException(status_code=500, detail="AI tailoring unavailable. Please try again.")
+
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result)
+
+    return result
+
+
 @router.get("/check/{job_id}")
 def check_prior_application(
     job_id: int,
@@ -350,6 +607,9 @@ def check_prior_application(
         "same_resume": same_resume,
         "previous_match_score": round(existing.match_score, 1),
         "previous_status": existing.status,
+        "previous_candidate_status": existing.candidate_status,
+        "previous_rank": existing.rank,
+        "status_token": existing.status_token,
         "usable_vault_ids": usable_vault_ids,
     }
 
@@ -365,6 +625,7 @@ async def apply_to_job(
     candidate_email: Optional[str] = Form(None),
     resume_file: Optional[UploadFile] = File(None),
     resume_id: Optional[int] = Form(None),
+    tailored_resume_text: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_candidate),  # must be logged in as candidate
 ):
@@ -437,6 +698,10 @@ async def apply_to_job(
             )
         resume_text = _cext_apply.resume_text
         resume_filename = _cext_apply.resume_filename or "resume"
+
+    # Override with AI-tailored text if the frontend sent one
+    if tailored_resume_text and len(tailored_resume_text.strip()) > 50:
+        resume_text = tailored_resume_text
 
     # 2b. Upload original file to S3 (best-effort, non-blocking) ──────────────
     _raw_bytes_for_s3: bytes | None = None
@@ -1172,7 +1437,11 @@ async def magic_match_jobs(
             pass
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    top5 = [item for item in scored if item[0] * 100 >= 70][:5]
+    # Cross-domain embeddings (resume vs. JD) naturally score 40–70%.
+    # Take the top 5 above 40% — if fewer than 3 pass, lower to top 3 regardless.
+    top5 = [item for item in scored if item[0] * 100 >= 40][:5]
+    if len(top5) < 3 and scored:
+        top5 = scored[:min(3, len(scored))]
 
     # ── 6. Mark daily usage and cache results ────────────────────────────────
     result = {

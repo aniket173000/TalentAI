@@ -44,6 +44,10 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    # Identity enrichment
+    headline = Column(String(255), nullable=True)        # "SWE @ Google · Ex-Meta"
+    avatar_url = Column(String(500), nullable=True)      # S3 public URL
+
     # LinkedIn OAuth
     linkedin_id = Column(String(255), nullable=True, index=True)
     linkedin_verified = Column(Boolean, default=False)
@@ -73,6 +77,10 @@ class User(Base):
     resumes = relationship(
         "UserResume", back_populates="user",
         order_by="desc(UserResume.uploaded_at)",
+    )
+    work_experiences = relationship(
+        "WorkExperience", back_populates="user", cascade="all, delete-orphan",
+        order_by="desc(WorkExperience.start_year)",
     )
 
     # ── Computed helpers (no DB columns) ─────────────────────────────────────
@@ -321,6 +329,7 @@ class Application(Base):
     candidate_name = Column(String(255), nullable=False)
     candidate_email = Column(String(255), nullable=False)
     resume_text = Column(Text, nullable=False)
+    resume_filename = Column(String(255), nullable=True)
     resume_embedding = Column(Text, nullable=True)
     resume_file_key = Column(String(500), nullable=True)
     match_score = Column(Float, nullable=False)
@@ -401,3 +410,33 @@ class ReferralApplication(Base):
 
     referral_post = relationship("ReferralPost", back_populates="applications")
     candidate = relationship("User", foreign_keys=[candidate_user_id])
+
+
+# ── Work experience ───────────────────────────────────────────────────────────
+
+class WorkExperience(Base):
+    """
+    Work history entries for a user.  One row per position.
+    Ordered by start_year DESC so the most recent role shows first.
+    """
+    __tablename__ = "work_experiences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    company = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
+    location = Column(String(255), nullable=True)
+
+    start_month = Column(Integer, nullable=True)   # 1–12; null = month unknown
+    start_year = Column(Integer, nullable=False)
+    end_month = Column(Integer, nullable=True)
+    end_year = Column(Integer, nullable=True)      # null = current role
+    is_current = Column(Boolean, default=False)
+
+    description = Column(Text, nullable=True)
+    order_index = Column(Integer, default=0)       # manual sort override
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User", back_populates="work_experiences")

@@ -1,5 +1,6 @@
 import json
 import logging
+import re as _re
 from datetime import datetime
 from typing import Optional
 
@@ -14,12 +15,13 @@ from routers.auth import get_current_user
 from config import settings
 from services.ai_service import generate_career_profile, get_embedding
 from services.file_parser import parse_resume
-from services.storage_service import get_presigned_url, upload_resume_file
+from services.storage_service import get_presigned_url, upload_resume_file, upload_avatar, s3_enabled
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 MAX_VAULT_SIZE = 3
+MAX_AVATAR_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -27,11 +29,38 @@ MAX_VAULT_SIZE = 3
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
+    headline: Optional[str] = None
 
 
 class RecruiterProfileUpdate(BaseModel):
     company: Optional[str] = None
     is_third_party: Optional[bool] = None
+
+
+class WorkExperienceCreate(BaseModel):
+    company: str
+    title: str
+    location: Optional[str] = None
+    start_month: Optional[int] = None   # 1–12
+    start_year: int
+    end_month: Optional[int] = None
+    end_year: Optional[int] = None
+    is_current: bool = False
+    description: Optional[str] = None
+    order_index: int = 0
+
+
+class WorkExperienceUpdate(BaseModel):
+    company: Optional[str] = None
+    title: Optional[str] = None
+    location: Optional[str] = None
+    start_month: Optional[int] = None
+    start_year: Optional[int] = None
+    end_month: Optional[int] = None
+    end_year: Optional[int] = None
+    is_current: Optional[bool] = None
+    description: Optional[str] = None
+    order_index: Optional[int] = None
 
 
 class CollegeUpdateBody(BaseModel):
@@ -69,11 +98,39 @@ def _profile_response(user: models.User) -> dict:
         for rv in (user.resumes or [])
     ]
 
+    work_exps = [
+        {
+            "id": we.id,
+            "company": we.company,
+            "title": we.title,
+            "location": we.location,
+            "start_month": we.start_month,
+            "start_year": we.start_year,
+            "end_month": we.end_month,
+            "end_year": we.end_year,
+            "is_current": bool(we.is_current),
+            "description": we.description,
+            "order_index": we.order_index,
+        }
+        for we in (user.work_experiences or [])
+    ]
+
+    # avatar_url stores the S3 key; generate a fresh presigned URL on every fetch
+    # (1-hour validity is fine — profile is re-fetched on every page load)
+    avatar_url: str | None = None
+    if user.avatar_url:
+        if user.avatar_url.startswith("http"):
+            avatar_url = user.avatar_url  # legacy direct URL, keep as-is
+        else:
+            avatar_url = get_presigned_url(user.avatar_url, f"avatar{user.avatar_url.rsplit('.', 1)[-1] if '.' in user.avatar_url else '.jpg'}")
+
     return {
         "id": user.id,
         "full_name": user.full_name,
         "email": user.email,
         "phone": user.phone,
+        "headline": user.headline,
+        "avatar_url": avatar_url,
         "is_candidate": user.is_candidate,
         "is_recruiter": user.is_recruiter,
         "linkedin_verified": bool(user.linkedin_verified),
@@ -108,6 +165,9 @@ def _profile_response(user: models.User) -> dict:
             }
             for e in (user.education_records or [])
         ],
+
+        # Work experience
+        "work_experiences": work_exps,
 
         # Recruiter fields
         "company": r.company if r else None,
@@ -207,6 +267,9 @@ def update_my_profile(
 
     if body.phone is not None:
         current_user.phone = body.phone.strip() or None
+
+    if body.headline is not None:
+        current_user.headline = body.headline.strip() or None
 
     db.commit()
     return _profile_response(current_user)
@@ -528,3 +591,217 @@ async def refresh_career_profile(
 
     background_tasks.add_task(_refresh_career, current_user.id, resume_text)
     return {"message": "Analysis started. Check back in about 15 seconds.", "source": source}
+
+
+# ── Avatar ────────────────────────────────────────────────────────────────────
+
+@router.post("/avatar")
+async def upload_profile_avatar(
+    avatar_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Upload a profile photo. Stored under resumes/ prefix (same IAM permissions as resume uploads)."""
+    if not s3_enabled():
+        raise HTTPException(
+            status_code=501,
+            detail="Avatar storage requires S3. Add AWS credentials to your .env file.",
+        )
+
+    content = await avatar_file.read()
+    if len(content) > MAX_AVATAR_SIZE:
+        raise HTTPException(status_code=400, detail="Avatar image must be under 5 MB.")
+
+    filename = avatar_file.filename or "avatar.jpg"
+    import asyncio
+    loop = asyncio.get_event_loop()
+    key = await loop.run_in_executor(None, upload_avatar, content, current_user.id, filename)
+
+    if not key:
+        raise HTTPException(
+            status_code=500,
+            detail="Upload failed. Check your S3 bucket permissions and try again.",
+        )
+
+    # Store the S3 key; _profile_response generates a fresh presigned URL on each fetch
+    current_user.avatar_url = key
+    db.commit()
+    return _profile_response(current_user)
+
+
+# ── Work experience ───────────────────────────────────────────────────────────
+
+async def _extract_work_experience_from_text(resume_text: str) -> list[dict]:
+    """Call AI to extract a list of work experience entries from raw resume text."""
+    prompt = (
+        "Extract all work experience entries from this resume.\n"
+        "Return a JSON array where each item has these exact keys:\n"
+        '  "company": string,\n'
+        '  "title": string,\n'
+        '  "location": string or null,\n'
+        '  "start_month": integer 1-12 or null,\n'
+        '  "start_year": integer,\n'
+        '  "end_month": integer 1-12 or null (null if current),\n'
+        '  "end_year": integer or null (null if current),\n'
+        '  "is_current": boolean,\n'
+        '  "description": one-sentence summary or null\n'
+        "Include only actual work/internship experience — not education or skills.\n\n"
+        f"Resume:\n{resume_text[:5000]}\n\n"
+        "Return only the JSON array with no additional text."
+    )
+
+    try:
+        p = settings.AI_PROVIDER.lower()
+        raw = ""
+
+        if p == "openai":
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.1,
+                messages=[
+                    {"role": "system", "content": "You extract work experience from resumes. Return valid JSON array only."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            raw = resp.choices[0].message.content or ""
+
+        elif p == "claude":
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            resp = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text if resp.content else ""
+
+        # Strip markdown fences
+        raw = raw.strip()
+        raw = _re.sub(r"^```(?:json)?\n?", "", raw)
+        raw = _re.sub(r"\n?```$", "", raw).strip()
+
+        # Find JSON array (might be wrapped in an object)
+        match = _re.search(r"\[.*\]", raw, _re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            if isinstance(data, list):
+                return data
+
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return data
+        for key in ("work_experience", "experience", "experiences", "entries"):
+            if key in data and isinstance(data[key], list):
+                return data[key]
+
+    except Exception as exc:
+        logger.error("Work experience extraction failed: %s", exc)
+
+    return []
+
+
+@router.post("/work-experience/import")
+async def import_work_experience(
+    current_user: models.User = Depends(get_current_user),
+):
+    """Extract work experience entries from the user's current resume using AI.
+    Returns a preview list — nothing is saved until the client confirms."""
+    if not current_user.is_candidate:
+        raise HTTPException(status_code=403, detail="Candidate profile required.")
+    ext = current_user.candidate_ext
+    if not ext or not ext.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="No resume on file. Upload a resume on the profile page first.",
+        )
+    entries = await _extract_work_experience_from_text(ext.resume_text)
+    return {"entries": entries}
+
+
+@router.post("/work-experience")
+def add_work_experience(
+    body: WorkExperienceCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    we = models.WorkExperience(
+        user_id=current_user.id,
+        company=body.company.strip(),
+        title=body.title.strip(),
+        location=(body.location or "").strip() or None,
+        start_month=body.start_month,
+        start_year=body.start_year,
+        end_month=None if body.is_current else body.end_month,
+        end_year=None if body.is_current else body.end_year,
+        is_current=body.is_current,
+        description=(body.description or "").strip() or None,
+        order_index=body.order_index,
+    )
+    db.add(we)
+    db.commit()
+    db.expire(current_user)
+    return _profile_response(current_user)
+
+
+@router.patch("/work-experience/{we_id}")
+def update_work_experience(
+    we_id: int,
+    body: WorkExperienceUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    we = db.query(models.WorkExperience).filter(
+        models.WorkExperience.id == we_id,
+        models.WorkExperience.user_id == current_user.id,
+    ).first()
+    if not we:
+        raise HTTPException(status_code=404, detail="Work experience entry not found.")
+
+    if body.company is not None:
+        we.company = body.company.strip()
+    if body.title is not None:
+        we.title = body.title.strip()
+    if body.location is not None:
+        we.location = body.location.strip() or None
+    if body.start_month is not None:
+        we.start_month = body.start_month
+    if body.start_year is not None:
+        we.start_year = body.start_year
+    if body.is_current is not None:
+        we.is_current = body.is_current
+        if body.is_current:
+            we.end_month = None
+            we.end_year = None
+    if body.end_month is not None and not we.is_current:
+        we.end_month = body.end_month
+    if body.end_year is not None and not we.is_current:
+        we.end_year = body.end_year
+    if body.description is not None:
+        we.description = body.description.strip() or None
+    if body.order_index is not None:
+        we.order_index = body.order_index
+
+    db.commit()
+    db.expire(current_user)
+    return _profile_response(current_user)
+
+
+@router.delete("/work-experience/{we_id}")
+def delete_work_experience(
+    we_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    we = db.query(models.WorkExperience).filter(
+        models.WorkExperience.id == we_id,
+        models.WorkExperience.user_id == current_user.id,
+    ).first()
+    if not we:
+        raise HTTPException(status_code=404, detail="Work experience entry not found.")
+
+    db.delete(we)
+    db.commit()
+    db.expire(current_user)
+    return _profile_response(current_user)
