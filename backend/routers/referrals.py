@@ -555,10 +555,12 @@ async def create_referral_post(
     current_user: models.User = Depends(get_current_user),
 ):
     # Determine company_verified from LinkedIn or explicitly set later via OTP
+    _ref_ext = current_user.recruiter_ext
     linkedin_verified_company = (
         current_user.linkedin_verified
-        and current_user.company
-        and current_user.company.lower().strip() == req.company_name.lower().strip()
+        and _ref_ext
+        and _ref_ext.company
+        and _ref_ext.company.lower().strip() == req.company_name.lower().strip()
     )
 
     # Resolve JD for internal link
@@ -883,7 +885,7 @@ async def apply_to_referral(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "candidate":
+    if not current_user.is_candidate:
         raise HTTPException(403, "Only candidates can apply to referral posts.")
 
     post = db.query(models.ReferralPost).filter(models.ReferralPost.id == post_id).first()
@@ -922,7 +924,9 @@ async def apply_to_referral(
         })
 
     # Resolve resume
-    resume_text = req.resume_text or current_user.resume_text
+    resume_text = req.resume_text or (
+        current_user.candidate_ext.resume_text if current_user.candidate_ext else None
+    )
     if not resume_text:
         raise HTTPException(400, "No resume found. Please upload a resume to your profile.")
 
@@ -1180,7 +1184,7 @@ async def my_referral_applications(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "candidate":
+    if not current_user.is_candidate:
         raise HTTPException(403, "Candidates only.")
     apps = (
         db.query(models.ReferralApplication)

@@ -191,13 +191,14 @@ async def create_job(
     # ── Company verification ──────────────────────────────────────────────────
     # Any recruiter whose profile has a company set is treated as an internal recruiter.
     # They may only post jobs for their own company unless they declare is_third_party=True.
-    if current_user.company and not is_third_party:
-        if company.strip().lower() != current_user.company.strip().lower():
+    _recruiter_ext = current_user.recruiter_ext
+    if _recruiter_ext and _recruiter_ext.company and not is_third_party:
+        if company.strip().lower() != _recruiter_ext.company.strip().lower():
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    f"Your profile is linked to '{current_user.company}'. "
-                    f"You can only post jobs for that company. "
+                    f"Your profile is linked to '{_recruiter_ext.company}'. "
+                    "You can only post jobs for that company. "
                     "To post for a different company, mark this as a third-party posting."
                 ),
             )

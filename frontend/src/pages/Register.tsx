@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import LinkedInButton from '../components/LinkedInButton'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, ActiveMode } from '../context/AuthContext'
 
 export default function Register() {
   const { register, loginWithLinkedIn } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const prefilledRole = params.get('role') as 'candidate' | 'recruiter' | null
+  const prefilledAccountType = params.get('account_type') as ActiveMode | null
+    ?? (params.get('role') as ActiveMode | null) // legacy compat
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'candidate' | 'recruiter'>(prefilledRole ?? 'candidate')
+  const [role, setRole] = useState<ActiveMode>(prefilledAccountType ?? 'candidate')
   const [company, setCompany] = useState('')
   const [isThirdParty, setIsThirdParty] = useState(false)
   const [error, setError] = useState('')

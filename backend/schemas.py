@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Literal, Optional, List
 from datetime import datetime
+import models as _models
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -9,7 +10,9 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    role: Literal["recruiter", "candidate"] = "candidate"
+    # account_type drives which extension row is created on registration
+    account_type: Literal["recruiter", "candidate"] = "candidate"
+    # recruiter-only fields (ignored when account_type == "candidate")
     company: Optional[str] = None
     is_third_party_recruiter: bool = False
 
@@ -18,25 +21,63 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: str
-    role: str
+    phone: Optional[str] = None
     created_at: datetime
     linkedin_verified: bool = False
-    company: Optional[str] = None
-    is_third_party_recruiter: bool = False
+
+    # Capability flags — derived from which extension rows exist
+    is_candidate: bool = False
+    is_recruiter: bool = False
+
+    # Candidate-specific (populated only when is_candidate=True)
+    onboarding_completed: bool = False
+    candidate_linkedin_url: Optional[str] = None
+    current_company: Optional[str] = None
     college_name: Optional[str] = None
     graduation_year: Optional[int] = None
     is_graduated: Optional[bool] = None
     college_logo_url: Optional[str] = None
-    onboarding_completed: bool = False
+
+    # Recruiter-specific (populated only when is_recruiter=True)
+    company: Optional[str] = None
+    is_third_party_recruiter: bool = False
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_user(cls, user: "_models.User") -> "UserResponse":
+        """Build a UserResponse from a fully-loaded User ORM object."""
+        c = user.candidate_ext
+        r = user.recruiter_ext
+        ed = user.primary_education
+
+        return cls(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            phone=user.phone,
+            created_at=user.created_at,
+            linkedin_verified=bool(user.linkedin_verified),
+            is_candidate=c is not None,
+            is_recruiter=r is not None,
+            # candidate fields
+            onboarding_completed=bool(c.onboarding_completed) if c else False,
+            candidate_linkedin_url=c.candidate_linkedin_url if c else None,
+            current_company=c.current_company if c else None,
+            college_name=ed.institution_name if ed else None,
+            graduation_year=ed.graduation_year if ed else None,
+            is_graduated=ed.is_graduated if ed else None,
+            college_logo_url=(ed.college.logo_url if ed and ed.college else None),
+            # recruiter fields
+            company=r.company if r else None,
+            is_third_party_recruiter=bool(r.is_third_party) if r else False,
+        )
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    role: Optional[Literal["recruiter", "candidate"]] = None
 
 
 class Token(BaseModel):

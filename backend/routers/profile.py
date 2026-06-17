@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
+import schemas
 from database import SessionLocal, get_db
 from routers.auth import get_current_user
 from config import settings
@@ -26,62 +27,91 @@ MAX_VAULT_SIZE = 3
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
+
+
+class RecruiterProfileUpdate(BaseModel):
     company: Optional[str] = None
+    is_third_party: Optional[bool] = None
 
 
 class CollegeUpdateBody(BaseModel):
     college_name: str
     graduation_year: Optional[int] = None
     is_graduated: bool = False
-    college_url: Optional[str] = None           # website or LinkedIn URL — logo resolved server-side
+    degree_type: Optional[str] = None
+    field_of_study: Optional[str] = None
+    college_url: Optional[str] = None
     candidate_linkedin_url: Optional[str] = None
-    current_company: Optional[str] = None        # alumni current employer
+    current_company: Optional[str] = None
 
 
 # ── Response helper ───────────────────────────────────────────────────────────
 
 def _profile_response(user: models.User) -> dict:
+    c = user.candidate_ext
+    r = user.recruiter_ext
+    ed = user.primary_education
+
     career = None
-    if user.career_profile:
+    if c and c.career_profile:
         try:
-            career = json.loads(user.career_profile)
+            career = json.loads(c.career_profile)
         except Exception:
-            career = None
+            pass
 
     vault = [
         {
-            "id": r.id,
-            "filename": r.filename,
-            "is_primary": r.is_primary,
-            "uploaded_at": r.uploaded_at.isoformat() if r.uploaded_at else None,
+            "id": rv.id,
+            "filename": rv.filename,
+            "is_primary": rv.is_primary,
+            "uploaded_at": rv.uploaded_at.isoformat() if rv.uploaded_at else None,
         }
-        for r in user.resumes
+        for rv in (user.resumes or [])
     ]
 
     return {
         "id": user.id,
         "full_name": user.full_name,
         "email": user.email,
-        "role": user.role,
         "phone": user.phone,
-        "company": user.company,
-        "is_third_party_recruiter": user.is_third_party_recruiter,
-        "linkedin_verified": user.linkedin_verified,
+        "is_candidate": user.is_candidate,
+        "is_recruiter": user.is_recruiter,
+        "linkedin_verified": bool(user.linkedin_verified),
         "created_at": user.created_at.isoformat() if user.created_at else None,
-        "resume_filename": user.resume_filename,
+
+        # Candidate fields
+        "onboarding_completed": bool(c.onboarding_completed) if c else False,
+        "candidate_linkedin_url": c.candidate_linkedin_url if c else None,
+        "current_company": c.current_company if c else None,
+        "resume_filename": c.resume_filename if c else None,
         "career_profile": career,
         "career_profile_updated_at": (
-            user.career_profile_updated_at.isoformat()
-            if user.career_profile_updated_at else None
+            c.career_profile_updated_at.isoformat()
+            if c and c.career_profile_updated_at else None
         ),
         "resumes": vault,
-        "college_name": user.college_name,
-        "graduation_year": user.graduation_year,
-        "is_graduated": user.is_graduated,
-        "college_logo_url": user.college_logo_url,
-        "onboarding_completed": bool(user.onboarding_completed),
-        "candidate_linkedin_url": user.candidate_linkedin_url,
-        "current_company": user.current_company,
+
+        # Education
+        "college_name": ed.institution_name if ed else None,
+        "graduation_year": ed.graduation_year if ed else None,
+        "is_graduated": ed.is_graduated if ed else None,
+        "college_logo_url": (ed.college.logo_url if ed and ed.college else None),
+        "education_records": [
+            {
+                "id": e.id,
+                "institution_name": e.institution_name,
+                "degree_type": e.degree_type,
+                "field_of_study": e.field_of_study,
+                "graduation_year": e.graduation_year,
+                "is_graduated": e.is_graduated,
+                "is_primary": e.is_primary,
+            }
+            for e in (user.education_records or [])
+        ],
+
+        # Recruiter fields
+        "company": r.company if r else None,
+        "is_third_party_recruiter": bool(r.is_third_party) if r else False,
     }
 
 
@@ -91,10 +121,12 @@ async def _refresh_career(user_id: int, resume_text: str) -> None:
     try:
         profile = await generate_career_profile(resume_text)
         with SessionLocal() as session:
-            user = session.query(models.User).filter(models.User.id == user_id).first()
-            if user:
-                user.career_profile = json.dumps(profile)
-                user.career_profile_updated_at = datetime.utcnow()
+            ext = session.query(models.CandidateExtension).filter(
+                models.CandidateExtension.user_id == user_id
+            ).first()
+            if ext:
+                ext.career_profile = json.dumps(profile)
+                ext.career_profile_updated_at = datetime.utcnow()
                 session.commit()
     except Exception as exc:
         logger.error(f"Career profile generation failed for user {user_id}: {exc}")
@@ -104,9 +136,11 @@ async def _update_profile_embedding(user_id: int, resume_text: str) -> None:
     try:
         emb = await get_embedding(resume_text)
         with SessionLocal() as session:
-            user = session.query(models.User).filter(models.User.id == user_id).first()
-            if user:
-                user.profile_embedding = json.dumps(emb)
+            ext = session.query(models.CandidateExtension).filter(
+                models.CandidateExtension.user_id == user_id
+            ).first()
+            if ext:
+                ext.profile_embedding = json.dumps(emb)
                 session.commit()
     except Exception as exc:
         logger.warning(f"Profile embedding update failed for user {user_id}: {exc}")
@@ -140,14 +174,13 @@ def _add_to_vault(
         if oldest:
             db.delete(oldest)
 
-    new_entry = models.UserResume(
+    db.add(models.UserResume(
         user_id=user.id,
         filename=filename,
         resume_text=resume_text,
         is_primary=True,
         file_key=file_key,
-    )
-    db.add(new_entry)
+    ))
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -175,8 +208,25 @@ def update_my_profile(
     if body.phone is not None:
         current_user.phone = body.phone.strip() or None
 
+    db.commit()
+    return _profile_response(current_user)
+
+
+@router.patch("/recruiter")
+def update_recruiter_profile(
+    body: RecruiterProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Update recruiter-specific profile fields."""
+    ext = current_user.recruiter_ext
+    if not ext:
+        raise HTTPException(status_code=403, detail="Recruiter profile required.")
+
     if body.company is not None:
-        current_user.company = body.company.strip() or None
+        ext.company = body.company.strip() or None
+    if body.is_third_party is not None:
+        ext.is_third_party = body.is_third_party
 
     db.commit()
     return _profile_response(current_user)
@@ -193,7 +243,7 @@ async def upload_resume(
     Upload or replace the candidate's active profile resume.
     Saves to the vault (max 3 — oldest removed if full) and sets as primary.
     """
-    if current_user.role != "candidate":
+    if not current_user.is_candidate:
         raise HTTPException(status_code=403, detail="Resume upload is only available for candidates.")
 
     content = await resume_file.read()
@@ -214,11 +264,13 @@ async def upload_resume(
 
     _add_to_vault(db, current_user, filename, resume_text, file_key)
 
-    current_user.resume_text = resume_text
-    current_user.resume_filename = filename
-    current_user.career_profile = None
-    current_user.career_profile_updated_at = None
-    current_user.profile_embedding = None
+    # Update the fast-access copy on the extension
+    ext = current_user.candidate_ext
+    ext.resume_text = resume_text
+    ext.resume_filename = filename
+    ext.career_profile = None
+    ext.career_profile_updated_at = None
+    ext.profile_embedding = None
     db.commit()
 
     background_tasks.add_task(_update_profile_embedding, current_user.id, resume_text)
@@ -244,11 +296,13 @@ def set_active_resume(
     ).update({"is_primary": False})
     entry.is_primary = True
 
-    current_user.resume_text = entry.resume_text
-    current_user.resume_filename = entry.filename
-    current_user.career_profile = None
-    current_user.career_profile_updated_at = None
-    current_user.profile_embedding = None
+    ext = current_user.candidate_ext
+    if ext:
+        ext.resume_text = entry.resume_text
+        ext.resume_filename = entry.filename
+        ext.career_profile = None
+        ext.career_profile_updated_at = None
+        ext.profile_embedding = None
     db.commit()
 
     return _profile_response(current_user)
@@ -273,6 +327,7 @@ def delete_vault_resume(
     db.commit()
 
     if was_primary:
+        ext = current_user.candidate_ext
         latest = (
             db.query(models.UserResume)
             .filter(models.UserResume.user_id == current_user.id)
@@ -281,11 +336,13 @@ def delete_vault_resume(
         )
         if latest:
             latest.is_primary = True
-            current_user.resume_text = latest.resume_text
-            current_user.resume_filename = latest.filename
+            if ext:
+                ext.resume_text = latest.resume_text
+                ext.resume_filename = latest.filename
         else:
-            current_user.resume_text = None
-            current_user.resume_filename = None
+            if ext:
+                ext.resume_text = None
+                ext.resume_filename = None
         db.commit()
 
     return _profile_response(current_user)
@@ -297,10 +354,7 @@ def get_vault_resume_url(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """
-    Return a short-lived pre-signed S3 URL for a vault resume.
-    Only the owner can request this URL.
-    """
+    """Return a short-lived pre-signed S3 URL for a vault resume."""
     entry = db.query(models.UserResume).filter(
         models.UserResume.id == resume_id,
         models.UserResume.user_id == current_user.id,
@@ -315,18 +369,18 @@ def get_vault_resume_url(
     if not url:
         return {"available": False}
 
-    ext = (entry.filename or "").rsplit(".", 1)[-1].lower()
-    content_type_map = {
+    ext_map = {
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "doc": "application/msword",
         "txt": "text/plain",
     }
+    file_ext = (entry.filename or "").rsplit(".", 1)[-1].lower()
     return {
         "available": True,
         "url": url,
         "filename": entry.filename,
-        "content_type": content_type_map.get(ext, "application/octet-stream"),
+        "content_type": ext_map.get(file_ext, "application/octet-stream"),
         "expires_in": settings.S3_PRESIGN_EXPIRY,
     }
 
@@ -363,6 +417,15 @@ async def _populate_college_record(college_name: str, college_url: str | None, u
                     ai_info=_json.dumps(ai_info),
                 ))
             session.commit()
+
+            # Back-fill college_id on all UserEducation rows for this institution
+            college = session.query(models.College).filter(models.College.name == college_name).first()
+            if college:
+                session.query(models.UserEducation).filter(
+                    models.UserEducation.institution_name == college_name,
+                    models.UserEducation.college_id.is_(None),
+                ).update({"college_id": college.id})
+                session.commit()
     except Exception as exc:
         logger.error("College populate failed for %r: %s", college_name, exc)
 
@@ -375,24 +438,61 @@ async def update_college_info(
     current_user: models.User = Depends(get_current_user),
 ):
     """Save college/university details for the current candidate."""
-    if current_user.role != "candidate":
+    if not current_user.is_candidate:
         raise HTTPException(status_code=403, detail="Only candidates can set college info.")
 
+    ext = current_user.candidate_ext
     college_name = body.college_name.strip()
-    current_user.college_name = college_name or None
-    current_user.graduation_year = body.graduation_year
-    current_user.is_graduated = body.is_graduated
-    current_user.onboarding_completed = True
-    current_user.candidate_linkedin_url = (body.candidate_linkedin_url or "").strip() or None
-    current_user.current_company = (body.current_company or "").strip() or None
 
-    # Ensure a College record exists; fire background task to fill AI info + logo
+    # Update candidate extension
+    ext.onboarding_completed = True
+    ext.candidate_linkedin_url = (body.candidate_linkedin_url or "").strip() or None
+    ext.current_company = (body.current_company or "").strip() or None
+
+    # Upsert the primary UserEducation row
+    primary_ed = db.query(models.UserEducation).filter(
+        models.UserEducation.user_id == current_user.id,
+        models.UserEducation.is_primary == True,  # noqa: E712
+    ).first()
+
+    # Resolve college FK if the College record already exists
+    college_record = (
+        db.query(models.College).filter(models.College.name == college_name).first()
+        if college_name else None
+    )
+
+    if primary_ed:
+        primary_ed.institution_name = college_name or primary_ed.institution_name
+        primary_ed.graduation_year = body.graduation_year
+        primary_ed.is_graduated = body.is_graduated
+        primary_ed.degree_type = body.degree_type
+        primary_ed.field_of_study = body.field_of_study
+        primary_ed.college_id = college_record.id if college_record else None
+    else:
+        new_ed = models.UserEducation(
+            user_id=current_user.id,
+            institution_name=college_name,
+            graduation_year=body.graduation_year,
+            is_graduated=body.is_graduated,
+            degree_type=body.degree_type,
+            field_of_study=body.field_of_study,
+            is_primary=True,
+            college_id=college_record.id if college_record else None,
+        )
+        db.add(new_ed)
+
+    # Ensure a College record exists; background task fills AI info + logo
     if college_name:
         existing = db.query(models.College).filter(models.College.name == college_name).first()
         if not existing:
             db.add(models.College(name=college_name, website_url=(body.college_url or "").strip() or None))
             db.flush()
-        background_tasks.add_task(_populate_college_record, college_name, (body.college_url or "").strip() or None, current_user.id)
+        background_tasks.add_task(
+            _populate_college_record,
+            college_name,
+            (body.college_url or "").strip() or None,
+            current_user.id,
+        )
 
     db.commit()
     return _profile_response(current_user)
@@ -404,12 +504,13 @@ async def refresh_career_profile(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "candidate":
+    if not current_user.is_candidate:
         raise HTTPException(status_code=403, detail="Career profiles are only available for candidates.")
 
-    if current_user.resume_text:
-        resume_text = current_user.resume_text
-        source = current_user.resume_filename or "profile resume"
+    ext = current_user.candidate_ext
+    if ext and ext.resume_text:
+        resume_text = ext.resume_text
+        source = ext.resume_filename or "profile resume"
     else:
         latest = (
             db.query(models.Application)

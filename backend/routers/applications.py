@@ -253,9 +253,11 @@ async def _store_profile_embedding(user_id: int, resume_text: str) -> None:
     try:
         emb = await get_embedding(resume_text)
         with SessionLocal() as session:
-            user = session.query(models.User).filter(models.User.id == user_id).first()
-            if user:
-                user.profile_embedding = json.dumps(emb)
+            ext = session.query(models.CandidateExtension).filter(
+                models.CandidateExtension.user_id == user_id
+            ).first()
+            if ext:
+                ext.profile_embedding = json.dumps(emb)
                 session.commit()
     except Exception as exc:
         logger.warning(f"Profile embedding update failed for user {user_id}: {exc}")
@@ -277,11 +279,11 @@ async def _store_embeddings(app_id: int, resume_text: str, job_id: int) -> None:
                 app.resume_embedding = emb_json
                 # Keep candidate's profile_embedding in sync with their latest resume
                 if app.candidate_user_id:
-                    user = session.query(models.User).filter(
-                        models.User.id == app.candidate_user_id
+                    cext = session.query(models.CandidateExtension).filter(
+                        models.CandidateExtension.user_id == app.candidate_user_id
                     ).first()
-                    if user:
-                        user.profile_embedding = emb_json
+                    if cext:
+                        cext.profile_embedding = emb_json
 
             # Cache JD embedding on the job (only computed once)
             job = session.query(models.Job).filter(models.Job.id == job_id).first()
@@ -328,8 +330,9 @@ def check_prior_application(
     applied_hash = _resume_hash(existing.resume_text) if existing.resume_text else None
 
     same_resume = False
-    if current_user.resume_text and applied_hash:
-        same_resume = _resume_hash(current_user.resume_text) == applied_hash
+    _cext = current_user.candidate_ext
+    if _cext and _cext.resume_text and applied_hash:
+        same_resume = _resume_hash(_cext.resume_text) == applied_hash
 
     # Vault resumes that differ from the one already applied with
     usable_vault_ids: list[int] = []
@@ -411,11 +414,12 @@ async def apply_to_job(
                 detail="Could not extract text from resume. Please upload a valid PDF, DOCX, or TXT file.",
             )
         # Persist to profile + vault if the candidate has no resume yet
-        if not current_user.resume_text:
-            current_user.resume_text = resume_text
-            current_user.resume_filename = resume_filename
-            current_user.career_profile = None
-            current_user.profile_embedding = None
+        _candidate_ext = current_user.candidate_ext
+        if _candidate_ext and not _candidate_ext.resume_text:
+            _candidate_ext.resume_text = resume_text
+            _candidate_ext.resume_filename = resume_filename
+            _candidate_ext.career_profile = None
+            _candidate_ext.profile_embedding = None
             new_vault = models.UserResume(
                 user_id=current_user.id, filename=resume_filename,
                 resume_text=resume_text, is_primary=True,
@@ -425,13 +429,14 @@ async def apply_to_job(
             background_tasks.add_task(_store_profile_embedding, current_user.id, resume_text)
     else:
         # No file / vault ID — use the active profile resume
-        if not current_user.resume_text:
+        _cext_apply = current_user.candidate_ext
+        if not _cext_apply or not _cext_apply.resume_text:
             raise HTTPException(
                 status_code=400,
                 detail="No resume on file. Please upload a resume to your profile before applying.",
             )
-        resume_text = current_user.resume_text
-        resume_filename = current_user.resume_filename or "resume"
+        resume_text = _cext_apply.resume_text
+        resume_filename = _cext_apply.resume_filename or "resume"
 
     # 2b. Upload original file to S3 (best-effort, non-blocking) ──────────────
     _raw_bytes_for_s3: bytes | None = None
@@ -526,7 +531,10 @@ async def apply_to_job(
     _rec = job.recruiter
     recruiter_name = _rec.full_name if _rec else "Recruitment Team"
     recruiter_email = _rec.email if _rec else ""
-    recruiter_position = _rec.role.capitalize() if _rec else "Recruiter"
+    recruiter_position = (
+        (_rec.recruiter_ext.company if _rec.recruiter_ext and _rec.recruiter_ext.company else "Recruiter")
+        if _rec else "Recruiter"
+    )
 
     def _save(status: str) -> models.Application:
         candidate_status = "pool_accepted" if status == "accepted" else "rejected"
@@ -1051,11 +1059,13 @@ async def magic_match_jobs(
     today_str = date.today().isoformat()
     reset_str = (date.today() + timedelta(days=1)).isoformat()
 
+    mm_ext = current_user.candidate_ext
+
     # ── 1. Rate-limit check — return cached results for repeat calls today ────
-    if current_user.magic_match_date == today_str:
-        if current_user.magic_match_cache:
+    if mm_ext and mm_ext.magic_match_date == today_str:
+        if mm_ext.magic_match_cache:
             try:
-                cached = json.loads(current_user.magic_match_cache)
+                cached = json.loads(mm_ext.magic_match_cache)
                 cached["resets_at"] = reset_str
                 cached["from_cache"] = True
                 return cached
@@ -1073,9 +1083,9 @@ async def magic_match_jobs(
     # Priority: cached profile_embedding → latest app resume_embedding → compute fresh
     candidate_emb: list[float] | None = None
 
-    if current_user.profile_embedding:
+    if mm_ext and mm_ext.profile_embedding:
         try:
-            candidate_emb = json.loads(current_user.profile_embedding)
+            candidate_emb = json.loads(mm_ext.profile_embedding)
         except Exception:
             candidate_emb = None
 
@@ -1093,8 +1103,9 @@ async def magic_match_jobs(
         if recent_with_emb:
             candidate_emb = json.loads(recent_with_emb.resume_embedding)
             # Warm the cache so tomorrow's call is instant
-            current_user.profile_embedding = recent_with_emb.resume_embedding
-            db.commit()
+            if mm_ext:
+                mm_ext.profile_embedding = recent_with_emb.resume_embedding
+                db.commit()
 
     if candidate_emb is None:
         # No pre-computed embedding — find the most recent resume text and embed it now
@@ -1111,8 +1122,9 @@ async def magic_match_jobs(
             )
         try:
             candidate_emb = await get_embedding(latest_app.resume_text)
-            current_user.profile_embedding = json.dumps(candidate_emb)
-            db.commit()
+            if mm_ext:
+                mm_ext.profile_embedding = json.dumps(candidate_emb)
+                db.commit()
         except Exception as exc:
             logger.error(f"Magic-match: failed to embed candidate {current_user.id}: {exc}")
             raise HTTPException(
@@ -1136,8 +1148,9 @@ async def magic_match_jobs(
     all_unapplied = base_q.all()
 
     if not all_unapplied:
-        current_user.magic_match_date = today_str
-        db.commit()
+        if mm_ext:
+            mm_ext.magic_match_date = today_str
+            db.commit()
         return {"matches": [], "total": 0, "resets_at": reset_str,
                 "message": "No new jobs available right now — check back later!"}
 
@@ -1183,9 +1196,10 @@ async def magic_match_jobs(
         ],
         "total": len(top5),
     }
-    current_user.magic_match_date = today_str
-    current_user.magic_match_cache = json.dumps(result)
-    db.commit()
+    if mm_ext:
+        mm_ext.magic_match_date = today_str
+        mm_ext.magic_match_cache = json.dumps(result)
+        db.commit()
 
     result["resets_at"] = reset_str
     return result

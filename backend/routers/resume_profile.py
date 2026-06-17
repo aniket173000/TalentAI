@@ -210,7 +210,7 @@ def get_profile_by_id(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
 
     # Candidates can only see their own profiles; recruiters can see any
-    if current_user.role == "candidate" and profile.user_id != current_user.id:
+    if current_user.is_candidate and not current_user.is_recruiter and profile.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
 
     return _profile_to_response(profile)

@@ -5,11 +5,14 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from sqlalchemy.orm import Session, joinedload
 
 import models
+import schemas
 from config import settings
 from database import get_db
+from routers.auth import get_current_user, _load_user_full
 from services.auth_service import create_access_token
 
 logger = logging.getLogger(__name__)
@@ -28,11 +31,18 @@ def _fe(path: str) -> str:
 # ── Step 1: Redirect user to LinkedIn ────────────────────────────────────────
 
 @router.get("/authorize")
-def linkedin_authorize(role: str = Query(..., pattern="^(recruiter|candidate)$")):
+def linkedin_authorize(
+    account_type: str = Query(..., pattern="^(recruiter|candidate)$"),
+):
+    """
+    Kick off the LinkedIn OAuth flow.
+    account_type tells us which extension to create/verify after callback.
+    """
     if not settings.LINKEDIN_CLIENT_ID:
         raise HTTPException(status_code=503, detail="LinkedIn OAuth is not configured on this server.")
 
-    state = f"{role}|{secrets.token_urlsafe(16)}"
+    # Embed account_type in the opaque state so the callback can read it back
+    state = f"{account_type}|{secrets.token_urlsafe(16)}"
     params = {
         "response_type": "code",
         "client_id": settings.LINKEDIN_CLIENT_ID,
@@ -61,10 +71,10 @@ async def linkedin_callback(
     if not code or not state:
         return RedirectResponse(url=_fe("/auth/linkedin/callback?error=missing_params"))
 
-    # Parse role from state  (format: "recruiter|<nonce>")
+    # Parse account_type from state  (format: "candidate|<nonce>")
     try:
-        role = state.split("|")[0]
-        if role not in ("recruiter", "candidate"):
+        account_type = state.split("|")[0]
+        if account_type not in ("recruiter", "candidate"):
             raise ValueError
     except (IndexError, ValueError):
         return RedirectResponse(url=_fe("/auth/linkedin/callback?error=invalid_state"))
@@ -110,20 +120,18 @@ async def linkedin_callback(
     if not linkedin_id or not email:
         return RedirectResponse(url=_fe("/auth/linkedin/callback?error=missing_profile_data"))
 
-    # ── Find or create the user ───────────────────────────────────────────────
+    # ── Find or create the user (unified identity — no role column) ───────────
 
-    # 1. Exact match by linkedin_id + role (returning user)
-    user = db.query(models.User).filter(
-        models.User.linkedin_id == linkedin_id,
-        models.User.role == role,
-    ).first()
+    # 1. Returning user — match by linkedin_id
+    user = (
+        db.query(models.User)
+        .filter(models.User.linkedin_id == linkedin_id)
+        .first()
+    )
 
-    # 2. Match by email + role — link LinkedIn to an existing email/password account
+    # 2. Existing email/password account — link LinkedIn to it
     if not user:
-        user = db.query(models.User).filter(
-            models.User.email == email,
-            models.User.role == role,
-        ).first()
+        user = db.query(models.User).filter(models.User.email == email).first()
         if user:
             user.linkedin_id = linkedin_id
             user.linkedin_verified = True
@@ -134,60 +142,76 @@ async def linkedin_callback(
             email=email,
             hashed_password=None,
             full_name=full_name,
-            role=role,
             linkedin_id=linkedin_id,
             linkedin_verified=True,
             is_active=True,
         )
         db.add(user)
+        db.flush()
     else:
         user.linkedin_verified = True
 
+    # Ensure the requested capability extension exists
+    if account_type == "recruiter":
+        existing_ext = db.query(models.RecruiterExtension).filter(
+            models.RecruiterExtension.user_id == user.id
+        ).first()
+        if not existing_ext:
+            db.add(models.RecruiterExtension(user_id=user.id))
+    else:
+        existing_ext = db.query(models.CandidateExtension).filter(
+            models.CandidateExtension.user_id == user.id
+        ).first()
+        if not existing_ext:
+            db.add(models.CandidateExtension(user_id=user.id))
+
     db.commit()
-    db.refresh(user)
 
-    jwt = create_access_token(user.id, user.role)
+    user = _load_user_full(user.id, db)
+    jwt = create_access_token(user.id)
 
-    # Signal the frontend to collect the recruiter's company if not yet on file
-    needs_company = "true" if (role == "recruiter" and not user.company) else "false"
+    # Signal the frontend to collect company info if recruiter has none yet
+    needs_company = (
+        "true"
+        if account_type == "recruiter" and user.recruiter_ext and not user.recruiter_ext.company
+        else "false"
+    )
     redirect = _fe(
-        f"/auth/linkedin/callback?token={jwt}&role={role}&needs_company={needs_company}"
+        f"/auth/linkedin/callback?token={jwt}&account_type={account_type}&needs_company={needs_company}"
     )
     return RedirectResponse(url=redirect)
 
 
-# ── Profile update (company / third-party flag) ───────────────────────────────
+# ── Recruiter profile update (company / third-party flag) ────────────────────
 
-from fastapi import Depends as _Dep
-from routers.auth import get_current_user
-
-class RecruiterProfileUpdate:
+class _RecruiterProfileUpdate(BaseModel):
     company: str | None = None
-    is_third_party_recruiter: bool | None = None
-
-from pydantic import BaseModel
-
-class _ProfileUpdate(BaseModel):
-    company: str | None = None
-    is_third_party_recruiter: bool | None = None
+    is_third_party: bool | None = None
 
 
 @router.patch("/profile", tags=["auth"])
-def update_linkedin_profile(
-    body: _ProfileUpdate,
+def update_linkedin_recruiter_profile(
+    body: _RecruiterProfileUpdate,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Let a LinkedIn-authenticated recruiter set/update their company name."""
+    ext = db.query(models.RecruiterExtension).filter(
+        models.RecruiterExtension.user_id == current_user.id
+    ).first()
+
+    if not ext:
+        raise HTTPException(status_code=403, detail="Recruiter profile required.")
+
     if body.company is not None:
-        current_user.company = body.company.strip() or None
-    if body.is_third_party_recruiter is not None:
-        current_user.is_third_party_recruiter = body.is_third_party_recruiter
+        ext.company = body.company.strip() or None
+    if body.is_third_party is not None:
+        ext.is_third_party = body.is_third_party
+
     db.commit()
-    db.refresh(current_user)
     return {
         "id": current_user.id,
-        "company": current_user.company,
-        "is_third_party_recruiter": current_user.is_third_party_recruiter,
+        "company": ext.company,
+        "is_third_party": ext.is_third_party,
         "linkedin_verified": current_user.linkedin_verified,
     }

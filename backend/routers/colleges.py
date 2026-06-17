@@ -7,7 +7,8 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 
 import models
 from database import get_db
@@ -42,25 +43,23 @@ def _compute_talent_stats(users: list[models.User]) -> CollegeTalentStats:
     skill_counter: Counter = Counter()
 
     for u in users:
-        # Current company from explicit field or career profile
-        if u.current_company:
-            company_counter[u.current_company] += 1
+        c = u.candidate_ext
+        if not c:
+            continue
 
-        if u.career_profile:
+        if c.current_company:
+            company_counter[c.current_company] += 1
+
+        if c.career_profile:
             try:
-                profile = json.loads(u.career_profile)
-                role = profile.get("detected_role", "")
-                # skills from strengths
+                profile = json.loads(c.career_profile)
                 for s in profile.get("strengths", []):
                     skill_counter[s] += 1
             except Exception:
                 pass
 
-        # Skills from candidate_profiles (structured extraction)
-        # (skipped here to keep query simple — could join if needed)
-
     return CollegeTalentStats(
-        top_companies=[c for c, _ in company_counter.most_common(6)],
+        top_companies=[co for co, _ in company_counter.most_common(6)],
         top_skills=[s for s, _ in skill_counter.most_common(8)],
     )
 
@@ -72,21 +71,27 @@ def list_colleges(db: Session = Depends(get_db)):
     """All colleges with member counts, logo, and AI short name."""
     rows = (
         db.query(
-            models.User.college_name,
-            func.sum(case((models.User.is_graduated == True, 1), else_=0)).label("alumni"),  # noqa: E712
-            func.count(models.User.id).label("total"),
+            models.UserEducation.institution_name.label("college_name"),
+            func.sum(
+                case((models.UserEducation.is_graduated == True, 1), else_=0)  # noqa: E712
+            ).label("alumni"),
+            func.count(models.UserEducation.user_id).label("total"),
+        )
+        # Only count users that actually have a candidate extension (= are candidates)
+        .join(
+            models.CandidateExtension,
+            models.UserEducation.user_id == models.CandidateExtension.user_id,
         )
         .filter(
-            models.User.role == "candidate",
-            models.User.college_name.isnot(None),
-            models.User.college_name != "",
+            models.UserEducation.is_primary == True,  # noqa: E712
+            models.UserEducation.institution_name.isnot(None),
+            models.UserEducation.institution_name != "",
         )
-        .group_by(models.User.college_name)
-        .order_by(func.count(models.User.id).desc())
+        .group_by(models.UserEducation.institution_name)
+        .order_by(func.count(models.UserEducation.user_id).desc())
         .all()
     )
 
-    # Fetch College records in one query
     names = [r.college_name for r in rows]
     college_map: dict[str, models.College] = {}
     if names:
@@ -130,17 +135,21 @@ def search_colleges(
 ):
     """Return matching college names for autocomplete."""
     base = (
-        db.query(models.User.college_name)
+        db.query(models.UserEducation.institution_name)
+        .join(
+            models.CandidateExtension,
+            models.UserEducation.user_id == models.CandidateExtension.user_id,
+        )
         .filter(
-            models.User.role == "candidate",
-            models.User.college_name.isnot(None),
-            models.User.college_name != "",
+            models.UserEducation.is_primary == True,  # noqa: E712
+            models.UserEducation.institution_name.isnot(None),
+            models.UserEducation.institution_name != "",
         )
         .distinct()
     )
     if q.strip():
-        base = base.filter(models.User.college_name.ilike(f"%{q.strip()}%"))
-    return {"colleges": [r.college_name for r in base.limit(20).all()]}
+        base = base.filter(models.UserEducation.institution_name.ilike(f"%{q.strip()}%"))
+    return {"colleges": [r.institution_name for r in base.limit(20).all()]}
 
 
 @router.get("/{college_name}/campus-jobs", response_model=List[CampusJobResponse])
@@ -167,9 +176,18 @@ def get_college_detail(college_name: str, db: Session = Depends(get_db)):
 
     users = (
         db.query(models.User)
-        .filter(
-            models.User.role == "candidate",
-            models.User.college_name == decoded,
+        .join(models.CandidateExtension, models.User.id == models.CandidateExtension.user_id)
+        .join(
+            models.UserEducation,
+            and_(
+                models.UserEducation.user_id == models.User.id,
+                models.UserEducation.institution_name == decoded,
+                models.UserEducation.is_primary == True,  # noqa: E712
+            ),
+        )
+        .options(
+            joinedload(models.User.candidate_ext),
+            joinedload(models.User.education_records),
         )
         .order_by(models.User.created_at.asc())
         .all()
@@ -179,17 +197,20 @@ def get_college_detail(college_name: str, db: Session = Depends(get_db)):
 
     current_students: list[CollegeCandidateEntry] = []
     alumni: list[CollegeCandidateEntry] = []
+
     for u in users:
+        ed = u.primary_education
+        c = u.candidate_ext
         entry = CollegeCandidateEntry(
             id=u.id,
             full_name=u.full_name,
             email=u.email,
-            graduation_year=u.graduation_year,
-            is_graduated=bool(u.is_graduated),
-            candidate_linkedin_url=u.candidate_linkedin_url,
-            current_company=u.current_company,
+            graduation_year=ed.graduation_year if ed else None,
+            is_graduated=bool(ed.is_graduated) if ed else False,
+            candidate_linkedin_url=c.candidate_linkedin_url if c else None,
+            current_company=c.current_company if c else None,
         )
-        if u.is_graduated:
+        if ed and ed.is_graduated:
             alumni.append(entry)
         else:
             current_students.append(entry)

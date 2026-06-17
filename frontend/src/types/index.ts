@@ -2,18 +2,26 @@ export interface AuthUser {
   id: number
   email: string
   full_name: string
-  role: 'recruiter' | 'candidate'
+  phone: string | null
   created_at: string
   linkedin_verified: boolean
-  company: string | null
-  is_third_party_recruiter: boolean
+
+  // Capability flags — derived from which extension rows exist on the backend
+  is_candidate: boolean
+  is_recruiter: boolean
+
+  // Candidate-specific (populated only when is_candidate = true)
+  onboarding_completed: boolean
+  candidate_linkedin_url: string | null
+  current_company: string | null
   college_name: string | null
   graduation_year: number | null
   is_graduated: boolean | null
   college_logo_url: string | null
-  onboarding_completed: boolean
-  candidate_linkedin_url: string | null
-  current_company: string | null
+
+  // Recruiter-specific (populated only when is_recruiter = true)
+  company: string | null
+  is_third_party_recruiter: boolean
 }
 
 export type JobStatus = 'draft' | 'published' | 'closed'
@@ -139,12 +147,18 @@ export interface UserProfile {
   id: number
   full_name: string
   email: string
-  role: 'recruiter' | 'candidate'
   phone: string | null
-  company: string | null
-  is_third_party_recruiter: boolean
   linkedin_verified: boolean
   created_at: string | null
+
+  // Capability flags
+  is_candidate: boolean
+  is_recruiter: boolean
+
+  // Candidate-specific
+  onboarding_completed: boolean
+  candidate_linkedin_url: string | null
+  current_company: string | null
   resume_filename: string | null
   career_profile: CareerProfile | null
   career_profile_updated_at: string | null
@@ -153,9 +167,10 @@ export interface UserProfile {
   graduation_year: number | null
   is_graduated: boolean | null
   college_logo_url: string | null
-  onboarding_completed: boolean
-  candidate_linkedin_url: string | null
-  current_company: string | null
+
+  // Recruiter-specific
+  company: string | null
+  is_third_party_recruiter: boolean
 }
 
 export interface CollegeInfo {

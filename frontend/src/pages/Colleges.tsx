@@ -216,8 +216,8 @@ export default function Colleges() {
       .finally(() => setDetailLoading(false))
 
     // Fetch campus jobs for this college
-    const isRecruiter = user?.role === 'recruiter'
-    const isMatchingCandidate = user?.role === 'candidate' && user.college_name === selected
+    const isRecruiter = user?.is_recruiter
+    const isMatchingCandidate = user?.is_candidate && user.college_name === selected
     if (isRecruiter || isMatchingCandidate) {
       setCampusJobsLoading(true)
       api
@@ -363,10 +363,10 @@ export default function Colleges() {
             </div>
             <button
               onClick={() => {
-                if (user?.role === 'recruiter') {
+                if (user?.is_recruiter) {
                   navigate(`/recruiter/jobs/create?campus=${encodeURIComponent(selected)}`)
                 } else {
-                  navigate('/login?role=recruiter')
+                  navigate('/login')
                 }
               }}
               className="shrink-0 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-4 py-2 rounded-xl border border-white/30 transition-colors"
@@ -376,7 +376,7 @@ export default function Colleges() {
           </div>
 
           {/* Campus Hiring section — visible to recruiters + matching candidates */}
-          {(user?.role === 'recruiter' || (user?.role === 'candidate' && user.college_name === selected)) && (
+          {(user?.is_recruiter || (user?.is_candidate && user.college_name === selected)) && (
             <div className="mb-8">
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px bg-slate-700/50" />
@@ -390,10 +390,10 @@ export default function Colleges() {
                 <div className="bg-slate-800/40 border border-dashed border-slate-700 rounded-2xl p-8 text-center">
                   <p className="text-3xl mb-2">🏛️</p>
                   <p className="text-slate-400 font-semibold text-sm">No campus jobs posted yet</p>
-                  {user?.role === 'recruiter' && (
+                  {user?.is_recruiter && (
                     <p className="text-slate-500 text-xs mt-1">Be the first recruiter to post a campus job for {detail.short_name || selected}.</p>
                   )}
-                  {user?.role === 'candidate' && (
+                  {user?.is_candidate && !user?.is_recruiter && (
                     <p className="text-slate-500 text-xs mt-1">Recruiters can post exclusive opportunities here for {detail.short_name || selected} students.</p>
                   )}
                 </div>

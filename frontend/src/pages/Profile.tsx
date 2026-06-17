@@ -241,7 +241,7 @@ export default function Profile() {
     .join('')
     .toUpperCase()
 
-  const isCandidate = profile.role === 'candidate'
+  const isCandidate = profile.is_candidate
 
   // Resume states
   const hasResume = !!profile.resume_filename
@@ -285,7 +285,10 @@ export default function Profile() {
                   <span title="LinkedIn verified" className="text-blue-600 font-bold text-sm border border-blue-300 rounded px-1">in</span>
                 )}
               </div>
-              <p className="text-slate-500 text-sm capitalize">{profile.role}</p>
+              <p className="text-slate-500 text-sm">
+                {[profile.is_candidate && 'Candidate', profile.is_recruiter && 'Recruiter']
+                  .filter(Boolean).join(' · ')}
+              </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <InfoRow icon="✉" label="Email" value={profile.email} />
                 <InfoRow icon="📱" label="Phone" value={profile.phone ?? '—'} />

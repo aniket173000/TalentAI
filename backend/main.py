@@ -31,9 +31,9 @@ _MIGRATIONS = [
     "ALTER TABLE applications ADD COLUMN candidate_user_id INTEGER REFERENCES users(id)",
     "ALTER TABLE applications ADD COLUMN resume_embedding TEXT",
     "ALTER TABLE applications ADD COLUMN project_scores TEXT",
-    # Per-role email uniqueness
-    "DROP INDEX IF EXISTS ix_users_email",
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_role ON users (email, role)",
+    # Unified identity — drop the old per-role compound index, enforce email uniqueness
+    "DROP INDEX IF EXISTS uq_user_email_role",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email ON users (email)",
     # Job PRD fields
     "ALTER TABLE jobs ADD COLUMN status VARCHAR(50) DEFAULT 'draft'",
     "ALTER TABLE jobs ADD COLUMN slug VARCHAR(255)",
@@ -114,6 +114,57 @@ _MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS referral_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, referral_post_id INTEGER NOT NULL REFERENCES referral_posts(id), candidate_user_id INTEGER NOT NULL REFERENCES users(id), resume_text TEXT NOT NULL, match_score REAL NOT NULL, rank INTEGER, pool_type VARCHAR(20) DEFAULT 'pool', status VARCHAR(30) DEFAULT 'in_pool', applied_at DATETIME DEFAULT CURRENT_TIMESTAMP, displaced_at DATETIME, referred_at DATETIME)",
     "CREATE INDEX IF NOT EXISTS ix_referral_applications_post_candidate ON referral_applications (referral_post_id, candidate_user_id)",
     "CREATE INDEX IF NOT EXISTS ix_referral_applications_candidate_user_id ON referral_applications (candidate_user_id)",
+
+    # ── Unified user profile — extension tables (replaces role column) ─────────
+    # CandidateExtension: existence = user has candidate capability
+    """CREATE TABLE IF NOT EXISTS candidate_extensions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+        onboarding_completed BOOLEAN DEFAULT 0,
+        candidate_linkedin_url VARCHAR(500),
+        current_company VARCHAR(255),
+        resume_text TEXT,
+        resume_filename VARCHAR(255),
+        career_profile TEXT,
+        career_profile_updated_at DATETIME,
+        profile_embedding TEXT,
+        magic_match_date VARCHAR(10),
+        magic_match_cache TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_candidate_extensions_user_id ON candidate_extensions (user_id)",
+
+    # RecruiterExtension: existence = user has recruiter capability
+    """CREATE TABLE IF NOT EXISTS recruiter_extensions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+        company VARCHAR(255),
+        is_third_party BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_recruiter_extensions_user_id ON recruiter_extensions (user_id)",
+
+    # UserEducation: normalised education history (one-to-many per user)
+    """CREATE TABLE IF NOT EXISTS user_education (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        college_id INTEGER REFERENCES colleges(id),
+        institution_name VARCHAR(500) NOT NULL,
+        degree_type VARCHAR(100),
+        field_of_study VARCHAR(255),
+        graduation_year INTEGER,
+        is_graduated BOOLEAN,
+        is_primary BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_user_education_user_id ON user_education (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_user_education_institution ON user_education (institution_name)",
+
+    # users table: add updated_at column (new schema addition)
+    "ALTER TABLE users ADD COLUMN updated_at DATETIME",
 ]
 
 with engine.connect() as _conn:
@@ -136,6 +187,84 @@ with engine.connect() as _conn:
             "UPDATE applications SET candidate_status = 'rejected' "
             "WHERE candidate_status = 'received' AND status != 'accepted'"
         ))
+        _conn.commit()
+    except Exception:
+        pass
+
+
+# Data migration: seed extension tables from legacy role column (idempotent).
+# For users that already have extension rows this is a no-op (INSERT OR IGNORE).
+# For duplicate-email users (same email, role='candidate' AND role='recruiter'),
+# we pick the lower id as the canonical row and attach both extensions to it.
+with engine.connect() as _conn:
+    try:
+        # 1. Seed candidate_extensions from users where role = 'candidate'
+        _conn.execute(text("""
+            INSERT OR IGNORE INTO candidate_extensions
+                (user_id, onboarding_completed, candidate_linkedin_url, current_company,
+                 resume_text, resume_filename, career_profile, career_profile_updated_at,
+                 profile_embedding, magic_match_date, magic_match_cache)
+            SELECT
+                id,
+                COALESCE(onboarding_completed, 0),
+                candidate_linkedin_url,
+                current_company,
+                resume_text,
+                resume_filename,
+                career_profile,
+                career_profile_updated_at,
+                profile_embedding,
+                magic_match_date,
+                magic_match_cache
+            FROM users
+            WHERE role = 'candidate'
+        """))
+        _conn.commit()
+    except Exception:
+        pass
+
+    try:
+        # 2. Seed recruiter_extensions from users where role = 'recruiter'
+        _conn.execute(text("""
+            INSERT OR IGNORE INTO recruiter_extensions (user_id, company, is_third_party)
+            SELECT id, company, COALESCE(is_third_party_recruiter, 0)
+            FROM users
+            WHERE role = 'recruiter'
+        """))
+        _conn.commit()
+    except Exception:
+        pass
+
+    try:
+        # 3. Seed user_education from users where college_name IS NOT NULL
+        _conn.execute(text("""
+            INSERT OR IGNORE INTO user_education
+                (user_id, institution_name, graduation_year, is_graduated, is_primary)
+            SELECT id, college_name, graduation_year, is_graduated, 1
+            FROM users
+            WHERE college_name IS NOT NULL AND college_name != ''
+              AND role = 'candidate'
+              AND id NOT IN (SELECT user_id FROM user_education)
+        """))
+        _conn.commit()
+    except Exception:
+        pass
+
+    try:
+        # 4. For each email that has BOTH a candidate and recruiter row (dual-role),
+        #    attach the recruiter extension to the candidate's user_id (lower id wins)
+        #    so both capabilities live on one account.
+        _conn.execute(text("""
+            INSERT OR IGNORE INTO recruiter_extensions (user_id, company, is_third_party)
+            SELECT
+                c.id AS canonical_id,
+                r.company,
+                COALESCE(r.is_third_party_recruiter, 0)
+            FROM users c
+            JOIN users r ON c.email = r.email AND c.id < r.id
+            WHERE c.role = 'candidate' AND r.role = 'recruiter'
+              AND c.id NOT IN (SELECT user_id FROM recruiter_extensions)
+        """))
         _conn.commit()
     except Exception:
         pass

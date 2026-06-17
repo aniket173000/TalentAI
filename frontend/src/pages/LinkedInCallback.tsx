@@ -9,7 +9,8 @@ export default function LinkedInCallback() {
   const { completeLinkedInLogin } = useAuth()
 
   const token = params.get('token')
-  const role = params.get('role') as 'recruiter' | 'candidate' | null
+  // Backend sends account_type; support legacy 'role' param for any old callbacks in flight
+  const accountType = (params.get('account_type') ?? params.get('role')) as 'recruiter' | 'candidate' | null
   const error = params.get('error')
   const needsCompany = params.get('needs_company') === 'true'
 
@@ -31,18 +32,18 @@ export default function LinkedInCallback() {
       return
     }
 
-    if (!token || !role) {
+    if (!token || !accountType) {
       setErrorMsg('Missing authentication data.')
       setStatus('error')
       return
     }
 
-    completeLinkedInLogin(token, role)
+    completeLinkedInLogin(token, accountType)
       .then(() => {
-        if (needsCompany && role === 'recruiter') {
+        if (needsCompany && accountType === 'recruiter') {
           setStatus('company')
         } else {
-          navigate(role === 'recruiter' ? '/recruiter' : '/', { replace: true })
+          navigate(accountType === 'recruiter' ? '/recruiter' : '/', { replace: true })
         }
       })
       .catch(() => {
@@ -58,7 +59,7 @@ export default function LinkedInCallback() {
     try {
       await api.patch('/auth/linkedin/profile', {
         company: isThirdParty ? null : company.trim(),
-        is_third_party_recruiter: isThirdParty,
+        is_third_party: isThirdParty,
       })
       navigate('/recruiter', { replace: true })
     } catch {
