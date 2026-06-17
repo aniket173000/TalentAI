@@ -13,6 +13,7 @@ from routers import auth as auth_router
 from routers import colleges as colleges_router
 from routers import linkedin_auth as linkedin_auth_router
 from routers import profile as profile_router
+from routers import referrals as referrals_router
 from routers import resume_profile as resume_profile_router
 from routers import scores as scores_router
 from routers import semantic as semantic_router
@@ -104,6 +105,15 @@ _MIGRATIONS = [
     # Campus hiring — job targeted at a specific college
     "ALTER TABLE jobs ADD COLUMN is_campus_hiring BOOLEAN DEFAULT 0",
     "ALTER TABLE jobs ADD COLUMN campus_college_name VARCHAR(500)",
+    # ── Referral feature ──────────────────────────────────────────────────────
+    "CREATE TABLE IF NOT EXISTS email_verification_otps (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), work_email VARCHAR(255) NOT NULL, otp_hash VARCHAR(64) NOT NULL, expires_at DATETIME NOT NULL, used BOOLEAN DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE INDEX IF NOT EXISTS ix_email_verification_otps_user_id ON email_verification_otps (user_id)",
+    "CREATE TABLE IF NOT EXISTS referral_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, slug VARCHAR(255) UNIQUE, referrer_user_id INTEGER NOT NULL REFERENCES users(id), company_name VARCHAR(255) NOT NULL, company_verified BOOLEAN DEFAULT 0, verification_method VARCHAR(20), work_email_domain VARCHAR(255), link_type VARCHAR(20) DEFAULT 'internal', job_id INTEGER REFERENCES jobs(id), external_job_url VARCHAR(500), jd_raw TEXT, jd_requirements TEXT, title VARCHAR(255) NOT NULL, location VARCHAR(255), employment_type VARCHAR(100), min_match_score REAL DEFAULT 40.0, pool_size INTEGER DEFAULT 15, waitlist_size INTEGER DEFAULT 10, status VARCHAR(30) DEFAULT 'draft', opens_at DATETIME, closes_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE INDEX IF NOT EXISTS ix_referral_posts_referrer_user_id ON referral_posts (referrer_user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_referral_posts_slug ON referral_posts (slug)",
+    "CREATE TABLE IF NOT EXISTS referral_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, referral_post_id INTEGER NOT NULL REFERENCES referral_posts(id), candidate_user_id INTEGER NOT NULL REFERENCES users(id), resume_text TEXT NOT NULL, match_score REAL NOT NULL, rank INTEGER, pool_type VARCHAR(20) DEFAULT 'pool', status VARCHAR(30) DEFAULT 'in_pool', applied_at DATETIME DEFAULT CURRENT_TIMESTAMP, displaced_at DATETIME, referred_at DATETIME)",
+    "CREATE INDEX IF NOT EXISTS ix_referral_applications_post_candidate ON referral_applications (referral_post_id, candidate_user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_referral_applications_candidate_user_id ON referral_applications (candidate_user_id)",
 ]
 
 with engine.connect() as _conn:
@@ -180,6 +190,7 @@ app.include_router(resume_profile_router.router)
 app.include_router(semantic_router.router)
 app.include_router(scores_router.router)
 app.include_router(colleges_router.router)
+app.include_router(referrals_router.router)
 
 
 @app.get("/health")

@@ -285,6 +285,95 @@ class ResumeGamingAnalysis(Base):
     analyzed_at = Column(DateTime, server_default=func.now())
 
 
+class EmailVerificationOTP(Base):
+    """Short-lived OTP for work-email domain verification on referral posts."""
+    __tablename__ = "email_verification_otps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    work_email = Column(String(255), nullable=False)
+    otp_hash = Column(String(64), nullable=False)          # SHA-256 of the 6-digit code
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class ReferralPost(Base):
+    """
+    An employee creates one of these for a job they are willing to refer candidates for.
+    Lifecycle: draft → open → closed → referring → referred_all
+    """
+    __tablename__ = "referral_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(255), unique=True, index=True, nullable=True)
+    referrer_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Employer verification
+    company_name = Column(String(255), nullable=False)
+    company_verified = Column(Boolean, default=False)
+    verification_method = Column(String(20), nullable=True)   # "linkedin" | "work_email"
+    work_email_domain = Column(String(255), nullable=True)
+
+    # Job link
+    link_type = Column(String(20), default="internal")        # "internal" | "external"
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)
+    external_job_url = Column(String(500), nullable=True)
+
+    # JD content
+    jd_raw = Column(Text, nullable=True)
+    jd_requirements = Column(Text, nullable=True)             # JSON
+    title = Column(String(255), nullable=False)
+    location = Column(String(255), nullable=True)
+    employment_type = Column(String(100), nullable=True)
+
+    # Pool settings
+    min_match_score = Column(Float, default=40.0)
+    pool_size = Column(Integer, default=15)
+    waitlist_size = Column(Integer, default=10)
+
+    # Lifecycle
+    status = Column(String(30), default="draft")   # draft | open | closed | referring | referred_all
+    opens_at = Column(DateTime, nullable=True)
+    closes_at = Column(DateTime, nullable=True)    # hard cap = opens_at + 5 days
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    referrer = relationship("User", foreign_keys=[referrer_user_id])
+    job = relationship("Job", foreign_keys=[job_id])
+    referral_applications = relationship("ReferralApplication", back_populates="referral_post", cascade="all, delete-orphan")
+
+
+class ReferralApplication(Base):
+    """
+    A candidate's application to a ReferralPost.
+    Candidates occupy either the main pool or a waitlist, each ranked independently.
+    """
+    __tablename__ = "referral_applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referral_post_id = Column(Integer, ForeignKey("referral_posts.id"), nullable=False, index=True)
+    candidate_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    resume_text = Column(Text, nullable=False)
+    match_score = Column(Float, nullable=False)
+    rank = Column(Integer, nullable=True)
+    pool_type = Column(String(20), default="pool")   # "pool" | "waitlist"
+    # in_pool | in_waitlist | displaced | rejected | referred
+    status = Column(String(30), default="in_pool")
+
+    applied_at = Column(DateTime, server_default=func.now())
+    displaced_at = Column(DateTime, nullable=True)
+    referred_at = Column(DateTime, nullable=True)
+
+    referral_post = relationship("ReferralPost", back_populates="referral_applications")
+    candidate = relationship("User", foreign_keys=[candidate_user_id])
+
+    __table_args__ = (
+        Index("ix_referral_applications_post_candidate", "referral_post_id", "candidate_user_id"),
+    )
+
+
 class Application(Base):
     __tablename__ = "applications"
 

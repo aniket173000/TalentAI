@@ -277,6 +277,107 @@ export interface ReadinessRoadmap {
   encouragement: string
 }
 
+// ── Referral types ────────────────────────────────────────────────────────────
+
+export type ReferralPostStatus = 'draft' | 'open' | 'closed' | 'referring' | 'referred_all'
+
+export interface ReferralReferrer {
+  id: number
+  full_name: string
+  company: string
+  linkedin_verified: boolean
+  current_company: string | null
+  candidate_linkedin_url: string | null
+}
+
+export interface ReferralPost {
+  id: number
+  slug: string | null
+  title: string
+  company_name: string
+  company_verified: boolean
+  verification_method: 'linkedin' | 'work_email' | null
+  link_type: 'internal' | 'external'
+  job_id: number | null
+  external_job_url: string | null
+  location: string | null
+  employment_type: string | null
+  jd_raw: string | null
+  jd_requirements: Record<string, unknown> | null
+  min_match_score: number
+  pool_size: number
+  waitlist_size: number
+  status: ReferralPostStatus
+  opens_at: string | null
+  closes_at: string | null
+  created_at: string | null
+  pool_count: number
+  waitlist_count: number
+  spots_remaining: number
+  referrer: ReferralReferrer | null
+}
+
+export interface ReferralApplication {
+  id: number
+  referral_post_id: number
+  post_title: string | null
+  company_name: string | null
+  match_score: number
+  rank: number | null
+  pool_type: 'pool' | 'waitlist'
+  status: 'in_pool' | 'in_waitlist' | 'displaced' | 'rejected' | 'referred'
+  applied_at: string | null
+  post_status: ReferralPostStatus | null
+  post_slug: string | null
+}
+
+export interface ReferralCompany {
+  company_name: string
+  open_referral_count: number
+  job_titles: string[]
+}
+
+export interface ReferralJobGroup {
+  title: string
+  referrers: ReferralPost[]
+}
+
+export interface CompanyReferrals {
+  company_name: string
+  jobs: ReferralJobGroup[]
+}
+
+export interface ReferralPoolCandidate {
+  id: number
+  rank: number | null
+  match_score: number
+  status: string
+  pool_type: 'pool' | 'waitlist'
+  applied_at: string | null
+  candidate: {
+    id: number
+    full_name: string
+    email: string
+    college_name: string | null
+    college_logo_url: string | null
+    current_company: string | null
+    candidate_linkedin_url: string | null
+  } | null
+}
+
+export interface ReferralPoolResponse {
+  post: ReferralPost
+  pool: ReferralPoolCandidate[]
+  waitlist: ReferralPoolCandidate[]
+  stats: {
+    total_applicants: number
+    pool_count: number
+    pool_capacity: number
+    waitlist_count: number
+    waitlist_capacity: number
+  }
+}
+
 export interface PracticeApplyResult {
   match_score: number
   strengths: string[]

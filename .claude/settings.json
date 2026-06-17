@@ -33,7 +33,14 @@
       "Bash(sqlite3 talentai.db ' *)",
       "Bash(python3 -c \"from services.ai.openai_strategy import OpenAIStrategy; print\\('Import OK'\\)\")",
       "Bash(sqlite3 /Users/aniket/Desktop/Mark1Job/backend/talentai.db \"ALTER TABLE jobs ADD COLUMN is_fresher_friendly BOOLEAN DEFAULT 0;\")",
-      "Bash(python -c \"import models, schemas; from routers import colleges, profile; print\\('OK'\\)\")"
+      "Bash(python -c \"import models, schemas; from routers import colleges, profile; print\\('OK'\\)\")",
+      "Bash(python -c \"import routers.referrals; print\\('referrals router OK'\\)\")",
+      "Bash(/usr/bin/python3 -c ' *)",
+      "Bash(/Users/aniket/.pyenv/shims/python3 -c \"import sys; sys.path.insert\\(0,'/Users/aniket/Desktop/Mark1Job/backend'\\); import models; print\\('ReferralPost:', hasattr\\(models,'ReferralPost'\\)\\); print\\('ReferralApplication:', hasattr\\(models,'ReferralApplication'\\)\\); print\\('EmailVerificationOTP:', hasattr\\(models,'EmailVerificationOTP'\\)\\)\")",
+      "Bash(/Users/aniket/Desktop/Mark1Job/backend/venv/bin/python3 -c ' *)",
+      "Bash(venv/bin/python3 -c ' *)",
+      "Bash(PYTHONPATH=/Users/aniket/Desktop/Mark1Job/backend /Users/aniket/Desktop/Mark1Job/backend/venv/bin/python3 -c ' *)",
+      "Bash(/usr/local/bin/node /Users/aniket/Desktop/Mark1Job/frontend/node_modules/typescript/bin/tsc --noEmit --project /Users/aniket/Desktop/Mark1Job/frontend/tsconfig.json)"
     ],
     "additionalDirectories": [
       "/tmp",

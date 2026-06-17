@@ -9,7 +9,10 @@ import Apply from './pages/Apply'
 import ApplicationResult from './pages/ApplicationResult'
 import CandidateDashboard from './pages/CandidateDashboard'
 import Colleges from './pages/Colleges'
+import CompanyReferralDetail from './pages/CompanyReferralDetail'
+import CompanyReferrals from './pages/CompanyReferrals'
 import CreateJob from './pages/CreateJob'
+import CreateReferralPost from './pages/CreateReferralPost'
 import EditJob from './pages/EditJob'
 import Home from './pages/Home'
 import JobDetail from './pages/JobDetail'
@@ -18,6 +21,8 @@ import LinkedInCallback from './pages/LinkedInCallback'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import RecruiterPortal from './pages/RecruiterPortal'
+import ReferralPostPage from './pages/ReferralPostPage'
+import ReferrerDashboard from './pages/ReferrerDashboard'
 import Register from './pages/Register'
 
 // Skipping hides the modal for the current browser session only.
@@ -77,6 +82,11 @@ export default function App() {
                   <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
                   <Route path="/status/:token" element={<ApplicationStatus />} />
 
+                  {/* Referrals — public discovery */}
+                  <Route path="/referrals" element={<CompanyReferrals />} />
+                  <Route path="/referrals/company/:companyName" element={<CompanyReferralDetail />} />
+                  <Route path="/referrals/:slug" element={<ReferralPostPage />} />
+
                   {/* Candidate-only */}
                   <Route
                     path="/jobs/:jobId/apply"
@@ -91,6 +101,32 @@ export default function App() {
                     element={
                       <ProtectedRoute role="candidate">
                         <CandidateDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Referrals — protected (any logged-in user can create/dashboard) */}
+                  <Route
+                    path="/referrals/create"
+                    element={
+                      <ProtectedRoute>
+                        <CreateReferralPost />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/referrals/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <ReferrerDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/referrals/dashboard/:postId"
+                    element={
+                      <ProtectedRoute>
+                        <ReferrerDashboard />
                       </ProtectedRoute>
                     }
                   />

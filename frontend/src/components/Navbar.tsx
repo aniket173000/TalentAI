@@ -52,6 +52,10 @@ export default function Navbar() {
             Colleges
           </Link>
 
+          <Link to="/referrals" className={linkClass('/referrals')}>
+            Referrals
+          </Link>
+
           {isCandidate && (
             <Link to="/dashboard" className={linkClass('/dashboard')}>
               My Applications

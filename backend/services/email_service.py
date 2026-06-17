@@ -280,6 +280,269 @@ Best regards,
     )
 
 
+# ── Referral email templates ──────────────────────────────────────────────────
+
+async def send_referral_pool_accepted_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    referrer_name: str,
+    referrer_title: str,
+    rank: int,
+    pool_size: int,
+    match_score: float,
+) -> None:
+    body = f"""Dear {candidate_name},
+
+Great news! You've been accepted into the referral pool for {job_title} at {company_name}.
+
+Referral by: {referrer_name} ({referrer_title})
+Your Position: #{rank} of {pool_size} pool spots
+AI Match Score: {match_score:.1f}%
+
+You are now in the active referral pool. The referrer will review the top candidates when the pool closes and submit referrals accordingly.
+
+Keep an eye on your email — you'll be notified if your rank changes or if you've been selected for referral.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"You're in the Referral Pool — {job_title} at {company_name}", body)
+
+
+async def send_referral_waitlist_accepted_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    referrer_name: str,
+    referrer_title: str,
+    waitlist_rank: int,
+    match_score: float,
+) -> None:
+    body = f"""Dear {candidate_name},
+
+You've been placed on the referral waitlist for {job_title} at {company_name}.
+
+Referral by: {referrer_name} ({referrer_title})
+Waitlist Position: #{waitlist_rank}
+AI Match Score: {match_score:.1f}%
+
+Important — please read carefully:
+You are currently on the waitlist, not in the main referral pool. This means:
+
+  • You will only be considered for referral after ALL main pool candidates have been referred.
+  • A referral from the waitlist depends entirely on whether the referrer has remaining capacity and time after referring the pool candidates.
+  • The chance of receiving a referral from the waitlist is limited.
+
+We will notify you if your waitlist position changes or if the pool closes.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"Waitlisted for Referral — {job_title} at {company_name}", body)
+
+
+async def send_referral_pool_rejection_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    referrer_name: str,
+    match_score: float,
+    reason: str = "low_score",  # "low_score" | "pool_full" | "locked"
+) -> None:
+    reason_text = {
+        "low_score": f"Your profile score ({match_score:.1f}%) did not meet the minimum qualification threshold for this referral.",
+        "pool_full": f"Both the referral pool and waitlist are full, and your score ({match_score:.1f}%) was not high enough to displace a current member.",
+        "locked": "You are currently active in another referral pool at this company. You can apply to other referral posts once your current pool closes.",
+    }.get(reason, "You did not qualify for this referral at this time.")
+
+    body = f"""Dear {candidate_name},
+
+Thank you for your interest in the referral for {job_title} at {company_name} (via {referrer_name}).
+
+Unfortunately, we were unable to place you in the referral pool at this time.
+
+Reason: {reason_text}
+
+You are welcome to explore other referral opportunities at different companies or apply directly to job postings.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"Referral Application Update — {job_title} at {company_name}", body)
+
+
+async def send_referral_displacement_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    referrer_name: str,
+    pool_type: str,
+    match_score: float,
+) -> None:
+    pool_label = "referral pool" if pool_type == "pool" else "waitlist"
+    body = f"""Dear {candidate_name},
+
+Your application for the referral to {job_title} at {company_name} (via {referrer_name}) has been displaced from the {pool_label}.
+
+A stronger candidate has entered, and as the lowest-ranked member at that time (your score: {match_score:.1f}%), your spot was displaced.
+
+This is not a reflection of weak qualifications — you were shortlisted, which means you cleared the initial threshold. The {pool_label} simply filled with stronger matches.
+
+You are welcome to apply to other referral opportunities on TalentAI.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"Displaced from Referral {pool_label.title()} — {job_title} at {company_name}", body)
+
+
+async def send_referral_rank_change_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    old_rank: int,
+    new_rank: int,
+    pool_type: str,
+) -> None:
+    pool_label = "referral pool" if pool_type == "pool" else "waitlist"
+    moved = old_rank - new_rank
+    direction = f"improved — you moved up from #{old_rank} to #{new_rank}" if moved > 0 else f"updated from #{old_rank} to #{new_rank} as a new stronger candidate joined"
+    body = f"""Dear {candidate_name},
+
+Your position in the {pool_label} for {job_title} at {company_name} has {direction}.
+
+You remain active in the {pool_label}. We'll notify you when the pool closes or your status changes.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"Referral Rank {'Improved' if moved > 0 else 'Updated'} — {job_title} at {company_name}", body)
+
+
+async def send_referral_referred_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    referrer_name: str,
+    referrer_title: str,
+) -> None:
+    body = f"""Dear {candidate_name},
+
+Congratulations! You have been officially referred for the {job_title} position at {company_name}.
+
+Referred by: {referrer_name} ({referrer_title})
+
+What this means:
+  • {referrer_name} has submitted an internal referral on your behalf at {company_name}.
+  • The hiring team at {company_name} will now review your profile with the referral context.
+  • A direct referral significantly improves your visibility with the hiring team.
+
+Please ensure your resume and profile are up to date. The company's recruitment team may reach out to you directly.
+
+Best of luck!
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"You've Been Referred! — {job_title} at {company_name}", body)
+
+
+async def send_referral_pool_closed_not_referred_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    company_name: str,
+    referrer_name: str,
+    was_waitlist: bool,
+) -> None:
+    pool_label = "waitlist" if was_waitlist else "pool"
+    body = f"""Dear {candidate_name},
+
+The referral pool for {job_title} at {company_name} (via {referrer_name}) has now closed.
+
+Unfortunately, you were not selected for referral from the {pool_label} this time.
+
+{"As a waitlist member, referrals were prioritized for the main pool candidates and the referrer did not have remaining capacity to refer waitlist members." if was_waitlist else "The referrer has completed their referrals for this round."}
+
+Don't be discouraged — you can continue exploring referral opportunities at other companies on TalentAI.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(candidate_email, f"Referral Pool Closed — {job_title} at {company_name}", body)
+
+
+async def send_referral_pool_nearing_full_email(
+    referrer_email: str,
+    referrer_name: str,
+    job_title: str,
+    company_name: str,
+    filled: int,
+    pool_size: int,
+    post_slug: str,
+    frontend_url: str,
+) -> None:
+    remaining = pool_size - filled
+    body = f"""Hi {referrer_name},
+
+Your referral pool for {job_title} at {company_name} is filling up fast.
+
+Pool Status: {filled} of {pool_size} spots filled ({remaining} remaining)
+
+Log in to review candidates in your pool before it fills up:
+{frontend_url}/referrals/{post_slug}/dashboard
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(referrer_email, f"Your Referral Pool is {int((filled/pool_size)*100)}% Full — {job_title}", body)
+
+
+async def send_referral_auto_closed_email(
+    referrer_email: str,
+    referrer_name: str,
+    job_title: str,
+    company_name: str,
+    post_slug: str,
+    frontend_url: str,
+    pool_count: int,
+) -> None:
+    body = f"""Hi {referrer_name},
+
+Your referral post for {job_title} at {company_name} has been automatically closed as the 5-day window has expired.
+
+Pool Summary: {pool_count} candidate(s) in the referral pool
+
+Next steps:
+  1. Review your pool at: {frontend_url}/referrals/{post_slug}/dashboard
+  2. Select candidates you want to refer and mark the post as "Referring"
+  3. Once you've submitted referrals, mark it as "Referred All" to complete the process
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(referrer_email, f"Referral Post Auto-Closed — {job_title} at {company_name}", body)
+
+
+async def send_referral_otp_email(
+    work_email: str,
+    full_name: str,
+    otp_code: str,
+    company_name: str,
+) -> None:
+    body = f"""Hi {full_name},
+
+Here is your verification code to confirm your work email for creating a referral post at {company_name}:
+
+Verification Code: {otp_code}
+
+This code expires in 15 minutes. Do not share it with anyone.
+
+If you did not request this, please ignore this email.
+
+Best regards,
+TalentAI Referral Team"""
+    await send_email(work_email, f"Work Email Verification — TalentAI Referrals ({otp_code})", body)
+
+
 async def send_acceptance_notification(
     candidate_email: str,
     candidate_name: str,
