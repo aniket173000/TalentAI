@@ -249,6 +249,217 @@ class SkillReviewQueue(Base):
     last_seen_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class CandidateJobScore(Base):
+    """
+    Composite suitability score for a (candidate, job) pair — E5-S6.
+    Immutable history: each scoring run inserts a new row, keyed by inputs_hash
+    for idempotency. Previously created only via raw migration; modelled here so
+    create_all() builds it on a fresh database (e.g. Postgres).
+    """
+    __tablename__ = "candidate_job_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    candidate_profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=True)
+
+    model_version = Column(String(20), nullable=False)
+    skills_score = Column(Float, nullable=True)
+    experience_score = Column(Float, nullable=True)
+    education_score = Column(Float, nullable=True)
+    projects_score = Column(Float, nullable=True)
+    composite_score = Column(Float, nullable=False)
+    breakdown = Column(Text, nullable=True)
+    inputs_hash = Column(String(64), nullable=False)
+    scored_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_candidate_job_scores_app_job", "application_id", "job_id"),
+        Index("ix_candidate_job_scores_inputs_hash", "inputs_hash"),
+    )
+
+
+# ── Recruiter candidate corpus (pull-side ingestion) ──────────────────────────
+
+class Candidate(Base):
+    """
+    A candidate in a recruiter's searchable corpus (the pull side of the funnel).
+
+    Distinct from `users` (people who signed up) and `applications` (the push
+    flow). A recruiter ingests a resume → it is parsed, structured-extracted,
+    summarised into a profile blurb, and embedded for vector retrieval.
+
+    Structured fields mirror CandidateProfile; embeddings are stored as JSON
+    text for now and converted to a pgvector column in a later phase.
+    """
+    __tablename__ = "candidates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Platform candidates (synced from the candidate base) are owned by no
+    # recruiter and link to the source user; manually-uploaded ones set recruiter_id.
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    source = Column(String(20), nullable=False, default="upload")  # platform | upload | application
+    source_resume_hash = Column(String(64), nullable=True, index=True)
+
+    # Contact / headline
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(100), nullable=True)
+    location = Column(String(255), nullable=True)
+    headline = Column(String(255), nullable=True)   # derived title e.g. "Senior Backend Engineer"
+    total_yoe = Column(Float, nullable=True)
+
+    # Raw + structured profile (JSON text)
+    resume_text = Column(Text, nullable=True)
+    resume_filename = Column(String(255), nullable=True)
+    resume_file_key = Column(String(500), nullable=True)   # S3 key
+    work_history = Column(Text, nullable=True)
+    raw_skills = Column(Text, nullable=True)
+    normalized_skills = Column(Text, nullable=True)
+    unmapped_skills = Column(Text, nullable=True)
+    education = Column(Text, nullable=True)
+    projects = Column(Text, nullable=True)
+    certifications = Column(Text, nullable=True)
+    taxonomy_version = Column(String(50), nullable=True)
+
+    # Embedding inputs/outputs
+    profile_summary = Column(Text, nullable=True)          # the text that gets embedded
+    profile_embedding = Column(Text, nullable=True)        # JSON list[float]; -> vector(1536) later
+
+    # Ingestion lifecycle
+    ingest_status = Column(String(20), nullable=False, default="ready")  # parsing | ready | failed
+    ingest_error = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    recruiter = relationship("User", foreign_keys=[recruiter_id])
+
+    __table_args__ = (
+        Index("ix_candidates_recruiter_hash", "recruiter_id", "source_resume_hash"),
+    )
+
+
+class CandidateRanking(Base):
+    """
+    Persisted output of the retrieval funnel for a (job, corpus-candidate) pair.
+
+    Holds every stage's score plus the final blended score and the LLM's
+    qualitative evaluation. Powers the recruiter ranking dashboard (display) and
+    the feedback loop. A funnel run replaces the prior ranking set for a job.
+    """
+    __tablename__ = "candidate_rankings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Stage scores (0-100)
+    embed_score = Column(Float, nullable=True)
+    skill_score = Column(Float, nullable=True)
+    keyword_score = Column(Float, nullable=True)
+    rerank_score = Column(Float, nullable=True)
+    llm_score = Column(Float, nullable=True)
+    experience_score = Column(Float, nullable=True)
+    final_score = Column(Float, nullable=False)
+
+    rank = Column(Integer, nullable=True)
+    recommendation = Column(String(30), nullable=True)
+    llm_strengths = Column(Text, nullable=True)   # JSON list
+    llm_risks = Column(Text, nullable=True)        # JSON list
+    llm_summary = Column(Text, nullable=True)
+
+    model_version = Column(String(20), nullable=True)
+    ranked_at = Column(DateTime, server_default=func.now())
+
+    candidate = relationship("Candidate", foreign_keys=[candidate_id])
+
+    __table_args__ = (
+        Index("ix_candidate_rankings_job", "job_id", "final_score"),
+        Index("ix_candidate_rankings_job_candidate", "job_id", "candidate_id"),
+    )
+
+
+class RecruiterFeedback(Base):
+    """
+    Append-only log of recruiter actions on ranked candidates — the training
+    signal for a future learning-to-rank model.
+
+    Each row captures the action plus a snapshot of the funnel scores at action
+    time (denormalised so it survives a re-rank that overwrites candidate_rankings).
+    Actions: viewed | ignored | shortlisted | contacted | interviewed | rejected | hired.
+    """
+    __tablename__ = "recruiter_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    action = Column(String(20), nullable=False)
+    notes = Column(Text, nullable=True)
+
+    # Snapshot of the ranking at action time (ML features / labels)
+    snapshot_final_score = Column(Float, nullable=True)
+    snapshot_rank = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_recruiter_feedback_job_candidate", "job_id", "candidate_id"),
+        Index("ix_recruiter_feedback_action", "action"),
+    )
+
+
+class Shortlist(Base):
+    """
+    Current shortlist set for a job (one row per shortlisted candidate).
+    Distinct from the append-only RecruiterFeedback event log: this is mutable
+    current state (un-shortlisting deletes the row; the event log is retained).
+    """
+    __tablename__ = "shortlists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    candidate = relationship("Candidate", foreign_keys=[candidate_id])
+
+    __table_args__ = (
+        UniqueConstraint("job_id", "candidate_id", name="uq_shortlist_job_candidate"),
+    )
+
+
+class RankingRun(Base):
+    """
+    Tracks one asynchronous run of the ranking funnel for a job. The endpoint
+    returns immediately with a run id; the funnel executes in a worker thread and
+    updates this row. Results land in candidate_rankings (read via /rankings).
+    """
+    __tablename__ = "ranking_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    status = Column(String(20), nullable=False, default="pending")  # pending|running|done|failed
+    top_k = Column(Integer, nullable=True)
+    rerank_n = Column(Integer, nullable=True)
+    eval_n = Column(Integer, nullable=True)
+
+    retrieved = Column(Integer, nullable=True)
+    reranked = Column(Integer, nullable=True)
+    evaluated = Column(Integer, nullable=True)
+    error = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    completed_at = Column(DateTime, nullable=True)
+
+
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
 class EligibilityCriteria(Base):

@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr
+import json as _json
+
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Literal, Optional, List
 from datetime import datetime
 import models as _models
@@ -194,6 +196,19 @@ class JobResponse(BaseModel):
     jd_parse_status: Optional[str] = None              # None | "pending" | "done" | "failed"
     jd_parse_error: Optional[str] = None               # non-null only when status=="failed"
     jd_requirements: Optional["JDRequirements"] = None   # parsed when status=="done"
+
+    @field_validator("jd_requirements", mode="before")
+    @classmethod
+    def _parse_jd_requirements(cls, v):
+        # The ORM column is a raw JSON string (TEXT). When model_validate(job)
+        # reads it via from_attributes, parse it into a dict so it can coerce
+        # into JDRequirements; tolerate already-parsed values and bad JSON.
+        if isinstance(v, str):
+            try:
+                return _json.loads(v)
+            except Exception:
+                return None
+        return v
 
     class Config:
         from_attributes = True

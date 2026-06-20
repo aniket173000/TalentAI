@@ -1,0 +1,44 @@
+# Local infrastructure for the AI recruiting platform.
+# Phase 1: Postgres 16 with the pgvector extension (vector retrieval foundation).
+#
+#   docker compose up -d        # start Postgres
+#   docker compose down         # stop (data persists in the named volume)
+#   docker compose down -v      # stop AND wipe data
+#
+# The pgvector/pgvector image ships the `vector` extension; the app runs
+# `CREATE EXTENSION IF NOT EXISTS vector` on startup (see backend/main.py).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: talentai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: talentai
+      POSTGRES_PASSWORD: talentai
+      POSTGRES_DB: talentai
+    ports:
+      - "5432:5432"
+    volumes:
+      - talentai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talentai -d talentai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Broker + result backend for the Celery ranking-funnel task queue.
+  redis:
+    image: redis:7-alpine
+    container_name: talentai-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  talentai_pgdata:

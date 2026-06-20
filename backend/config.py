@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440  # 24 h
 
+    # ── Ranking funnel task queue (Celery + Redis) ───────────────────────────
+    # When USE_CELERY is true, the ranking funnel is dispatched to a Celery
+    # worker. When false (default), it runs in an in-process daemon thread —
+    # fine for local dev/tests without a worker.
+    USE_CELERY: bool = False
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+
     # ── AI provider (Strategy pattern) ───────────────────────────────────────
     # Supported values: "openai" | "claude" (stub)
     AI_PROVIDER: str = "openai"

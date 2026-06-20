@@ -10,6 +10,9 @@ from config import settings
 from database import SessionLocal, engine
 from routers import applications, jobs
 from routers import auth as auth_router
+from routers import candidates as candidates_router
+from routers import feedback as feedback_router
+from routers import search as search_router
 from routers import colleges as colleges_router
 from routers import linkedin_auth as linkedin_auth_router
 from routers import profile as profile_router
@@ -20,8 +23,41 @@ from routers import semantic as semantic_router
 
 logging.basicConfig(level=logging.INFO)
 
+_IS_SQLITE = settings.DATABASE_URL.startswith("sqlite")
+_IS_POSTGRES = settings.DATABASE_URL.startswith("postgres")
+
+# pgvector must exist before create_all() builds any Vector columns.
+if _IS_POSTGRES:
+    with engine.connect() as _conn:
+        _conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        _conn.commit()
+
 # Create all tables (new tables created automatically)
 models.Base.metadata.create_all(bind=engine)
+
+# Postgres-only: add pgvector columns + HNSW indexes as an optimisation layer.
+# The TEXT embedding columns remain the portable source of truth; these vector
+# columns are kept in sync (backfill_vectors.py + ingest) and power ANN retrieval.
+if _IS_POSTGRES:
+    _PG_VECTOR_DDL = [
+        "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS profile_vec vector(1536)",
+        "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS jd_vec vector(1536)",
+        # Platform-candidate support: link to source user, ownership optional.
+        "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE candidates ALTER COLUMN recruiter_id DROP NOT NULL",
+        "CREATE INDEX IF NOT EXISTS ix_candidates_user_id ON candidates (user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_candidates_profile_vec "
+        "ON candidates USING hnsw (profile_vec vector_cosine_ops)",
+        "CREATE INDEX IF NOT EXISTS ix_jobs_jd_vec "
+        "ON jobs USING hnsw (jd_vec vector_cosine_ops)",
+    ]
+    with engine.connect() as _conn:
+        for _sql in _PG_VECTOR_DDL:
+            try:
+                _conn.execute(text(_sql))
+                _conn.commit()
+            except Exception:
+                _conn.rollback()
 
 # Migrate existing tables — add columns that didn't exist before.
 # SQLite has no IF NOT EXISTS for ADD COLUMN; we catch the error silently.
@@ -192,13 +228,17 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS ix_work_experiences_user_id ON work_experiences (user_id)",
 ]
 
+# These are legacy SQLite-era patches. On a fresh Postgres database every table
+# and column already exists (built by create_all from models.py), so each
+# statement fails harmlessly — we roll back so the aborted transaction does not
+# poison the next statement (Postgres) and skip on.
 with engine.connect() as _conn:
     for _sql in _MIGRATIONS:
         try:
             _conn.execute(text(_sql))
             _conn.commit()
         except Exception:
-            pass  # column/index already exists
+            _conn.rollback()  # column/index/table already exists
 
 
 # Data migration: remap old candidate_status values to new state machine
@@ -214,7 +254,7 @@ with engine.connect() as _conn:
         ))
         _conn.commit()
     except Exception:
-        pass
+        _conn.rollback()
 
 
 # Data migration: seed extension tables from legacy role column (idempotent).
@@ -246,7 +286,7 @@ with engine.connect() as _conn:
         """))
         _conn.commit()
     except Exception:
-        pass
+        _conn.rollback()
 
     try:
         # 2. Seed recruiter_extensions from users where role = 'recruiter'
@@ -258,7 +298,7 @@ with engine.connect() as _conn:
         """))
         _conn.commit()
     except Exception:
-        pass
+        _conn.rollback()
 
     try:
         # 3. Seed user_education from users where college_name IS NOT NULL
@@ -273,7 +313,7 @@ with engine.connect() as _conn:
         """))
         _conn.commit()
     except Exception:
-        pass
+        _conn.rollback()
 
     try:
         # 4. For each email that has BOTH a candidate and recruiter row (dual-role),
@@ -292,7 +332,7 @@ with engine.connect() as _conn:
         """))
         _conn.commit()
     except Exception:
-        pass
+        _conn.rollback()
 
 
 def _slugify(text: str) -> str:
@@ -339,6 +379,9 @@ app.include_router(auth_router.router)
 app.include_router(linkedin_auth_router.router)
 app.include_router(jobs.router)
 app.include_router(applications.router)
+app.include_router(candidates_router.router)
+app.include_router(search_router.router)
+app.include_router(feedback_router.router)
 app.include_router(profile_router.router)
 app.include_router(resume_profile_router.router)
 app.include_router(semantic_router.router)

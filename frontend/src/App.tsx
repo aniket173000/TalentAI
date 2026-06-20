@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import CandidateOnboarding from './components/CandidateOnboarding'
+import CandidatesCorpus from './pages/CandidatesCorpus'
+import RankCandidates from './pages/RankCandidates'
+import CandidateRankingDetail from './pages/CandidateRankingDetail'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -163,6 +166,30 @@ export default function App() {
                     element={
                       <ProtectedRoute requires="recruiter">
                         <EditJob />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/candidates-corpus"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <CandidatesCorpus />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/rank-candidates"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <RankCandidates />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/candidates/:candidateId"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <CandidateRankingDetail />
                       </ProtectedRoute>
                     }
                   />

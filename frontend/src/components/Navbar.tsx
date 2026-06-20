@@ -268,6 +268,11 @@ export default function Navbar() {
                 Recruiter Portal
               </Link>
             )}
+            {isRecruiter && (
+              <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>
+                Rank Candidates
+              </Link>
+            )}
 
             {isAuthenticated ? (
               <div className="flex items-center gap-3 border-l border-navy-700 pl-6">

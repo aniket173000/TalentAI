@@ -14,6 +14,7 @@ from database import SessionLocal, get_db
 from routers.auth import get_current_user
 from config import settings
 from services.ai_service import generate_career_profile, get_embedding
+from services.corpus_sync import prepare_candidate
 from services.file_parser import parse_resume
 from services.storage_service import get_presigned_url, upload_resume_file, upload_avatar, s3_enabled
 
@@ -337,12 +338,14 @@ async def upload_resume(
     db.commit()
 
     background_tasks.add_task(_update_profile_embedding, current_user.id, resume_text)
+    background_tasks.add_task(prepare_candidate, current_user.id)
     return _profile_response(current_user)
 
 
 @router.post("/resumes/{resume_id}/set-active")
 def set_active_resume(
     resume_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -368,6 +371,7 @@ def set_active_resume(
         ext.profile_embedding = None
     db.commit()
 
+    background_tasks.add_task(prepare_candidate, current_user.id)
     return _profile_response(current_user)
 
 
