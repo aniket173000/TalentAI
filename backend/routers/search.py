@@ -7,6 +7,7 @@ Candidate search / ranking — Stage 1 of the retrieval funnel.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import models
@@ -82,25 +83,88 @@ def _job_or_403(job_id: int, recruiter: models.User, db: Session) -> models.Job:
     return job
 
 
+def _latest_run(db: Session, job_id: int) -> models.RankingRun | None:
+    return (
+        db.query(models.RankingRun)
+        .filter(models.RankingRun.job_id == job_id)
+        .order_by(models.RankingRun.id.desc())
+        .first()
+    )
+
+
+def _ranked_today(db: Session, job_id: int) -> models.RankingRun | None:
+    """A completed run for this job created on the current calendar day."""
+    return (
+        db.query(models.RankingRun)
+        .filter(
+            models.RankingRun.job_id == job_id,
+            models.RankingRun.status == "done",
+            func.date(models.RankingRun.created_at) == func.current_date(),
+        )
+        .order_by(models.RankingRun.id.desc())
+        .first()
+    )
+
+
 @router.post("/candidates/evaluate", status_code=status.HTTP_202_ACCEPTED,
-             summary="Start the full ranking funnel as a background job")
+             summary="Rank a role once per day (cached); start a job only if not ranked today")
 def evaluate(
     job_id: int = Query(...),
-    top_k: int = Query(500, ge=1, le=1000, description="retrieval pool"),
+    top_k: int = Query(500, ge=1, le=2000, description="role pre-filter pool (pgvector ANN)"),
     rerank_n: int = Query(50, ge=1, le=200, description="kept after reranking"),
-    eval_n: int = Query(20, ge=1, le=50, description="candidates sent to the LLM"),
+    eval_n: int = Query(10, ge=1, le=50, description="candidates sent to the LLM"),
+    force: bool = Query(False, description="bypass the once-per-day cache"),
     recruiter: models.User = Depends(require_recruiter),
     db: Session = Depends(get_db),
 ):
     job = _job_or_403(job_id, recruiter, db)
+
+    def _payload(run, cached):
+        return {
+            "run_id": run.id, "job_id": job.id, "job_title": job.title,
+            "status": run.status, "cached": cached,
+            "ranked_at": run.completed_at or run.created_at,
+            "poll": f"/api/search/runs/{run.id}",
+            "results": f"/api/search/rankings?job_id={job.id}",
+        }
+
+    # A run already in progress for this role → return it (don't start another).
+    inprog = (
+        db.query(models.RankingRun)
+        .filter(models.RankingRun.job_id == job.id,
+                models.RankingRun.status.in_(["pending", "running"]))
+        .order_by(models.RankingRun.id.desc()).first()
+    )
+    if inprog:
+        return _payload(inprog, cached=False)
+
+    # Already ranked today → serve cached results; next rank allowed tomorrow.
+    if not force:
+        today = _ranked_today(db, job.id)
+        if today:
+            return _payload(today, cached=True)
+
     run = start_ranking_run(db, job.id, recruiter.id, top_k=top_k, rerank_n=rerank_n, eval_n=eval_n)
+    return _payload(run, cached=False)
+
+
+@router.get("/runs/latest", summary="Latest ranking run for a job (for cached-view checks)")
+def latest_run(
+    job_id: int = Query(...),
+    recruiter: models.User = Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    _job_or_403(job_id, recruiter, db)
+    run = _latest_run(db, job_id)
+    if not run:
+        return {"job_id": job_id, "run_id": None, "status": "none", "ranked_today": False}
+    today = _ranked_today(db, job_id)
     return {
+        "job_id": job_id,
         "run_id": run.id,
-        "job_id": job.id,
-        "job_title": job.title,
         "status": run.status,
-        "poll": f"/api/search/runs/{run.id}",
-        "results": f"/api/search/rankings?job_id={job.id}",
+        "ranked_today": today is not None,
+        "ranked_at": run.completed_at or run.created_at,
     }
 
 

@@ -390,6 +390,19 @@ app.include_router(colleges_router.router)
 app.include_router(referrals_router.router)
 
 
+@app.on_event("startup")
+def _warm_reranker():
+    # Warm the cross-encoder so the first rank skips the ~25s model load.
+    # In Celery mode the funnel runs in the worker (which warms its own copy),
+    # so the API process skips this to avoid loading torch it won't use.
+    if settings.USE_CELERY:
+        return
+    import threading
+
+    from services.reranker import warm
+    threading.Thread(target=warm, daemon=True).start()
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "TalentAI API v2"}

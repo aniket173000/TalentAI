@@ -56,7 +56,7 @@ async def evaluate_candidates(
     db: Session,
     job: models.Job,
     candidates: list[dict],
-    eval_n: int = 20,
+    eval_n: int = 10,
 ) -> list[dict]:
     """
     Run the LLM evaluation on the top `eval_n` candidates (by their incoming

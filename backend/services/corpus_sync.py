@@ -1,17 +1,23 @@
 """
-Sync the platform candidate base into the searchable `candidates` table.
+Materialise the platform candidate base into the searchable `candidates` table.
 
-Candidates register and store a resume on their CandidateExtension. This
-materialises each of them into a `candidate` row (source='platform') via the
-normal ingest pipeline (parse → structured extract → profile summary → embed),
-so the ranking funnel can score the WHOLE candidate base against any job — no
-manual upload required.
+Ingestion (LLM extract + embed) is DECOUPLED from ranking so it never runs
+inline at 100k scale:
 
-Idempotent: a candidate whose resume is unchanged is skipped; a changed resume
-is re-ingested. Cheap after the first run.
+  * prepare_candidate(user_id)  — one candidate, fired on resume upload.
+  * bulk_ingest(db)             — concurrent backfill of everyone not yet
+                                  materialised (for an initial mass import).
+  * sync_new_candidates(db)     — cheap incremental top-up used by the funnel:
+                                  ingests only un-materialised candidates, and
+                                  only if there are few (else defers to bulk).
+
+At steady state every candidate is already materialised, so the funnel's sync
+is a single COUNT query returning 0 — ranking stays O(top_k), not O(corpus).
 """
+import asyncio
 import logging
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 import models
@@ -20,14 +26,27 @@ from services.candidate_ingest import ingest_resume
 
 logger = logging.getLogger(__name__)
 
+# If a rank finds more than this many un-materialised candidates, it does NOT
+# ingest them inline (that would be slow) — it ranks what's ready and logs a
+# hint to run the bulk job. Keeps the rank path fast and predictable.
+MAX_INLINE_SYNC = 25
+
+
+def _unmaterialised(db: Session, limit: int | None = None) -> list[tuple[int, str]]:
+    """Candidate users with a resume but no `candidates` row yet."""
+    q = (
+        "SELECT ce.user_id, ce.resume_text "
+        "FROM candidate_extensions ce "
+        "LEFT JOIN candidates c ON c.user_id = ce.user_id "
+        "WHERE ce.resume_text IS NOT NULL AND ce.resume_text <> '' AND c.id IS NULL"
+    )
+    if limit:
+        q += f" LIMIT {int(limit)}"
+    return [(r[0], r[1]) for r in db.execute(text(q)).fetchall()]
+
 
 async def prepare_candidate(user_id: int) -> None:
-    """
-    Background task: pre-build a candidate's rankable profile right after they
-    upload/change their resume, so the ranking funnel doesn't pay extraction cost
-    on the first rank. Opens its own DB session (runs after the request returns).
-    Idempotent — ingest_resume skips unchanged resumes.
-    """
+    """Background task: pre-build one candidate's rankable profile after upload."""
     db = SessionLocal()
     try:
         ext = (
@@ -45,21 +64,57 @@ async def prepare_candidate(user_id: int) -> None:
         db.close()
 
 
-async def sync_platform_corpus(db: Session) -> dict:
-    rows = (
-        db.query(models.CandidateExtension.user_id, models.CandidateExtension.resume_text)
-        .filter(
-            models.CandidateExtension.resume_text.isnot(None),
-            models.CandidateExtension.resume_text != "",
+async def sync_new_candidates(db: Session, max_inline: int = MAX_INLINE_SYNC) -> dict:
+    """
+    Incremental top-up for the funnel. Ingests un-materialised candidates inline
+    only when there are few; otherwise defers to the bulk job so a rank never
+    triggers a mass extraction.
+    """
+    pending = _unmaterialised(db)
+    if not pending:
+        return {"materialised": 0, "deferred": 0}
+    if len(pending) > max_inline:
+        logger.warning(
+            "%d candidates not materialised — skipping inline sync. Run bulk_ingest.",
+            len(pending),
         )
-        .all()
-    )
-    ingested = 0
-    for user_id, resume_text in rows:
+        return {"materialised": 0, "deferred": len(pending)}
+    for user_id, resume_text in pending:
         try:
             await ingest_resume(db, None, resume_text, source="platform", user_id=user_id)
-            ingested += 1
-        except Exception as exc:  # noqa: BLE001 — one bad resume shouldn't stop the sync
-            logger.warning("Platform sync failed for user=%s: %s", user_id, exc)
-    logger.info("Platform corpus sync: processed %d candidate(s)", ingested)
-    return {"processed": ingested, "total_candidates": len(rows)}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("sync_new_candidates failed for user=%s: %s", user_id, exc)
+    return {"materialised": len(pending), "deferred": 0}
+
+
+async def bulk_ingest(db: Session, concurrency: int = 8, limit: int | None = None) -> dict:
+    """
+    Concurrently materialise every un-materialised candidate. Use for an initial
+    mass import (e.g. 100k resumes). Idempotent — safe to re-run; already-ingested
+    candidates are skipped by the WHERE NOT EXISTS query.
+    """
+    pending = _unmaterialised(db, limit=limit)
+    total = len(pending)
+    if not total:
+        return {"ingested": 0, "total": 0}
+
+    sem = asyncio.Semaphore(concurrency)
+    done = {"n": 0}
+
+    async def _one(user_id: int, resume_text: str):
+        async with sem:
+            # Each task gets its own session — they run concurrently.
+            d = SessionLocal()
+            try:
+                await ingest_resume(d, None, resume_text, source="platform", user_id=user_id)
+                done["n"] += 1
+                if done["n"] % 100 == 0:
+                    logger.info("bulk_ingest progress: %d/%d", done["n"], total)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("bulk_ingest failed for user=%s: %s", user_id, exc)
+            finally:
+                d.close()
+
+    await asyncio.gather(*[_one(uid, rt) for uid, rt in pending])
+    logger.info("bulk_ingest complete: %d/%d materialised", done["n"], total)
+    return {"ingested": done["n"], "total": total}

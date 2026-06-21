@@ -4,7 +4,7 @@ End-to-end candidate ranking funnel.
     corpus
       → retrieve_candidates   (pgvector ANN + hybrid)   -> top_k  (~500)
       → rerank_candidates      (cross-encoder)            -> rerank_n (~50)
-      → evaluate_candidates    (LLM, top_n only)          -> eval_n  (~20)
+      → evaluate_candidates    (LLM, top_n only)          -> eval_n  (~10)
       → compute_final_score    (blended 25/25/20/20/10)
       → persist_rankings       (candidate_rankings)
 
@@ -25,7 +25,7 @@ from services.evaluation import (
     evaluate_candidates,
     persist_rankings,
 )
-from services.corpus_sync import sync_platform_corpus
+from services.corpus_sync import sync_new_candidates
 from services.reranker import rerank_candidates
 from services.retrieval import retrieve_candidates
 
@@ -38,7 +38,7 @@ async def run_funnel(
     recruiter_id: int,
     top_k: int = 500,
     rerank_n: int = 50,
-    eval_n: int = 20,
+    eval_n: int = 10,
 ) -> dict:
     jd_req = {}
     if job.jd_requirements:
@@ -47,10 +47,12 @@ async def run_funnel(
         except Exception:
             jd_req = {}
 
-    # Materialise the platform candidate base into the searchable table, then
-    # rank the WHOLE base (recruiter_id=None) — no manual corpus required.
-    sync = await sync_platform_corpus(db)
-    logger.info("Funnel job=%s: corpus sync processed %d candidate(s)", job.id, sync["processed"])
+    # Cheap incremental top-up (ingests only un-materialised candidates, capped
+    # so a rank never triggers a mass extraction), then rank the whole base.
+    sync = await sync_new_candidates(db)
+    if sync["deferred"]:
+        logger.warning("Funnel job=%s: %d candidates not materialised — run bulk_ingest.",
+                       job.id, sync["deferred"])
 
     retrieved = await retrieve_candidates(db, job, recruiter_id=None, top_k=top_k)
     reranked = rerank_candidates(db, job, retrieved, top_n=rerank_n)
@@ -117,7 +119,7 @@ def execute_ranking_run(run_id: int, job_id: int, recruiter_id: int,
 
 
 def start_ranking_run(db: Session, job_id: int, recruiter_id: int,
-                      top_k: int = 500, rerank_n: int = 50, eval_n: int = 20) -> models.RankingRun:
+                      top_k: int = 500, rerank_n: int = 50, eval_n: int = 10) -> models.RankingRun:
     """
     Create a RankingRun row and dispatch the funnel.
 

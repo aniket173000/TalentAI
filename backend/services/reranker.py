@@ -30,6 +30,18 @@ def _model():
     return CrossEncoder(MODEL_NAME)
 
 
+def warm() -> None:
+    """
+    Eagerly load (and lightly exercise) the cross-encoder so the FIRST rank
+    doesn't pay the ~25s model-load cost. Called at API/worker startup.
+    """
+    try:
+        _model().predict([["warmup query", "warmup passage"]])
+        logger.info("Cross-encoder %s warmed and ready.", MODEL_NAME)
+    except Exception as exc:  # noqa: BLE001 — warm-up is best-effort
+        logger.warning("Reranker warm-up failed (will load lazily): %s", exc)
+
+
 def _jd_query(job: models.Job) -> str:
     """
     Build a NATURAL-LANGUAGE query for the cross-encoder.

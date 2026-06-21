@@ -14,6 +14,7 @@ Notes:
   * Enable dispatch by setting USE_CELERY=true in the API process's env.
 """
 from celery import Celery
+from celery.signals import worker_ready
 
 from config import settings
 
@@ -33,3 +34,11 @@ celery_app.conf.update(
     task_soft_time_limit=540,
     worker_max_tasks_per_child=20,  # recycle workers to bound memory (torch)
 )
+
+
+@worker_ready.connect
+def _warm_worker(**_kwargs):
+    # Load the cross-encoder when the worker comes up, so the first task it
+    # processes doesn't pay the model-load cost.
+    from services.reranker import warm
+    warm()
