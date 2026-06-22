@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import LinkedInButton from '../components/LinkedInButton'
+import { GoogleIcon } from '../components/GoogleButton'
 import { useAuth, ActiveMode } from '../context/AuthContext'
 
 export default function Login() {
-  const { login, loginWithLinkedIn, user } = useAuth()
+  const { login, loginWithLinkedIn, loginWithGoogle, user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const redirect = params.get('redirect')
@@ -104,28 +104,49 @@ export default function Login() {
           </p>
         </form>
 
-        {/* LinkedIn options */}
+        {/* Social sign-in */}
         <div className="mt-4 flex items-center gap-3">
           <div className="flex-1 h-px bg-slate-200" />
-          <span className="text-xs text-slate-400 font-medium">or continue with LinkedIn</span>
+          <span className="text-xs text-slate-400 font-medium">or continue with</span>
           <div className="flex-1 h-px bg-slate-200" />
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <button
-            onClick={() => loginWithLinkedIn('candidate')}
-            className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <LinkedInIcon />
-            As Candidate
-          </button>
-          <button
-            onClick={() => loginWithLinkedIn('recruiter')}
-            className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <LinkedInIcon />
-            As Recruiter
-          </button>
+        <div className="mt-4 space-y-3">
+          {/* Google */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => loginWithGoogle('candidate')}
+              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <GoogleIcon className="w-4 h-4" />
+              Google · Candidate
+            </button>
+            <button
+              onClick={() => loginWithGoogle('recruiter')}
+              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <GoogleIcon className="w-4 h-4" />
+              Google · Recruiter
+            </button>
+          </div>
+
+          {/* LinkedIn */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => loginWithLinkedIn('candidate')}
+              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <LinkedInIcon />
+              LinkedIn · Candidate
+            </button>
+            <button
+              onClick={() => loginWithLinkedIn('recruiter')}
+              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <LinkedInIcon />
+              LinkedIn · Recruiter
+            </button>
+          </div>
         </div>
       </div>
     </div>

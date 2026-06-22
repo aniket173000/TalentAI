@@ -22,6 +22,7 @@ async def generate_college_info(college_name: str, url: str | None = None) -> di
       founded_year     int|None
       highlights       list[str]  3-4 things that make graduates stand out
       talent_strengths list[str]  2-3 technical / professional strengths
+      official_website str|None   the institution's primary website domain
     """
     from config import settings
 
@@ -34,7 +35,9 @@ async def generate_college_info(college_name: str, url: str | None = None) -> di
         f"- location: 'City, Country' format.\n"
         f"- founded_year: integer or null.\n"
         f"- highlights: array of 3-4 bullet points about what makes graduates stand out to recruiters.\n"
-        f"- talent_strengths: array of 2-3 core technical or professional strengths of graduates.\n\n"
+        f"- talent_strengths: array of 2-3 core technical or professional strengths of graduates.\n"
+        f"- official_website: the institution's primary official website URL (e.g. 'https://www.iitb.ac.in'), "
+        f"or null if you are not confident. Used to fetch the official logo.\n\n"
         f"College: {college_name}{url_hint}\n\n"
         f"Respond with valid JSON only."
     )
@@ -84,6 +87,7 @@ async def generate_college_info(college_name: str, url: str | None = None) -> di
         "founded_year": None,
         "highlights": [],
         "talent_strengths": [],
+        "official_website": None,
     }
 
 

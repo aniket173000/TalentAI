@@ -5,6 +5,7 @@ import CollegeCard from '../components/CollegeCard'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
 import { CampusJob, CollegeCandidateEntry, CollegeDetail, CollegeInfo } from '../types'
+import { formatSalaryRange } from '../utils/currency'
 
 const SCHEME_GRADIENTS = [
   'from-violet-600 via-purple-600 to-indigo-700',
@@ -215,10 +216,15 @@ export default function Colleges() {
       .catch(() => setDetail(null))
       .finally(() => setDetailLoading(false))
 
-    // Fetch campus jobs for this college
+    // Fetch campus jobs for this college — private to recruiters and members
+    // (current or past) of this college, matched across ALL education records.
     const isRecruiter = user?.is_recruiter
-    const isMatchingCandidate = user?.is_candidate && user.college_name === selected
-    if (isRecruiter || isMatchingCandidate) {
+    const memberInstitutions = (user?.education_institutions ?? []).map(n => n.toLowerCase())
+    const isMember =
+      !!user?.is_candidate &&
+      (memberInstitutions.includes(selected.toLowerCase()) ||
+        user.college_name === selected)
+    if (isRecruiter || isMember) {
       setCampusJobsLoading(true)
       api
         .get<CampusJob[]>(`/colleges/${encodeURIComponent(selected)}/campus-jobs`)
@@ -419,9 +425,7 @@ export default function Colleges() {
                         </div>
                         {(job.salary_range_min || job.salary_range_max) && (
                           <p className="text-emerald-400 text-xs font-semibold mt-0.5">
-                            {job.salary_range_min && job.salary_range_max
-                              ? `$${(job.salary_range_min / 1000).toFixed(0)}k – $${(job.salary_range_max / 1000).toFixed(0)}k`
-                              : job.salary_range_min ? `From $${(job.salary_range_min / 1000).toFixed(0)}k` : `Up to $${(job.salary_range_max! / 1000).toFixed(0)}k`}
+                            {formatSalaryRange(job.salary_range_min, job.salary_range_max, job.salary_currency, true)}
                           </p>
                         )}
                       </div>

@@ -60,6 +60,55 @@ function calcDuration(we: WorkExperience): string {
   return `${yrs} yr ${mos} mo`
 }
 
+function totalYearsOfExperience(wes: WorkExperience[]): number {
+  // Sum each role's span in months, then convert to years (1 decimal).
+  let months = 0
+  for (const we of wes) {
+    const start = new Date(we.start_year, (we.start_month || 1) - 1)
+    const end = we.is_current || !we.end_year
+      ? new Date()
+      : new Date(we.end_year, (we.end_month || 12) - 1)
+    months += Math.max(0,
+      (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth()
+    )
+  }
+  return Math.round((months / 12) * 10) / 10
+}
+
+// Split a work-experience description into clean bullet lines. Strips leading
+// bullet markers (•, -, *, ·) and blank lines. Falls back to sentence-splitting
+// when the text is one long blob so it still renders as tidy bullets.
+function descriptionBullets(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map(l => l.replace(/^\s*[•\-*·]\s*/, '').trim())
+    .filter(Boolean)
+  if (lines.length > 1) return lines
+  // Single line: break on sentence boundaries so a paragraph still bullets nicely.
+  const sentences = (lines[0] ?? text)
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+    .map(s => s.trim())
+    .filter(Boolean)
+  return sentences
+}
+
+function WEDescription({ text }: { text: string }) {
+  const bullets = descriptionBullets(text)
+  if (bullets.length <= 1) {
+    return <p className="text-sm text-slate-600 mt-2 leading-relaxed">{bullets[0] ?? text}</p>
+  }
+  return (
+    <ul className="mt-2 space-y-1">
+      {bullets.map((b, i) => (
+        <li key={i} className="flex gap-2 text-sm text-slate-600 leading-relaxed">
+          <span className="text-brand-blue mt-0.5 shrink-0">•</span>
+          <span>{b}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 // ── Work experience form state ────────────────────────────────────────────────
 
 interface WEForm {
@@ -229,6 +278,83 @@ function WEFormPanel({
   )
 }
 
+function EduFormPanel({
+  institution, degree, field, gradYear, isGraduated, isPrimary, showPrimaryToggle,
+  setInstitution, setDegree, setField, setGradYear, setIsGraduated, setIsPrimary,
+  onSave, onCancel, saving, error, isEdit,
+}: {
+  institution: string; degree: string; field: string; gradYear: string
+  isGraduated: boolean; isPrimary: boolean; showPrimaryToggle: boolean
+  setInstitution: (v: string) => void; setDegree: (v: string) => void
+  setField: (v: string) => void; setGradYear: (v: string) => void
+  setIsGraduated: (v: boolean) => void; setIsPrimary: (v: boolean) => void
+  onSave: () => void; onCancel: () => void
+  saving: boolean; error: string | null; isEdit: boolean
+}) {
+  return (
+    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 space-y-3">
+      <p className="text-sm font-semibold text-slate-700">{isEdit ? 'Edit education' : 'Add education'}</p>
+      <Field label="Institution *">
+        <input value={institution} onChange={e => setInstitution(e.target.value)}
+          placeholder="MIT, Stanford, IIT Bombay…" className={INP} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Degree">
+          <select value={degree} onChange={e => setDegree(e.target.value)} className={INP}>
+            <option value="">Select degree</option>
+            {['Bachelor', 'Master', 'PhD', 'Diploma', 'Associate', 'Other'].map(d =>
+              <option key={d} value={d}>{d}</option>)}
+          </select>
+        </Field>
+        <Field label="Field of Study">
+          <input value={field} onChange={e => setField(e.target.value)}
+            placeholder="Computer Science" className={INP} />
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Graduation Year">
+          <select value={gradYear} onChange={e => setGradYear(e.target.value)} className={INP}>
+            <option value="">Select year</option>
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </Field>
+        <Field label="Status">
+          <div className="flex items-center gap-3 h-10">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={isGraduated} onChange={() => setIsGraduated(true)}
+                className="text-brand-blue" />
+              <span className="text-sm text-slate-700">Graduated</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={!isGraduated} onChange={() => setIsGraduated(false)}
+                className="text-brand-blue" />
+              <span className="text-sm text-slate-700">Current student</span>
+            </label>
+          </div>
+        </Field>
+      </div>
+      {showPrimaryToggle && (
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" checked={isPrimary} onChange={e => setIsPrimary(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" />
+          <span className="text-sm text-slate-700 font-medium">Show this as my primary credential</span>
+        </label>
+      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex gap-3 pt-1">
+        <button onClick={onCancel} disabled={saving}
+          className="flex-1 border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition disabled:opacity-40">
+          Cancel
+        </button>
+        <button onClick={onSave} disabled={saving || !institution.trim()}
+          className="flex-1 bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
+          {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add education'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 type ImportEntry = { we: Partial<WorkExperience>; selected: boolean }
 
 function ImportModal({
@@ -280,6 +406,65 @@ function ImportModal({
           <button onClick={onConfirm} disabled={selectedCount === 0 || saving}
             className="flex-1 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
             {saving ? 'Adding…' : `Add ${selectedCount || ''} ${selectedCount === 1 ? 'position' : 'positions'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type EduImportEntry = { ed: Partial<EducationRecord>; selected: boolean }
+
+function EduImportModal({
+  entries, onToggle, onConfirm, onCancel, saving,
+}: {
+  entries: EduImportEntry[]
+  onToggle: (i: number) => void
+  onConfirm: () => void
+  onCancel: () => void
+  saving: boolean
+}) {
+  const selectedCount = entries.filter(e => e.selected).length
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="px-6 py-5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-900 text-lg">Import education from resume</h3>
+          <p className="text-sm text-slate-500 mt-0.5">Select the colleges to add to your profile.</p>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+          {entries.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-6">No education found in your resume.</p>
+          ) : entries.map((entry, i) => (
+            <label key={i} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition ${
+              entry.selected ? 'border-brand-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
+            }`}>
+              <input type="checkbox" checked={entry.selected} onChange={() => onToggle(i)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900 truncate">{entry.ed.institution_name}</p>
+                {(entry.ed.degree_type || entry.ed.field_of_study) && (
+                  <p className="text-sm text-slate-500 truncate">
+                    {[entry.ed.degree_type, entry.ed.field_of_study].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                {entry.ed.graduation_year && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {entry.ed.is_graduated ? 'Graduated' : 'Expected'} {entry.ed.graduation_year}
+                  </p>
+                )}
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+          <button onClick={onCancel} disabled={saving}
+            className="flex-1 border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition disabled:opacity-40">
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={selectedCount === 0 || saving}
+            className="flex-1 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
+            {saving ? 'Adding…' : `Add ${selectedCount || ''} ${selectedCount === 1 ? 'college' : 'colleges'}`}
           </button>
         </div>
       </div>
@@ -417,15 +602,19 @@ export default function Profile() {
   const [importEntries, setImportEntries] = useState<ImportEntry[] | null>(null)
   const [importSaving, setImportSaving] = useState(false)
 
-  // Education edit
-  const [eduEditing, setEduEditing] = useState(false)
+  // Education edit — eduEditing holds the record id being edited, 'new', or null
+  const [eduEditing, setEduEditing] = useState<number | 'new' | null>(null)
   const [editInstitution, setEditInstitution] = useState('')
   const [editDegree, setEditDegree] = useState('')
   const [editField, setEditField] = useState('')
   const [editGradYear, setEditGradYear] = useState('')
   const [editIsGraduated, setEditIsGraduated] = useState(false)
+  const [editIsPrimary, setEditIsPrimary] = useState(false)
   const [eduSaving, setEduSaving] = useState(false)
   const [eduError, setEduError] = useState<string | null>(null)
+  const [eduImporting, setEduImporting] = useState(false)
+  const [eduImportEntries, setEduImportEntries] = useState<EduImportEntry[] | null>(null)
+  const [eduImportSaving, setEduImportSaving] = useState(false)
 
   // Resume
   const [uploadingResume, setUploadingResume] = useState(false)
@@ -582,16 +771,17 @@ export default function Profile() {
     }
   }
 
-  // ── Education handlers ─────────────────────────────────────────────────────
+  // ── Education handlers (multi-college) ─────────────────────────────────────
 
   const startEditEdu = (ed?: EducationRecord) => {
-    setEditInstitution(ed?.institution_name ?? profile?.college_name ?? '')
+    setEditInstitution(ed?.institution_name ?? '')
     setEditDegree(ed?.degree_type ?? '')
     setEditField(ed?.field_of_study ?? '')
     setEditGradYear(ed?.graduation_year ? String(ed.graduation_year) : '')
     setEditIsGraduated(ed?.is_graduated ?? false)
+    setEditIsPrimary(ed?.is_primary ?? false)
     setEduError(null)
-    setEduEditing(true)
+    setEduEditing(ed ? ed.id : 'new')
   }
 
   const handleEduSave = async () => {
@@ -599,19 +789,71 @@ export default function Profile() {
     setEduSaving(true)
     setEduError(null)
     try {
-      const r = await api.patch<UserProfile>('/profile/college', {
-        college_name: editInstitution.trim(),
+      const payload = {
+        institution_name: editInstitution.trim(),
         degree_type: editDegree.trim() || null,
         field_of_study: editField.trim() || null,
         graduation_year: editGradYear ? parseInt(editGradYear) : null,
         is_graduated: editIsGraduated,
-      })
+        is_primary: editIsPrimary,
+      }
+      const r = eduEditing === 'new'
+        ? await api.post<UserProfile>('/profile/education', payload)
+        : await api.patch<UserProfile>(`/profile/education/${eduEditing}`, payload)
       setProfile(r.data)
-      setEduEditing(false)
+      setEduEditing(null)
     } catch {
       setEduError('Failed to save education. Please try again.')
     } finally {
       setEduSaving(false)
+    }
+  }
+
+  const handleEduDelete = async (id: number) => {
+    if (!confirm('Remove this education record?')) return
+    try {
+      const r = await api.delete<UserProfile>(`/profile/education/${id}`)
+      setProfile(r.data)
+    } catch {}
+  }
+
+  const handleEduImport = async () => {
+    setEduImporting(true)
+    try {
+      const r = await api.post<{ entries: Partial<EducationRecord>[] }>('/profile/education/import')
+      setEduImportEntries(r.data.entries.map(ed => ({ ed, selected: true })))
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      alert(detail || 'Import failed. Try again.')
+    } finally {
+      setEduImporting(false)
+    }
+  }
+
+  const handleEduImportConfirm = async () => {
+    if (!eduImportEntries) return
+    setEduImportSaving(true)
+    try {
+      let latest: UserProfile | null = null
+      for (const entry of eduImportEntries.filter(e => e.selected)) {
+        const ed = entry.ed
+        if (!ed.institution_name) continue
+        const r = await api.post<UserProfile>('/profile/education', {
+          institution_name: ed.institution_name,
+          degree_type: ed.degree_type ?? null,
+          field_of_study: ed.field_of_study ?? null,
+          graduation_year: ed.graduation_year ?? null,
+          is_graduated: ed.is_graduated ?? null,
+          is_primary: false,
+        })
+        latest = r.data
+      }
+      if (latest) setProfile(latest)
+      setEduImportEntries(null)
+    } catch {
+      alert('Some education entries failed to import. Please try again.')
+    } finally {
+      setEduImportSaving(false)
     }
   }
 
@@ -675,6 +917,9 @@ export default function Profile() {
   const hasResume = !!profile.resume_filename
   const isAnalysed = !!profile.career_profile
   const primaryEd = profile.education_records?.find(e => e.is_primary) ?? profile.education_records?.[0]
+  const career = profile.career_profile
+  const yoe = profile.is_candidate ? totalYearsOfExperience(profile.work_experiences) : 0
+  const yoeLabel = yoe >= 1 ? `${yoe % 1 === 0 ? yoe : yoe.toFixed(1)} yr${yoe >= 2 ? 's' : ''} exp` : null
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-5">
@@ -695,6 +940,19 @@ export default function Profile() {
           onConfirm={handleImportConfirm}
           onCancel={() => setImportEntries(null)}
           saving={importSaving}
+        />
+      )}
+
+      {/* Education import modal */}
+      {eduImportEntries && (
+        <EduImportModal
+          entries={eduImportEntries}
+          onToggle={i => setEduImportEntries(prev =>
+            prev ? prev.map((e, idx) => idx === i ? { ...e, selected: !e.selected } : e) : null
+          )}
+          onConfirm={handleEduImportConfirm}
+          onCancel={() => setEduImportEntries(null)}
+          saving={eduImportSaving}
         />
       )}
 
@@ -752,8 +1010,8 @@ export default function Profile() {
                     </span>
                   )}
                 </div>
-                {profile.headline && (
-                  <p className="text-slate-500 text-sm mt-0.5">{profile.headline}</p>
+                {(profile.headline || career?.detected_role) && (
+                  <p className="text-slate-500 text-sm mt-0.5">{profile.headline || career?.detected_role}</p>
                 )}
                 <div className="flex gap-2 mt-2 flex-wrap">
                   {profile.is_candidate && (
@@ -764,6 +1022,21 @@ export default function Profile() {
                   {profile.is_recruiter && (
                     <span className="text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100 rounded-full px-2.5 py-1">
                       Recruiter
+                    </span>
+                  )}
+                  {career?.detected_level_label && (
+                    <span className="text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full px-2.5 py-1">
+                      {career.detected_level_label}
+                    </span>
+                  )}
+                  {yoeLabel && (
+                    <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-2.5 py-1">
+                      {yoeLabel}
+                    </span>
+                  )}
+                  {primaryEd?.institution_name && (
+                    <span className="text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200 rounded-full px-2.5 py-1">
+                      🎓 {primaryEd.institution_name}
                     </span>
                   )}
                 </div>
@@ -794,6 +1067,12 @@ export default function Profile() {
                   </span>
                 </div>
               </div>
+
+              {career?.summary && (
+                <p className="text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
+                  {career.summary}
+                </p>
+              )}
             </div>
           ) : (
             /* Hero edit form */
@@ -903,9 +1182,7 @@ export default function Profile() {
                       <p className="text-xs text-slate-400 mt-1">
                         {formatDateRange(we)} · {calcDuration(we)}
                       </p>
-                      {we.description && (
-                        <p className="text-sm text-slate-600 mt-2 leading-relaxed">{we.description}</p>
-                      )}
+                      {we.description && <WEDescription text={we.description} />}
                     </div>
 
                     {/* Actions (show on hover) */}
@@ -927,103 +1204,110 @@ export default function Profile() {
         )}
       </SectionCard>
 
-      {/* ── 3. Education (candidates only) ────────────────────────────────── */}
+      {/* ── 3. Education (candidates only — supports multiple colleges) ────── */}
       {profile.is_candidate && (
         <SectionCard
           title="Education"
           action={
-            !eduEditing ? (
-              <button onClick={() => startEditEdu(primaryEd)}
-                className="text-xs font-semibold text-slate-500 hover:text-brand-blue border border-slate-200 hover:border-brand-blue rounded-lg px-3 py-1.5 transition-colors">
-                {primaryEd ? 'Edit' : '+ Add'}
-              </button>
+            eduEditing === null ? (
+              <>
+                <button
+                  onClick={handleEduImport}
+                  disabled={eduImporting || !profile.resume_filename}
+                  title={!profile.resume_filename ? 'Upload a resume first' : undefined}
+                  className="text-xs font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {eduImporting ? 'Importing…' : 'Import from resume'}
+                </button>
+                <button onClick={() => startEditEdu()}
+                  className="text-xs font-semibold text-white bg-brand-blue hover:bg-blue-600 rounded-lg px-3 py-1.5 transition-colors">
+                  + Add
+                </button>
+              </>
             ) : null
           }
         >
-          {eduEditing ? (
-            <div className="space-y-3">
-              <Field label="Institution *">
-                <input value={editInstitution} onChange={e => setEditInstitution(e.target.value)}
-                  placeholder="MIT, Stanford, IIT Bombay…" className={INP} />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Degree">
-                  <select value={editDegree} onChange={e => setEditDegree(e.target.value)} className={INP}>
-                    <option value="">Select degree</option>
-                    {['Bachelor', 'Master', 'PhD', 'Diploma', 'Associate', 'Other'].map(d =>
-                      <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </Field>
-                <Field label="Field of Study">
-                  <input value={editField} onChange={e => setEditField(e.target.value)}
-                    placeholder="Computer Science" className={INP} />
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Graduation Year">
-                  <select value={editGradYear} onChange={e => setEditGradYear(e.target.value)} className={INP}>
-                    <option value="">Select year</option>
-                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </Field>
-                <Field label="Status">
-                  <div className="flex items-center gap-3 h-10">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" checked={editIsGraduated} onChange={() => setEditIsGraduated(true)}
-                        className="text-brand-blue" />
-                      <span className="text-sm text-slate-700">Graduated</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" checked={!editIsGraduated} onChange={() => setEditIsGraduated(false)}
-                        className="text-brand-blue" />
-                      <span className="text-sm text-slate-700">Current student</span>
-                    </label>
-                  </div>
-                </Field>
-              </div>
-              {eduError && <p className="text-xs text-red-500">{eduError}</p>}
-              <div className="flex gap-3 pt-1">
-                <button onClick={() => setEduEditing(false)} disabled={eduSaving}
-                  className="flex-1 border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition disabled:opacity-40">
-                  Cancel
-                </button>
-                <button onClick={handleEduSave} disabled={eduSaving || !editInstitution.trim()}
-                  className="flex-1 bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
-                  {eduSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
+          {eduEditing === 'new' && (
+            <div className="mb-4">
+              <EduFormPanel
+                institution={editInstitution} degree={editDegree} field={editField}
+                gradYear={editGradYear} isGraduated={editIsGraduated} isPrimary={editIsPrimary}
+                showPrimaryToggle={(profile.education_records?.length ?? 0) > 0}
+                setInstitution={setEditInstitution} setDegree={setEditDegree} setField={setEditField}
+                setGradYear={setEditGradYear} setIsGraduated={setEditIsGraduated} setIsPrimary={setEditIsPrimary}
+                onSave={handleEduSave} onCancel={() => setEduEditing(null)}
+                saving={eduSaving} error={eduError} isEdit={false}
+              />
             </div>
-          ) : primaryEd ? (
-            <div className="flex items-start gap-3">
-              {profile.college_logo_url ? (
-                <img src={profile.college_logo_url} alt={primaryEd.institution_name}
-                  className="w-10 h-10 rounded-xl object-contain bg-slate-50 border border-slate-100 shrink-0" />
-              ) : (
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                  <GraduationIcon />
-                </div>
-              )}
-              <div>
-                <p className="font-semibold text-slate-900 text-sm">{primaryEd.institution_name}</p>
-                {(primaryEd.degree_type || primaryEd.field_of_study) && (
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    {[primaryEd.degree_type, primaryEd.field_of_study].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                <p className="text-xs text-slate-400 mt-1">
-                  {primaryEd.graduation_year
-                    ? `${primaryEd.is_graduated ? 'Graduated' : 'Expected'} ${primaryEd.graduation_year}`
-                    : primaryEd.is_graduated ? 'Graduated' : 'Current student'}
-                </p>
-              </div>
-            </div>
-          ) : (
+          )}
+
+          {(profile.education_records?.length ?? 0) === 0 && eduEditing !== 'new' ? (
             <div className="text-center py-8">
               <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
                 <GraduationIcon className="w-5 h-5 text-slate-400" />
               </div>
               <p className="text-sm font-medium text-slate-700">No education added yet</p>
-              <p className="text-xs text-slate-400 mt-0.5">Add your college or university.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Add your colleges — bachelors, masters, and more.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {profile.education_records.map((ed, i) => (
+                eduEditing === ed.id ? (
+                  <EduFormPanel key={ed.id}
+                    institution={editInstitution} degree={editDegree} field={editField}
+                    gradYear={editGradYear} isGraduated={editIsGraduated} isPrimary={editIsPrimary}
+                    showPrimaryToggle={!ed.is_primary}
+                    setInstitution={setEditInstitution} setDegree={setEditDegree} setField={setEditField}
+                    setGradYear={setEditGradYear} setIsGraduated={setEditIsGraduated} setIsPrimary={setEditIsPrimary}
+                    onSave={handleEduSave} onCancel={() => setEduEditing(null)}
+                    saving={eduSaving} error={eduError} isEdit={true}
+                  />
+                ) : (
+                  <div key={ed.id}>
+                    {i > 0 && <div className="border-t border-slate-100 mb-4" />}
+                    <div className="flex items-start gap-3 group">
+                      {ed.is_primary && profile.college_logo_url ? (
+                        <img src={profile.college_logo_url} alt={ed.institution_name}
+                          className="w-10 h-10 rounded-xl object-contain bg-slate-50 border border-slate-100 shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                          <GraduationIcon />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-slate-900 text-sm">{ed.institution_name}</p>
+                          {ed.is_primary && (
+                            <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-brand-blue border border-blue-100 rounded px-1.5 py-0.5">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        {(ed.degree_type || ed.field_of_study) && (
+                          <p className="text-sm text-slate-500 mt-0.5">
+                            {[ed.degree_type, ed.field_of_study].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-400 mt-1">
+                          {ed.graduation_year
+                            ? `${ed.is_graduated ? 'Graduated' : 'Expected'} ${ed.graduation_year}`
+                            : ed.is_graduated ? 'Graduated' : 'Current student'}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => startEditEdu(ed)}
+                          className="text-xs font-semibold text-slate-400 hover:text-brand-blue border border-slate-200 hover:border-brand-blue rounded-lg px-2.5 py-1 transition-colors">
+                          Edit
+                        </button>
+                        <button onClick={() => handleEduDelete(ed.id)}
+                          className="text-xs font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-lg px-2.5 py-1 transition-colors">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ))}
             </div>
           )}
         </SectionCard>

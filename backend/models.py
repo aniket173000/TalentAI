@@ -52,6 +52,9 @@ class User(Base):
     linkedin_id = Column(String(255), nullable=True, index=True)
     linkedin_verified = Column(Boolean, default=False)
 
+    # Google OAuth
+    google_id = Column(String(255), nullable=True, index=True)
+
     # Two-factor authentication
     totp_secret = Column(String(255), nullable=True)
     totp_enabled = Column(Boolean, default=False)
@@ -508,6 +511,7 @@ class Job(Base):
     employment_type = Column(String(100), nullable=True)
     salary_range_min = Column(Integer, nullable=True)
     salary_range_max = Column(Integer, nullable=True)
+    salary_currency = Column(String(8), nullable=True)      # ISO code: INR / USD / EUR / GBP
     remote_policy = Column(String(100), nullable=True)
     application_deadline = Column(DateTime, nullable=True)
     published_at = Column(DateTime, nullable=True)

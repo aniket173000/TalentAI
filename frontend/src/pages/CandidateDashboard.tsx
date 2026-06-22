@@ -4,6 +4,7 @@ import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
 import { Application, CandidateStatus, MagicMatchJob, MagicMatchResult, ProjectScore } from '../types'
+import { formatSalaryRange } from '../utils/currency'
 
 const CANDIDATE_STATUS_COLORS: Record<CandidateStatus, string> = {
   rejected:            'bg-red-50 text-red-600 border-red-200',
@@ -181,11 +182,7 @@ export default function CandidateDashboard() {
                       </p>
                       {(match.salary_range_min || match.salary_range_max) && (
                         <p className="text-xs text-emerald-600 font-medium mt-0.5">
-                          {match.salary_range_min && match.salary_range_max
-                            ? `$${match.salary_range_min.toLocaleString()} – $${match.salary_range_max.toLocaleString()}`
-                            : match.salary_range_min
-                            ? `From $${match.salary_range_min.toLocaleString()}`
-                            : `Up to $${match.salary_range_max!.toLocaleString()}`}
+                          {formatSalaryRange(match.salary_range_min, match.salary_range_max, match.salary_currency)}
                         </p>
                       )}
                     </div>
@@ -254,10 +251,10 @@ export default function CandidateDashboard() {
 
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 truncate">
-                      Job #{app.job_id}
+                      {app.job_title || `Job #${app.job_id}`}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Applied {new Date(app.applied_at).toLocaleDateString()}
+                      {app.job_company ? `${app.job_company} · ` : ''}Applied {new Date(app.applied_at).toLocaleDateString()}
                     </p>
                   </div>
 

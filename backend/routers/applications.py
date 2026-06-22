@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 import models
 import schemas
@@ -1015,12 +1015,18 @@ def my_applications(
     current_user: models.User = Depends(require_candidate),
 ):
     """Returns all applications submitted by the authenticated candidate."""
-    return (
+    apps = (
         db.query(models.Application)
+        .options(joinedload(models.Application.job))
         .filter(models.Application.candidate_user_id == current_user.id)
         .order_by(models.Application.applied_at.desc())
         .all()
     )
+    # Surface the job title/company so the dashboard can show real names, not "Job #N".
+    for a in apps:
+        a.job_title = a.job.title if a.job else None
+        a.job_company = a.job.company if a.job else None
+    return apps
 
 
 # ── Public: ranked shortlist ──────────────────────────────────────────────────
@@ -1457,6 +1463,7 @@ async def magic_match_jobs(
                 "remote_policy": job.remote_policy,
                 "salary_range_min": job.salary_range_min,
                 "salary_range_max": job.salary_range_max,
+                "salary_currency": job.salary_currency,
                 "company_logo_url": job.company_logo_url,
                 "min_match_score": job.min_match_score,
                 "similarity_score": round(sim * 100, 1),

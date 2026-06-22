@@ -15,6 +15,7 @@ from routers import feedback as feedback_router
 from routers import search as search_router
 from routers import colleges as colleges_router
 from routers import linkedin_auth as linkedin_auth_router
+from routers import google_auth as google_auth_router
 from routers import profile as profile_router
 from routers import referrals as referrals_router
 from routers import resume_profile as resume_profile_router
@@ -91,6 +92,8 @@ _MIGRATIONS = [
     # LinkedIn OAuth + company verification
     "ALTER TABLE users ADD COLUMN linkedin_id VARCHAR(255)",
     "ALTER TABLE users ADD COLUMN linkedin_verified BOOLEAN DEFAULT 0",
+    # Google OAuth
+    "ALTER TABLE users ADD COLUMN google_id VARCHAR(255)",
     "ALTER TABLE users ADD COLUMN company VARCHAR(255)",
     "ALTER TABLE users ADD COLUMN is_third_party_recruiter BOOLEAN DEFAULT 0",
     "ALTER TABLE jobs ADD COLUMN is_third_party BOOLEAN DEFAULT 0",
@@ -226,6 +229,9 @@ _MIGRATIONS = [
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )""",
     "CREATE INDEX IF NOT EXISTS ix_work_experiences_user_id ON work_experiences (user_id)",
+
+    # ── Job compensation currency ─────────────────────────────────────────────
+    "ALTER TABLE jobs ADD COLUMN salary_currency VARCHAR(8)",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
@@ -377,6 +383,7 @@ app.add_middleware(
 
 app.include_router(auth_router.router)
 app.include_router(linkedin_auth_router.router)
+app.include_router(google_auth_router.router)
 app.include_router(jobs.router)
 app.include_router(applications.router)
 app.include_router(candidates_router.router)

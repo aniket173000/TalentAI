@@ -61,6 +61,8 @@ def _summary(c: models.Candidate) -> dict:
 def _detail(c: models.Candidate) -> dict:
     return {
         **_summary(c),
+        "user_id": c.user_id,                       # linked platform account, if any
+        "has_resume_file": bool(c.resume_file_key),  # original file available via S3
         "email": c.email,
         "phone": c.phone,
         "work_history": _json(c.work_history, []),
@@ -164,6 +166,77 @@ def get_candidate(
     db: Session = Depends(get_db),
 ):
     return _detail(_owned_or_404(candidate_id, recruiter, db))
+
+
+@router.get("/{candidate_id}/resume-url",
+            summary="Presigned S3 URL to view/download the candidate's original resume")
+def get_candidate_resume_url(
+    candidate_id: int,
+    recruiter: models.User = Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    c = _owned_or_404(candidate_id, recruiter, db)
+    if not c.resume_file_key:
+        return {"available": False}
+
+    url = storage_service.get_presigned_url(c.resume_file_key, c.resume_filename or "resume")
+    if not url:
+        return {"available": False}
+
+    ext_map = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
+        "txt": "text/plain",
+    }
+    file_ext = (c.resume_filename or "").rsplit(".", 1)[-1].lower()
+    return {
+        "available": True,
+        "url": url,
+        "filename": c.resume_filename,
+        "content_type": ext_map.get(file_ext, "application/octet-stream"),
+    }
+
+
+@router.get("/{candidate_id}/applications",
+            summary="Platform job applications for the candidate's linked account")
+def get_candidate_applications(
+    candidate_id: int,
+    recruiter: models.User = Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Returns the job applications submitted by this candidate (if they have a
+    linked platform account). Empty list for corpus-only / uploaded candidates."""
+    c = _owned_or_404(candidate_id, recruiter, db)
+    if not c.user_id:
+        return {"applications": []}
+
+    rows = (
+        db.query(models.Application)
+        .filter(models.Application.candidate_user_id == c.user_id)
+        .order_by(models.Application.applied_at.desc())
+        .all()
+    )
+    job_ids = [a.job_id for a in rows]
+    title_map: dict[int, tuple[str, str]] = {}
+    if job_ids:
+        for j in db.query(models.Job).filter(models.Job.id.in_(job_ids)).all():
+            title_map[j.id] = (j.title, j.company)
+    return {
+        "applications": [
+            {
+                "id": a.id,
+                "job_id": a.job_id,
+                "job_title": title_map.get(a.job_id, (None, None))[0],
+                "job_company": title_map.get(a.job_id, (None, None))[1],
+                "match_score": a.match_score,
+                "status": a.status,
+                "candidate_status": a.candidate_status,
+                "applied_at": a.applied_at.isoformat() if a.applied_at else None,
+            }
+            for a in rows
+        ]
+    }
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT,

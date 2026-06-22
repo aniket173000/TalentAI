@@ -456,13 +456,31 @@ async def _populate_college_record(college_name: str, college_url: str | None, u
     """Background task: resolve logo + generate AI info and persist to College table."""
     import asyncio
     import json as _json
-    from services.company_logo import resolve_company_logo
+    from services.company_logo import resolve_brand_by_name, resolve_company_logo
     from services.ai_service import generate_college_info
 
     try:
         loop = asyncio.get_event_loop()
-        logo = await loop.run_in_executor(None, resolve_company_logo, college_url) if college_url else None
         ai_info = await generate_college_info(college_name, college_url)
+
+        # Resolve the logo from the supplied URL, falling back to the AI-suggested
+        # official website so colleges added without a URL still get a real logo.
+        logo_source = college_url or ai_info.get("official_website")
+        logo = (
+            await loop.run_in_executor(None, resolve_company_logo, logo_source)
+            if logo_source else None
+        )
+        website = college_url or ai_info.get("official_website")
+
+        # Reliable name-based path: if we still have no logo, look the college up
+        # by NAME (Brandfetch → Hipolabs universities) instead of trusting the LLM
+        # to guess the website. Also backfills the official website link.
+        if not logo:
+            brand = await loop.run_in_executor(
+                None, resolve_brand_by_name, college_name, "college"
+            )
+            logo = logo or brand.get("logo_url")
+            website = website or brand.get("website_url")
 
         with SessionLocal() as session:
             college = session.query(models.College).filter(models.College.name == college_name).first()
@@ -473,14 +491,14 @@ async def _populate_college_record(college_name: str, college_url: str | None, u
                     college.short_name = ai_info.get("short_name")
                 if not college.ai_info:
                     college.ai_info = _json.dumps(ai_info)
-                if college_url and not college.website_url:
-                    college.website_url = college_url
+                if website and not college.website_url:
+                    college.website_url = website
             else:
                 session.add(models.College(
                     name=college_name,
                     short_name=ai_info.get("short_name"),
                     logo_url=logo,
-                    website_url=college_url,
+                    website_url=website,
                     ai_info=_json.dumps(ai_info),
                 ))
             session.commit()
@@ -648,9 +666,13 @@ async def _extract_work_experience_from_text(resume_text: str) -> list[dict]:
         '  "end_month": integer 1-12 or null (null if current),\n'
         '  "end_year": integer or null (null if current),\n'
         '  "is_current": boolean,\n'
-        '  "description": one-sentence summary or null\n'
-        "Include only actual work/internship experience — not education or skills.\n\n"
-        f"Resume:\n{resume_text[:5000]}\n\n"
+        '  "description": a detailed multi-line summary of this role. Preserve the\n'
+        "     resume's responsibilities and achievements as bullet points, one per line,\n"
+        '     each starting with "• ". Keep concrete metrics, tech stack, and impact.\n'
+        "     Do NOT invent anything — use only what the resume states.\n"
+        "Include only actual work/internship experience — not education or skills.\n"
+        "Preserve the original ordering (most recent first).\n\n"
+        f"Resume:\n{resume_text[:8000]}\n\n"
         "Return only the JSON array with no additional text."
     )
 
@@ -676,7 +698,7 @@ async def _extract_work_experience_from_text(resume_text: str) -> list[dict]:
             client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
             resp = await client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=2000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = resp.content[0].text if resp.content else ""
@@ -806,6 +828,224 @@ def delete_work_experience(
         raise HTTPException(status_code=404, detail="Work experience entry not found.")
 
     db.delete(we)
+    db.commit()
+    db.expire(current_user)
+    return _profile_response(current_user)
+
+
+# ── Education (multi-college) ─────────────────────────────────────────────────
+
+class EducationCreate(BaseModel):
+    institution_name: str
+    degree_type: Optional[str] = None
+    field_of_study: Optional[str] = None
+    graduation_year: Optional[int] = None
+    is_graduated: Optional[bool] = None
+    is_primary: bool = False
+
+
+class EducationUpdate(BaseModel):
+    institution_name: Optional[str] = None
+    degree_type: Optional[str] = None
+    field_of_study: Optional[str] = None
+    graduation_year: Optional[int] = None
+    is_graduated: Optional[bool] = None
+    is_primary: Optional[bool] = None
+
+
+async def _extract_education_from_text(resume_text: str) -> list[dict]:
+    """Call AI to extract a list of education entries from raw resume text."""
+    prompt = (
+        "Extract all education entries from this resume.\n"
+        "Return a JSON array where each item has these exact keys:\n"
+        '  "institution_name": string (full college/university name),\n'
+        '  "degree_type": one of "Diploma", "Bachelor", "Master", "PhD" or null,\n'
+        '  "field_of_study": string (e.g. "Computer Science") or null,\n'
+        '  "graduation_year": integer or null,\n'
+        '  "is_graduated": boolean (true if completed/graduated, false if ongoing)\n'
+        "Include only formal education — not certifications, courses, or bootcamps.\n"
+        "Order most recent first.\n\n"
+        f"Resume:\n{resume_text[:6000]}\n\n"
+        "Return only the JSON array with no additional text."
+    )
+    try:
+        p = settings.AI_PROVIDER.lower()
+        raw = ""
+        if p == "openai":
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.1,
+                messages=[
+                    {"role": "system", "content": "You extract education from resumes. Return valid JSON array only."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            raw = resp.choices[0].message.content or ""
+        elif p == "claude":
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            resp = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text if resp.content else ""
+
+        raw = raw.strip()
+        raw = _re.sub(r"^```(?:json)?\n?", "", raw)
+        raw = _re.sub(r"\n?```$", "", raw).strip()
+        match = _re.search(r"\[.*\]", raw, _re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            if isinstance(data, list):
+                return data
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return data
+        for key in ("education", "education_history", "entries"):
+            if key in data and isinstance(data[key], list):
+                return data[key]
+    except Exception as exc:
+        logger.error("Education extraction failed: %s", exc)
+    return []
+
+
+@router.post("/education/import")
+async def import_education(
+    current_user: models.User = Depends(get_current_user),
+):
+    """Extract education entries from the user's current resume (preview only)."""
+    if not current_user.is_candidate:
+        raise HTTPException(status_code=403, detail="Candidate profile required.")
+    ext = current_user.candidate_ext
+    if not ext or not ext.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="No resume on file. Upload a resume on the profile page first.",
+        )
+    entries = await _extract_education_from_text(ext.resume_text)
+    return {"entries": entries}
+
+
+def _resolve_college_id(db: Session, institution_name: str) -> Optional[int]:
+    college = db.query(models.College).filter(models.College.name == institution_name).first()
+    return college.id if college else None
+
+
+@router.post("/education")
+def add_education(
+    body: EducationCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Add an education record (e.g. a second degree). Supports multiple colleges."""
+    if not current_user.is_candidate:
+        raise HTTPException(status_code=403, detail="Only candidates can add education.")
+    name = body.institution_name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Institution name is required.")
+
+    has_primary = db.query(models.UserEducation).filter(
+        models.UserEducation.user_id == current_user.id,
+        models.UserEducation.is_primary == True,  # noqa: E712
+    ).first() is not None
+
+    make_primary = body.is_primary or not has_primary
+    if make_primary:
+        db.query(models.UserEducation).filter(
+            models.UserEducation.user_id == current_user.id,
+        ).update({"is_primary": False})
+
+    ed = models.UserEducation(
+        user_id=current_user.id,
+        institution_name=name,
+        degree_type=body.degree_type,
+        field_of_study=body.field_of_study,
+        graduation_year=body.graduation_year,
+        is_graduated=body.is_graduated,
+        is_primary=make_primary,
+        college_id=_resolve_college_id(db, name),
+    )
+    db.add(ed)
+
+    # Ensure a College record exists so logo/AI info get resolved in the background.
+    if not db.query(models.College).filter(models.College.name == name).first():
+        db.add(models.College(name=name))
+        db.flush()
+    background_tasks.add_task(_populate_college_record, name, None, current_user.id)
+
+    db.commit()
+    db.expire(current_user)
+    return _profile_response(current_user)
+
+
+@router.patch("/education/{ed_id}")
+def update_education(
+    ed_id: int,
+    body: EducationUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    ed = db.query(models.UserEducation).filter(
+        models.UserEducation.id == ed_id,
+        models.UserEducation.user_id == current_user.id,
+    ).first()
+    if not ed:
+        raise HTTPException(status_code=404, detail="Education record not found.")
+
+    if body.institution_name is not None:
+        ed.institution_name = body.institution_name.strip() or ed.institution_name
+        ed.college_id = _resolve_college_id(db, ed.institution_name)
+    if body.degree_type is not None:
+        ed.degree_type = body.degree_type
+    if body.field_of_study is not None:
+        ed.field_of_study = body.field_of_study
+    if body.graduation_year is not None:
+        ed.graduation_year = body.graduation_year
+    if body.is_graduated is not None:
+        ed.is_graduated = body.is_graduated
+    if body.is_primary:
+        db.query(models.UserEducation).filter(
+            models.UserEducation.user_id == current_user.id,
+        ).update({"is_primary": False})
+        ed.is_primary = True
+
+    db.commit()
+    db.expire(current_user)
+    return _profile_response(current_user)
+
+
+@router.delete("/education/{ed_id}")
+def delete_education(
+    ed_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    ed = db.query(models.UserEducation).filter(
+        models.UserEducation.id == ed_id,
+        models.UserEducation.user_id == current_user.id,
+    ).first()
+    if not ed:
+        raise HTTPException(status_code=404, detail="Education record not found.")
+
+    was_primary = ed.is_primary
+    db.delete(ed)
+    db.flush()
+
+    # If we removed the primary record, promote the most recent remaining one.
+    if was_primary:
+        replacement = (
+            db.query(models.UserEducation)
+            .filter(models.UserEducation.user_id == current_user.id)
+            .order_by(models.UserEducation.id.desc())
+            .first()
+        )
+        if replacement:
+            replacement.is_primary = True
+
     db.commit()
     db.expire(current_user)
     return _profile_response(current_user)

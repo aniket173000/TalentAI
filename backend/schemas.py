@@ -39,6 +39,8 @@ class UserResponse(BaseModel):
     graduation_year: Optional[int] = None
     is_graduated: Optional[bool] = None
     college_logo_url: Optional[str] = None
+    # All institutions the user is/was a member of — used to gate campus-hiring visibility
+    education_institutions: List[str] = []
 
     # Recruiter-specific (populated only when is_recruiter=True)
     company: Optional[str] = None
@@ -71,6 +73,11 @@ class UserResponse(BaseModel):
             graduation_year=ed.graduation_year if ed else None,
             is_graduated=ed.is_graduated if ed else None,
             college_logo_url=(ed.college.logo_url if ed and ed.college else None),
+            education_institutions=[
+                e.institution_name
+                for e in (user.education_records or [])
+                if e.institution_name
+            ],
             # recruiter fields
             company=r.company if r else None,
             is_third_party_recruiter=bool(r.is_third_party) if r else False,
@@ -122,6 +129,7 @@ class JobCreate(BaseModel):
     employment_type: Optional[Literal["Full-time", "Part-time", "Contract", "Internship"]] = None
     salary_range_min: Optional[int] = None
     salary_range_max: Optional[int] = None
+    salary_currency: Optional[str] = None
     remote_policy: Optional[Literal["On-site", "Remote", "Hybrid"]] = None
     application_deadline: Optional[datetime] = None
     eligibility_criteria: Optional[EligibilityCriteriaIn] = None
@@ -143,6 +151,7 @@ class JobUpdate(BaseModel):
     employment_type: Optional[str] = None
     salary_range_min: Optional[int] = None
     salary_range_max: Optional[int] = None
+    salary_currency: Optional[str] = None
     remote_policy: Optional[str] = None
     application_deadline: Optional[datetime] = None
     eligibility_criteria: Optional[EligibilityCriteriaIn] = None
@@ -177,6 +186,7 @@ class JobResponse(BaseModel):
     employment_type: Optional[str] = None
     salary_range_min: Optional[int] = None
     salary_range_max: Optional[int] = None
+    salary_currency: Optional[str] = None
     remote_policy: Optional[str] = None
     application_deadline: Optional[datetime] = None
     published_at: Optional[datetime] = None
@@ -232,6 +242,7 @@ class CampusJobResponse(BaseModel):
     remote_policy: Optional[str] = None
     salary_range_min: Optional[int] = None
     salary_range_max: Optional[int] = None
+    salary_currency: Optional[str] = None
     application_deadline: Optional[datetime] = None
     slug: Optional[str] = None
     status: str
@@ -246,6 +257,8 @@ class CampusJobResponse(BaseModel):
 class ApplicationResponse(BaseModel):
     id: int
     job_id: int
+    job_title: Optional[str] = None
+    job_company: Optional[str] = None
     candidate_name: str
     candidate_email: str
     match_score: float

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import LinkedInButton from '../components/LinkedInButton'
+import GoogleButton from '../components/GoogleButton'
 import { useAuth, ActiveMode } from '../context/AuthContext'
 
 export default function Register() {
-  const { register, loginWithLinkedIn } = useAuth()
+  const { register, loginWithLinkedIn, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const prefilledAccountType = params.get('account_type') as ActiveMode | null
@@ -180,7 +181,11 @@ export default function Register() {
           <div className="flex-1 h-px bg-slate-200" />
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          <GoogleButton
+            label={`Sign up as ${role === 'recruiter' ? 'Recruiter' : 'Job Seeker'} with Google`}
+            onClick={() => loginWithGoogle(role)}
+          />
           <LinkedInButton
             label={`Sign up as ${role === 'recruiter' ? 'Recruiter' : 'Job Seeker'} with LinkedIn`}
             onClick={() => loginWithLinkedIn(role)}

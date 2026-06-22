@@ -40,7 +40,19 @@
       "Bash(/Users/aniket/Desktop/Mark1Job/backend/venv/bin/python3 -c ' *)",
       "Bash(venv/bin/python3 -c ' *)",
       "Bash(PYTHONPATH=/Users/aniket/Desktop/Mark1Job/backend /Users/aniket/Desktop/Mark1Job/backend/venv/bin/python3 -c ' *)",
-      "Bash(/usr/local/bin/node /Users/aniket/Desktop/Mark1Job/frontend/node_modules/typescript/bin/tsc --noEmit --project /Users/aniket/Desktop/Mark1Job/frontend/tsconfig.json)"
+      "Bash(/usr/local/bin/node /Users/aniket/Desktop/Mark1Job/frontend/node_modules/typescript/bin/tsc --noEmit --project /Users/aniket/Desktop/Mark1Job/frontend/tsconfig.json)",
+      "Bash(python3 -m py_compile routers/colleges.py routers/auth.py routers/jobs.py routers/applications.py routers/profile.py routers/candidates.py schemas.py models.py main.py services/ai_service.py)",
+      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/colleges.py /Users/aniket/Desktop/Mark1Job/backend/routers/profile.py /Users/aniket/Desktop/Mark1Job/backend/routers/candidates.py /Users/aniket/Desktop/Mark1Job/backend/routers/applications.py /Users/aniket/Desktop/Mark1Job/backend/routers/jobs.py /Users/aniket/Desktop/Mark1Job/backend/schemas.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py /Users/aniket/Desktop/Mark1Job/backend/services/ai_service.py)",
+      "Bash(npm --prefix /Users/aniket/Desktop/Mark1Job/frontend run build)",
+      "Bash(python3 -c \"import fastapi, sqlalchemy, pydantic; print\\('deps-ok-system'\\)\")",
+      "Bash(/Users/aniket/Desktop/Mark1Job/backend/venv/bin/python -c \"import fastapi, sqlalchemy, pydantic; print\\('deps ok'\\)\")",
+      "Bash(./venv/bin/python -c \"import main; print\\('APP_IMPORT_OK — routers wired, migrations ran'\\)\")",
+      "Bash(PYTHONPATH=/Users/aniket/Desktop/Mark1Job/backend /Users/aniket/Desktop/Mark1Job/backend/venv/bin/python -c \"import sys; sys.path.insert\\(0,'/Users/aniket/Desktop/Mark1Job/backend'\\); import os; os.chdir\\('/Users/aniket/Desktop/Mark1Job/backend'\\); import main; print\\('APP_IMPORT_OK'\\)\")",
+      "Bash(/Users/aniket/Desktop/Mark1Job/backend/venv/bin/python -c ' *)",
+      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/services/company_logo.py /Users/aniket/Desktop/Mark1Job/backend/routers/jobs.py /Users/aniket/Desktop/Mark1Job/backend/routers/profile.py /Users/aniket/Desktop/Mark1Job/backend/config.py)",
+      "Bash(PYTHONPATH=/Users/aniket/Desktop/Mark1Job/backend /Users/aniket/Desktop/Mark1Job/backend/venv/bin/python -c ' *)",
+      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/services/company_logo.py)",
+      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/google_auth.py /Users/aniket/Desktop/Mark1Job/backend/config.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py)"
     ],
     "additionalDirectories": [
       "/tmp",

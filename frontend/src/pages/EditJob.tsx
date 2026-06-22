@@ -4,6 +4,7 @@ import api from '../api/client'
 import EligibilityCriteriaEditor from '../components/EligibilityCriteriaEditor'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { EligibilityCriteria, Job, JobAuditLog } from '../types'
+import { CURRENCIES } from './CreateJob'
 
 const BLANK_CRITERIA: EligibilityCriteria = { min_years_experience: null, required_skills: [], required_education: null }
 const inputCls = 'w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition'
@@ -34,6 +35,7 @@ export default function EditJob() {
   const [remotePolicy, setRemotePolicy] = useState('')
   const [salaryMin, setSalaryMin] = useState('')
   const [salaryMax, setSalaryMax] = useState('')
+  const [salaryCurrency, setSalaryCurrency] = useState('INR')
   const [deadline, setDeadline] = useState('')
   const [maxCount, setMaxCount] = useState(10)
   const [minScore, setMinScore] = useState(80)
@@ -49,7 +51,7 @@ export default function EditJob() {
   // Track initial values to detect dirty state
   const initialRef = useRef<string>('')
 
-  const snapshot = () => JSON.stringify({ title, company, companyUrl, location, department, employmentType, remotePolicy, salaryMin, salaryMax, deadline, maxCount, minScore, jdText, criteria })
+  const snapshot = () => JSON.stringify({ title, company, companyUrl, location, department, employmentType, remotePolicy, salaryMin, salaryMax, salaryCurrency, deadline, maxCount, minScore, jdText, criteria })
 
   useEffect(() => {
     if (!jobId) return
@@ -68,6 +70,7 @@ export default function EditJob() {
       setRemotePolicy(j.remote_policy || '')
       setSalaryMin(j.salary_range_min?.toString() || '')
       setSalaryMax(j.salary_range_max?.toString() || '')
+      setSalaryCurrency(j.salary_currency || 'INR')
       setDeadline(j.application_deadline ? j.application_deadline.slice(0, 16) : '')
       setMaxCount(j.max_count)
       setMinScore(j.min_match_score)
@@ -114,6 +117,7 @@ export default function EditJob() {
       if (remotePolicy) body.remote_policy = remotePolicy
       if (salaryMin) body.salary_range_min = parseInt(salaryMin)
       if (salaryMax) body.salary_range_max = parseInt(salaryMax)
+      if (salaryMin || salaryMax) body.salary_currency = salaryCurrency
       if (deadline) body.application_deadline = new Date(deadline).toISOString()
       body.eligibility_criteria = criteria
 
@@ -244,15 +248,23 @@ export default function EditJob() {
 
         {/* Compensation */}
         <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Compensation</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <h2 className="font-bold text-slate-800 mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelCls}>Salary Min (USD / year)</label>
-              <input type="number" min={0} value={salaryMin} onChange={e => setSalaryMin(e.target.value)} placeholder="80000" className={inputCls} />
+              <label className={labelCls}>Currency</label>
+              <select value={salaryCurrency} onChange={e => setSalaryCurrency(e.target.value)} className={selectCls}>
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className={labelCls}>Salary Max (USD / year)</label>
-              <input type="number" min={0} value={salaryMax} onChange={e => setSalaryMax(e.target.value)} placeholder="120000" className={inputCls} />
+              <label className={labelCls}>Salary Min <span className="font-normal text-slate-400">/ year</span></label>
+              <input type="number" min={0} value={salaryMin} onChange={e => setSalaryMin(e.target.value)} placeholder="800000" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Salary Max <span className="font-normal text-slate-400">/ year</span></label>
+              <input type="number" min={0} value={salaryMax} onChange={e => setSalaryMax(e.target.value)} placeholder="1200000" className={inputCls} />
             </div>
           </div>
         </section>

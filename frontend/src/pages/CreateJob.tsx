@@ -7,6 +7,13 @@ import { EligibilityCriteria, Job } from '../types'
 
 const BLANK_CRITERIA: EligibilityCriteria = { min_years_experience: null, required_skills: [], required_education: null }
 
+export const CURRENCIES = [
+  { code: 'INR', symbol: '₹' },
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'GBP', symbol: '£' },
+] as const
+
 const inputCls = 'w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition'
 const selectCls = `${inputCls} bg-white`
 const labelCls = 'block text-sm font-semibold text-slate-700 mb-1.5'
@@ -37,6 +44,7 @@ export default function CreateJob() {
   const [remotePolicy, setRemotePolicy] = useState('')
   const [salaryMin, setSalaryMin] = useState('')
   const [salaryMax, setSalaryMax] = useState('')
+  const [salaryCurrency, setSalaryCurrency] = useState('INR')
   const [deadline, setDeadline] = useState('')
   const [maxCount, setMaxCount] = useState(10)
   const [minScore, setMinScore] = useState(80)
@@ -76,6 +84,7 @@ export default function CreateJob() {
       if (remotePolicy) fd.append('remote_policy', remotePolicy)
       if (salaryMin) fd.append('salary_range_min', salaryMin)
       if (salaryMax) fd.append('salary_range_max', salaryMax)
+      if (salaryMin || salaryMax) fd.append('salary_currency', salaryCurrency)
       if (deadline) fd.append('application_deadline', new Date(deadline).toISOString())
       fd.append('is_fresher_friendly', String(isFresherFriendly))
       fd.append('is_campus_hiring', String(isCampusHiring))
@@ -97,6 +106,31 @@ export default function CreateJob() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Posting jobs (including campus hiring) requires recruiter mode. Candidates
+  // who land here are shown how to switch instead of a form that would 403 on submit.
+  if (!user?.is_recruiter) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-24 text-center">
+        <div className="text-5xl mb-4">🧑‍💼</div>
+        <h1 className="text-2xl font-extrabold text-slate-900 mb-2">Recruiter mode required</h1>
+        <p className="text-slate-500 text-sm mb-6">
+          Posting a job or a campus-hiring role is a recruiter action. Switch to recruiter
+          mode (or add recruiter access from your account) to continue.
+        </p>
+        <div className="flex justify-center gap-3">
+          <button onClick={() => navigate('/')}
+            className="px-6 py-3 rounded-lg border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
+            Back to home
+          </button>
+          <button onClick={() => navigate('/recruiter')}
+            className="px-6 py-3 rounded-lg bg-brand-blue hover:bg-blue-600 text-white text-sm font-semibold transition">
+            Go to recruiter portal
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -274,18 +308,27 @@ export default function CreateJob() {
         {/* Compensation */}
         <section className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-bold text-slate-800 mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelCls}>Salary Min (USD / year)</label>
-              <input type="number" min={0} value={salaryMin} onChange={e => setSalaryMin(e.target.value)}
-                placeholder="80000" className={inputCls} />
+              <label className={labelCls}>Currency</label>
+              <select value={salaryCurrency} onChange={e => setSalaryCurrency(e.target.value)} className={selectCls}>
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className={labelCls}>Salary Max (USD / year)</label>
+              <label className={labelCls}>Salary Min <span className="font-normal text-slate-400">/ year</span></label>
+              <input type="number" min={0} value={salaryMin} onChange={e => setSalaryMin(e.target.value)}
+                placeholder="800000" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Salary Max <span className="font-normal text-slate-400">/ year</span></label>
               <input type="number" min={0} value={salaryMax} onChange={e => setSalaryMax(e.target.value)}
-                placeholder="120000" className={inputCls} />
+                placeholder="1200000" className={inputCls} />
             </div>
           </div>
+          <p className="text-xs text-slate-400 mt-2">Leave blank to keep compensation undisclosed.</p>
         </section>
 
         {/* Job Description */}

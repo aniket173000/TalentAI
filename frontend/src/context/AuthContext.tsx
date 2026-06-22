@@ -32,6 +32,10 @@ interface AuthContextType {
   loginWithLinkedIn: (accountType: ActiveMode) => void
   /** Store the token returned from LinkedIn callback and fetch the user. */
   completeLinkedInLogin: (token: string, accountType: ActiveMode) => Promise<void>
+  /** Redirect browser to Google OAuth for the given account type. */
+  loginWithGoogle: (accountType: ActiveMode) => void
+  /** Store the token returned from the Google callback and fetch the user. */
+  completeGoogleLogin: (token: string, accountType: ActiveMode) => Promise<void>
   logout: () => void
   /** Re-fetch /auth/me and update user in context. */
   refreshUser: () => Promise<void>
@@ -171,6 +175,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveModeState(accountType)
   }
 
+  const loginWithGoogle = (accountType: ActiveMode) => {
+    window.location.href = `/api/auth/google/authorize?account_type=${accountType}`
+  }
+
+  // Identical post-OAuth handling to LinkedIn (store token, fetch user, set mode)
+  const completeGoogleLogin = completeLinkedInLogin
+
   const refreshUser = async () => {
     const r = await api.get<AuthUser>('/auth/me')
     setUser(r.data)
@@ -198,6 +209,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         loginWithLinkedIn,
         completeLinkedInLogin,
+        loginWithGoogle,
+        completeGoogleLogin,
         logout,
         refreshUser,
         isAuthenticated: !!user,

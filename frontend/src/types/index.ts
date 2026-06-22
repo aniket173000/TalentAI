@@ -18,6 +18,8 @@ export interface AuthUser {
   graduation_year: number | null
   is_graduated: boolean | null
   college_logo_url: string | null
+  // All institutions (current + past) the user belongs to — gates campus-hiring visibility
+  education_institutions: string[]
 
   // Recruiter-specific (populated only when is_recruiter = true)
   company: string | null
@@ -51,6 +53,7 @@ export interface Job {
   employment_type: EmploymentType | null
   salary_range_min: number | null
   salary_range_max: number | null
+  salary_currency: string | null
   remote_policy: RemotePolicy | null
   application_deadline: string | null
   published_at: string | null
@@ -103,6 +106,8 @@ export type CandidateStatus =
 export interface Application {
   id: number
   job_id: number
+  job_title: string | null
+  job_company: string | null
   candidate_name: string
   candidate_email: string
   phone: string | null
@@ -255,6 +260,7 @@ export interface CampusJob {
   remote_policy: string | null
   salary_range_min: number | null
   salary_range_max: number | null
+  salary_currency?: string | null
   application_deadline: string | null
   slug: string | null
   status: string
@@ -272,6 +278,7 @@ export interface MagicMatchJob {
   remote_policy: string | null
   salary_range_min: number | null
   salary_range_max: number | null
+  salary_currency?: string | null
   company_logo_url: string | null
   min_match_score: number
   similarity_score: number  // 0–100

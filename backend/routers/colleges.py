@@ -4,7 +4,7 @@ from collections import Counter
 from typing import List
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
@@ -12,6 +12,7 @@ from sqlalchemy import and_
 
 import models
 from database import get_db
+from routers.auth import get_current_user
 from schemas import (
     CampusJobResponse,
     CollegeAIInfo,
@@ -153,9 +154,29 @@ def search_colleges(
 
 
 @router.get("/{college_name}/campus-jobs", response_model=List[CampusJobResponse])
-def get_campus_jobs(college_name: str, db: Session = Depends(get_db)):
-    """Published campus hiring jobs targeted at this college."""
+def get_campus_jobs(
+    college_name: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Published campus hiring jobs targeted at this college.
+    Private: visible only to recruiters and to members (current/alumni) of the
+    target college — checked against ALL of the user's education records.
+    """
     decoded = unquote(college_name)
+
+    if not current_user.is_recruiter:
+        member_of = {
+            (e.institution_name or "").strip().lower()
+            for e in (current_user.education_records or [])
+        }
+        if decoded.strip().lower() not in member_of:
+            raise HTTPException(
+                status_code=403,
+                detail="Campus hiring posts are visible only to members of this college.",
+            )
+
     jobs = (
         db.query(models.Job)
         .filter(
@@ -170,7 +191,11 @@ def get_campus_jobs(college_name: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{college_name}", response_model=CollegeDetailResponse)
-def get_college_detail(college_name: str, db: Session = Depends(get_db)):
+def get_college_detail(
+    college_name: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """Full college detail: AI info, talent stats, and candidate roster."""
     decoded = unquote(college_name)
 
@@ -194,6 +219,17 @@ def get_college_detail(college_name: str, db: Session = Depends(get_db)):
     )
 
     college = db.query(models.College).filter(models.College.name == decoded).first()
+
+    # Lazy backfill: older colleges may predate logo resolution. Kick off a
+    # best-effort background populate (idempotent — only fills missing fields).
+    if not college or not college.logo_url:
+        from routers.profile import _populate_college_record
+        background_tasks.add_task(
+            _populate_college_record,
+            decoded,
+            college.website_url if college else None,
+            None,
+        )
 
     current_students: list[CollegeCandidateEntry] = []
     alumni: list[CollegeCandidateEntry] = []

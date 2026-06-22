@@ -11,7 +11,7 @@ import models
 import schemas
 from database import get_db
 from routers.auth import get_current_user, require_recruiter
-from services.company_logo import resolve_company_logo
+from services.company_logo import resolve_brand_by_name, resolve_company_logo
 from services.file_parser import parse_docx, parse_pdf, parse_resume
 from services.jd_parser import jd_needs_parse, parse_job_requirements, reset_parse_status
 
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 _AUDITED_FIELDS = [
     "title", "jd_text", "company", "company_url", "location", "max_count", "min_match_score",
-    "department", "employment_type", "salary_range_min", "salary_range_max",
+    "department", "employment_type", "salary_range_min", "salary_range_max", "salary_currency",
     "remote_policy", "application_deadline",
 ]
 
@@ -41,12 +41,25 @@ def _cached_logo(db: Session, company: str, exclude_id: int = None) -> str | Non
 
 def _resolve_logo(db: Session, company: str, company_url: str | None, exclude_id: int = None) -> str | None:
     """Resolve a logo URL, using the DB cache before hitting the network."""
-    if not company_url:
-        return None
     cached = _cached_logo(db, company, exclude_id=exclude_id)
     if cached:
         return cached
-    return resolve_company_logo(company_url)
+    if company_url:
+        logo = resolve_company_logo(company_url)
+        if logo:
+            return logo
+    # No URL (or it yielded nothing): resolve by company NAME — type a name,
+    # get the right logo (Brandfetch → Clearbit autocomplete).
+    if company and company.strip() and company.strip().lower() != "our company":
+        return resolve_brand_by_name(company, "company").get("logo_url")
+    return None
+
+
+def _resolve_company_site(company: str) -> str | None:
+    """Best-effort official website for a company name (used to link the logo)."""
+    if not company or company.strip().lower() == "our company":
+        return None
+    return resolve_brand_by_name(company, "company").get("website_url")
 
 
 # ── Slug utility ──────────────────────────────────────────────────────────────
@@ -161,6 +174,7 @@ async def create_job(
     employment_type: Optional[str] = Form(default=None),
     salary_range_min: Optional[int] = Form(default=None),
     salary_range_max: Optional[int] = Form(default=None),
+    salary_currency: Optional[str] = Form(default=None),
     remote_policy: Optional[str] = Form(default=None),
     application_deadline: Optional[datetime] = Form(default=None),
     is_third_party: bool = Form(default=False),
@@ -205,6 +219,9 @@ async def create_job(
 
     resolved_url = company_url or None
     logo_url = _resolve_logo(db, company, resolved_url)
+    # If the recruiter gave no website, link the logo to the resolved brand page.
+    if not resolved_url:
+        resolved_url = _resolve_company_site(company)
 
     job = models.Job(
         title=title,
@@ -219,6 +236,7 @@ async def create_job(
         employment_type=employment_type,
         salary_range_min=salary_range_min,
         salary_range_max=salary_range_max,
+        salary_currency=salary_currency,
         remote_policy=remote_policy,
         application_deadline=application_deadline,
         is_third_party=is_third_party,

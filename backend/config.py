@@ -35,10 +35,24 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # ── Brand / logo resolution ──────────────────────────────────────────────
+    # Optional. When set, Brandfetch is used first (highest-quality logos +
+    # brand page). Without it, the resolver falls back to keyless providers
+    # (Clearbit autocomplete for companies, Hipolabs for universities).
+    # Get a free client id at https://developers.brandfetch.com
+    BRANDFETCH_CLIENT_ID: str = ""
+
     # ── LinkedIn OAuth ────────────────────────────────────────────────────────
     LINKEDIN_CLIENT_ID: str = ""
     LINKEDIN_CLIENT_SECRET: str = ""
     LINKEDIN_REDIRECT_URI: str = "http://localhost:8000/api/auth/linkedin/callback"
+
+    # ── Google OAuth (Sign in with Google — OpenID Connect) ──────────────────
+    # Create credentials at https://console.cloud.google.com/apis/credentials
+    # Authorized redirect URI must match GOOGLE_REDIRECT_URI exactly.
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
 
     # ── Semantic Skills Matching (E5-S2) ─────────────────────────────────────
     # Provider: "openai" (uses EMBEDDING_MODEL) | "sentence_transformer" (local)

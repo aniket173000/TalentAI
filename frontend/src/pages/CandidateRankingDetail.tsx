@@ -5,6 +5,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 
 interface CandidateDetail {
   id: number
+  user_id: number | null
+  has_resume_file: boolean
   full_name: string | null
   headline: string | null
   location: string | null
@@ -26,6 +28,17 @@ interface CandidateDetail {
   ingest_status: string
 }
 
+interface CandidateApplication {
+  id: number
+  job_id: number
+  job_title: string | null
+  job_company: string | null
+  match_score: number
+  status: string
+  candidate_status: string
+  applied_at: string | null
+}
+
 interface RankingRow {
   rank: number
   candidate_id: number
@@ -35,6 +48,10 @@ interface RankingRow {
   llm_strengths: string[]
   llm_risks: string[]
   llm_summary: string | null
+}
+
+function scoreColor(s: number) {
+  return s >= 80 ? 'text-emerald-600' : s >= 70 ? 'text-blue-600' : s >= 60 ? 'text-amber-600' : 'text-red-500'
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,6 +75,9 @@ export default function CandidateRankingDetail() {
 
   const [cand, setCand] = useState<CandidateDetail | null>(null)
   const [ranking, setRanking] = useState<RankingRow | null>(null)
+  const [jobTitle, setJobTitle] = useState<string | null>(null)
+  const [apps, setApps] = useState<CandidateApplication[] | null>(null)
+  const [resumeLoading, setResumeLoading] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -69,11 +89,37 @@ export default function CandidateRankingDetail() {
   }, [candidateId])
 
   useEffect(() => {
+    if (!candidateId) return
+    api.get<{ applications: CandidateApplication[] }>(`/candidates/${candidateId}/applications`)
+      .then(r => setApps(r.data.applications))
+      .catch(() => setApps([]))
+  }, [candidateId])
+
+  useEffect(() => {
     if (!jobId || !candidateId) return
     api.get<{ rankings: RankingRow[] }>('/search/rankings', { params: { job_id: jobId } })
       .then(r => setRanking(r.data.rankings.find(x => x.candidate_id === Number(candidateId)) || null))
       .catch(() => setRanking(null))
+    api.get<{ title: string }>(`/jobs/${jobId}`)
+      .then(r => setJobTitle(r.data.title))
+      .catch(() => setJobTitle(null))
   }, [jobId, candidateId])
+
+  const openResume = async () => {
+    setResumeLoading(true)
+    try {
+      const r = await api.get<{ available: boolean; url?: string }>(`/candidates/${candidateId}/resume-url`)
+      if (r.data.available && r.data.url) {
+        window.open(r.data.url, '_blank', 'noopener')
+      } else {
+        alert('Original resume file is not available for this candidate.')
+      }
+    } catch {
+      alert('Could not load the resume. Please try again.')
+    } finally {
+      setResumeLoading(false)
+    }
+  }
 
   if (loading) return <div className="py-16"><LoadingSpinner /></div>
   if (!cand) return <div className="max-w-4xl mx-auto px-4 py-12 text-slate-500">Candidate not found.</div>
@@ -86,8 +132,20 @@ export default function CandidateRankingDetail() {
 
       {/* Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">{cand.full_name || 'Unnamed candidate'}</h1>
-        <p className="text-slate-500 mt-1">{cand.headline || '—'}</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-slate-800">{cand.full_name || 'Unnamed candidate'}</h1>
+            <p className="text-slate-500 mt-1">{cand.headline || '—'}</p>
+          </div>
+          <button
+            onClick={openResume}
+            disabled={resumeLoading || !cand.has_resume_file}
+            title={cand.has_resume_file ? 'Open the original resume file' : 'No uploaded resume file on record'}
+            className="shrink-0 text-sm font-semibold px-4 py-2 rounded-xl bg-brand-blue text-white hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {resumeLoading ? 'Opening…' : '📄 View Resume'}
+          </button>
+        </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-500 mt-3">
           {cand.location && <span>📍 {cand.location}</span>}
           {cand.total_yoe != null && <span>🧭 {cand.total_yoe} yrs experience</span>}
@@ -95,6 +153,71 @@ export default function CandidateRankingDetail() {
           {cand.phone && <span>📞 {cand.phone}</span>}
         </div>
       </div>
+
+      {/* Why this candidate is a good match (job context) */}
+      {ranking && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-6 mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="font-bold text-slate-800">
+              Why this candidate {jobTitle ? <>is a fit for <span className="text-brand-blue">{jobTitle}</span></> : 'matches'}
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className={`text-2xl font-bold ${scoreColor(ranking.final_score)}`}>{ranking.final_score.toFixed(0)}</span>
+              {ranking.recommendation && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-white border-slate-200 text-slate-600">
+                  {ranking.recommendation}
+                </span>
+              )}
+            </div>
+          </div>
+          {ranking.llm_summary && (
+            <p className="text-sm text-slate-700 mt-3 leading-relaxed">{ranking.llm_summary}</p>
+          )}
+          <div className="grid sm:grid-cols-2 gap-4 mt-4">
+            {ranking.llm_strengths.length > 0 && (
+              <div className="bg-white/70 rounded-xl border border-emerald-100 p-4">
+                <div className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">Strengths</div>
+                <ul className="text-sm text-slate-700 space-y-1.5">
+                  {ranking.llm_strengths.map((s, i) => <li key={i} className="flex gap-2"><span className="text-emerald-500">✓</span><span>{s}</span></li>)}
+                </ul>
+              </div>
+            )}
+            {ranking.llm_risks.length > 0 && (
+              <div className="bg-white/70 rounded-xl border border-amber-100 p-4">
+                <div className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2">Weaknesses / Risks</div>
+                <ul className="text-sm text-slate-700 space-y-1.5">
+                  {ranking.llm_risks.map((s, i) => <li key={i} className="flex gap-2"><span className="text-amber-500">!</span><span>{s}</span></li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Platform applications */}
+      {apps && apps.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+          <h2 className="font-bold text-slate-800 mb-3">Applications on the platform <span className="text-sm font-normal text-slate-400">({apps.length})</span></h2>
+          <div className="divide-y divide-slate-100">
+            {apps.map(a => (
+              <div key={a.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{a.job_title || `Job #${a.job_id}`}</p>
+                  <p className="text-xs text-slate-400">
+                    {a.job_company ? `${a.job_company} · ` : ''}Applied {a.applied_at ? new Date(a.applied_at).toLocaleDateString() : '—'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-sm font-bold ${scoreColor(a.match_score)}`}>{a.match_score.toFixed(0)}%</span>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-slate-50 text-slate-500 border-slate-200">
+                    {a.candidate_status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-3 gap-6">
         {/* Left: parsed profile */}
@@ -169,26 +292,6 @@ export default function CandidateRankingDetail() {
                   </div>
                 ))}
               </div>
-
-              {ranking.llm_summary && (
-                <p className="text-sm text-slate-600 mt-4 pt-4 border-t border-slate-100">{ranking.llm_summary}</p>
-              )}
-              {ranking.llm_strengths.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-xs font-semibold text-emerald-600 mb-1">Strengths</div>
-                  <ul className="text-xs text-slate-600 space-y-0.5">
-                    {ranking.llm_strengths.map((s, i) => <li key={i}>+ {s}</li>)}
-                  </ul>
-                </div>
-              )}
-              {ranking.llm_risks.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-xs font-semibold text-red-500 mb-1">Risks</div>
-                  <ul className="text-xs text-slate-600 space-y-0.5">
-                    {ranking.llm_risks.map((s, i) => <li key={i}>− {s}</li>)}
-                  </ul>
-                </div>
-              )}
             </div>
           ) : cand.profile_summary ? (
             <Section title="Profile summary">

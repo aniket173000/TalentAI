@@ -235,9 +235,12 @@ export default function Navbar() {
             <Link to="/colleges" className={linkClass('/colleges')}>
               Colleges
             </Link>
-            <Link to="/referrals" className={linkClass('/referrals')}>
-              Referrals
-            </Link>
+            {/* Referral portal is candidate-facing — hidden from recruiter-only users */}
+            {!(isRecruiter && !isCandidate) && (
+              <Link to="/referrals" className={linkClass('/referrals')}>
+                Referrals
+              </Link>
+            )}
 
             {isCandidate && (
               <Link to="/dashboard" className={linkClass('/dashboard')}>

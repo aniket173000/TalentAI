@@ -39,7 +39,6 @@ export default function RankCandidates() {
   const [rankedToday, setRankedToday] = useState(false)
   const [rankedAt, setRankedAt] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [shortlisted, setShortlisted] = useState<Set<number>>(new Set())
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -70,7 +69,7 @@ export default function RankCandidates() {
 
   // On job change: show today's cached ranking instantly, resume an in-progress run, or offer to rank.
   useEffect(() => {
-    setRankings(null); setPhase(''); setRankedToday(false); setRankedAt(null); setError(''); setShortlisted(new Set())
+    setRankings(null); setPhase(''); setRankedToday(false); setRankedAt(null); setError('')
     if (pollRef.current) clearTimeout(pollRef.current)
     if (!jobId) return
     api.get<{ run_id: number | null; status: string; ranked_today: boolean; ranked_at: string | null }>(
@@ -101,14 +100,6 @@ export default function RankCandidates() {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(msg || 'Could not start ranking.'); setPhase('')
     })
-  }
-
-  const shortlist = async (candidateId: number) => {
-    if (!jobId) return
-    try {
-      await api.post('/feedback', { job_id: jobId, candidate_id: candidateId, action: 'shortlisted' })
-      setShortlisted(prev => new Set(prev).add(candidateId))
-    } catch { /* ignore */ }
   }
 
   const inProgress = phase === 'pending' || phase === 'running'
@@ -201,13 +192,18 @@ export default function RankCandidates() {
                     </div>
                     {c.llm_summary && <p className="text-sm text-slate-600 mt-3 line-clamp-2">{c.llm_summary}</p>}
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex flex-col gap-2">
                     <button
-                      onClick={() => shortlist(c.candidate_id)}
-                      disabled={shortlisted.has(c.candidate_id)}
-                      className="text-sm font-semibold px-4 py-2 rounded-xl border border-brand-blue text-brand-blue hover:bg-blue-50 disabled:opacity-40 disabled:cursor-default"
+                      onClick={() => navigate(`/recruiter/candidates/${c.candidate_id}?job_id=${jobId}`)}
+                      className="text-sm font-semibold px-4 py-2 rounded-xl bg-brand-blue text-white hover:bg-blue-600 transition-colors"
                     >
-                      {shortlisted.has(c.candidate_id) ? '✓ Shortlisted' : 'Shortlist'}
+                      View Profile
+                    </button>
+                    <button
+                      onClick={() => navigate(`/recruiter/candidates/${c.candidate_id}?job_id=${jobId}&tab=applications`)}
+                      className="text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+                    >
+                      Applications
                     </button>
                   </div>
                 </div>

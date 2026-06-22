@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import CandidateOnboarding from './components/CandidateOnboarding'
 import CandidatesCorpus from './pages/CandidatesCorpus'
 import RankCandidates from './pages/RankCandidates'
@@ -21,6 +21,7 @@ import Home from './pages/Home'
 import JobDetail from './pages/JobDetail'
 import ApplicationStatus from './pages/ApplicationStatus'
 import LinkedInCallback from './pages/LinkedInCallback'
+import GoogleCallback from './pages/GoogleCallback'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import RecruiterPortal from './pages/RecruiterPortal'
@@ -65,6 +66,17 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   )
 }
 
+// The referral portal is a candidate-facing feature. Recruiters (users with
+// recruiter capability who are NOT also candidates) are redirected away.
+// Anonymous visitors and dual-mode users keep access.
+function ReferralGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  if (user?.is_recruiter && !user.is_candidate) {
+    return <Navigate to="/recruiter" replace />
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -83,12 +95,13 @@ export default function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
+                  <Route path="/auth/google/callback" element={<GoogleCallback />} />
                   <Route path="/status/:token" element={<ApplicationStatus />} />
 
-                  {/* Referrals — public discovery */}
-                  <Route path="/referrals" element={<CompanyReferrals />} />
-                  <Route path="/referrals/company/:companyName" element={<CompanyReferralDetail />} />
-                  <Route path="/referrals/:slug" element={<ReferralPostPage />} />
+                  {/* Referrals — candidate-facing discovery (recruiters blocked) */}
+                  <Route path="/referrals" element={<ReferralGate><CompanyReferrals /></ReferralGate>} />
+                  <Route path="/referrals/company/:companyName" element={<ReferralGate><CompanyReferralDetail /></ReferralGate>} />
+                  <Route path="/referrals/:slug" element={<ReferralGate><ReferralPostPage /></ReferralGate>} />
 
                   {/* Candidate-only */}
                   <Route
@@ -108,11 +121,11 @@ export default function App() {
                     }
                   />
 
-                  {/* Referrals — protected (any logged-in user can create/dashboard) */}
+                  {/* Referrals — candidate-only (create/dashboard) */}
                   <Route
                     path="/referrals/create"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requires="candidate">
                         <CreateReferralPost />
                       </ProtectedRoute>
                     }
@@ -120,7 +133,7 @@ export default function App() {
                   <Route
                     path="/referrals/dashboard"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requires="candidate">
                         <ReferrerDashboard />
                       </ProtectedRoute>
                     }
@@ -128,7 +141,7 @@ export default function App() {
                   <Route
                     path="/referrals/dashboard/:postId"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requires="candidate">
                         <ReferrerDashboard />
                       </ProtectedRoute>
                     }
