@@ -338,6 +338,25 @@ export interface ReferralReferrer {
   linkedin_verified: boolean
   current_company: string | null
   candidate_linkedin_url: string | null
+  // Vouch referrer-card enrichment
+  title?: string | null
+  tenure?: string | null
+  note?: string | null
+  referred_count?: number
+}
+
+export interface ReferralLeaderboardRow {
+  rank: number
+  score: number
+  you: boolean
+  handle: string
+}
+
+export interface ReferralLeaderboard {
+  leaderboard: ReferralLeaderboardRow[]
+  pool_size: number
+  pool_count: number
+  your_rank: number | null
 }
 
 export interface ReferralPost {

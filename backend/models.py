@@ -595,6 +595,10 @@ class ReferralPost(Base):
     title = Column(String(255), nullable=False)
     location = Column(String(255), nullable=True)
     employment_type = Column(String(100), nullable=True)
+    # Referrer presentation (set by the referrer; powers the Vouch referrer card)
+    referrer_title = Column(String(255), nullable=True)     # e.g. "Staff Engineer, Platform"
+    referrer_tenure = Column(String(100), nullable=True)    # e.g. "3 yrs at Lumen"
+    referrer_note = Column(Text, nullable=True)             # personal note to candidates
     min_match_score = Column(Float, default=40.0)
     pool_size = Column(Integer, default=15)
     waitlist_size = Column(Integer, default=10)

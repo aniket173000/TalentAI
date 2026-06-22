@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleIcon } from '../components/GoogleButton'
+import { Button, Card } from '../components/ui'
 import { useAuth, ActiveMode } from '../context/AuthContext'
+
+const INP = 'w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none transition'
+const inpStyle = { border: '2px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' } as const
+const socialBtn = 'flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-ink hover:bg-surface2 transition-colors'
 
 export default function Login() {
   const { login, loginWithLinkedIn, loginWithGoogle, user } = useAuth()
@@ -42,109 +47,65 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-navy-900">Welcome back</h1>
-          <p className="text-slate-500 mt-1 text-sm">Sign in to your TalentAI account</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36, letterSpacing: '-0.035em', color: 'var(--ink)', margin: 0 }}>Welcome back</h1>
+          <p className="text-muted mt-1 text-sm font-medium">Sign in to your TalentAI account</p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl border border-slate-200 p-8 space-y-5 shadow-sm"
-        >
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoFocus
-              className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm">
-              {error}
+        <Card padding={32}>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-bold text-ink mb-1.5">Email Address</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com" required autoFocus className={INP} style={inpStyle} />
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-bold text-ink mb-1.5">Password</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••" required className={INP} style={inpStyle} />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-lg py-3 transition-colors"
-          >
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
+            {error && (
+              <div style={{ background: 'var(--red-soft)', border: '1.5px solid var(--red-line)', color: 'var(--red-ink)' }} className="rounded-lg px-4 py-3 text-sm font-medium">
+                {error}
+              </div>
+            )}
 
-          <p className="text-center text-sm text-slate-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-brand-blue hover:underline font-medium">
-              Create one
-            </Link>
-          </p>
-        </form>
+            <Button type="submit" variant="primary" full size="lg" disabled={loading}>
+              {loading ? 'Signing in…' : 'Sign In'}
+            </Button>
+
+            <p className="text-center text-sm text-muted">
+              Don't have an account?{' '}
+              <Link to="/register" style={{ color: 'var(--violet-ink)', fontWeight: 700 }} className="hover:underline">Create one</Link>
+            </p>
+          </form>
+        </Card>
 
         {/* Social sign-in */}
         <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1 h-px bg-slate-200" />
-          <span className="text-xs text-slate-400 font-medium">or continue with</span>
-          <div className="flex-1 h-px bg-slate-200" />
+          <div className="flex-1 h-px" style={{ background: 'var(--line)' }} />
+          <span className="text-xs text-muted font-bold">or continue with</span>
+          <div className="flex-1 h-px" style={{ background: 'var(--line)' }} />
         </div>
 
         <div className="mt-4 space-y-3">
-          {/* Google */}
           <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => loginWithGoogle('candidate')}
-              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <GoogleIcon className="w-4 h-4" />
-              Google · Candidate
+            <button onClick={() => loginWithGoogle('candidate')} className={socialBtn} style={{ border: '2px solid var(--line)', background: 'var(--surface)' }}>
+              <GoogleIcon className="w-4 h-4" /> Google · Candidate
             </button>
-            <button
-              onClick={() => loginWithGoogle('recruiter')}
-              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <GoogleIcon className="w-4 h-4" />
-              Google · Recruiter
+            <button onClick={() => loginWithGoogle('recruiter')} className={socialBtn} style={{ border: '2px solid var(--line)', background: 'var(--surface)' }}>
+              <GoogleIcon className="w-4 h-4" /> Google · Recruiter
             </button>
           </div>
-
-          {/* LinkedIn */}
           <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => loginWithLinkedIn('candidate')}
-              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <LinkedInIcon />
-              LinkedIn · Candidate
+            <button onClick={() => loginWithLinkedIn('candidate')} className={socialBtn} style={{ border: '2px solid var(--line)', background: 'var(--surface)' }}>
+              <LinkedInIcon /> LinkedIn · Candidate
             </button>
-            <button
-              onClick={() => loginWithLinkedIn('recruiter')}
-              className="flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <LinkedInIcon />
-              LinkedIn · Recruiter
+            <button onClick={() => loginWithLinkedIn('recruiter')} className={socialBtn} style={{ border: '2px solid var(--line)', background: 'var(--surface)' }}>
+              <LinkedInIcon /> LinkedIn · Recruiter
             </button>
           </div>
         </div>

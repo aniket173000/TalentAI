@@ -19,6 +19,9 @@ interface FormState {
   min_match_score: number
   pool_size: number
   waitlist_size: number
+  referrer_title: string
+  referrer_tenure: string
+  referrer_note: string
 }
 
 const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internship']
@@ -50,6 +53,9 @@ export default function CreateReferralPost() {
     min_match_score: 40,
     pool_size: 15,
     waitlist_size: 10,
+    referrer_title: '',
+    referrer_tenure: '',
+    referrer_note: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -166,6 +172,9 @@ export default function CreateReferralPost() {
         min_match_score: form.min_match_score,
         pool_size: form.pool_size,
         waitlist_size: form.waitlist_size,
+        referrer_title: form.referrer_title || undefined,
+        referrer_tenure: form.referrer_tenure || undefined,
+        referrer_note: form.referrer_note || undefined,
       }
       const { data } = await api.post('/referrals/posts', payload)
       // Mark post as verified via work email if needed
@@ -208,7 +217,7 @@ export default function CreateReferralPost() {
               <div key={s.id} className="flex items-center gap-2">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                   i < stepIdx
-                    ? 'bg-white text-indigo-600'
+                    ? 'bg-white text-accent-ink'
                     : i === stepIdx
                     ? 'bg-white/30 text-white ring-2 ring-white'
                     : 'bg-white/10 text-white/40'
@@ -232,16 +241,16 @@ export default function CreateReferralPost() {
 
         {/* ── Step: Verify ── */}
         {step === 'verify' && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card shadow-sm p-8 space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Verify your employer</h2>
-              <p className="text-slate-500 text-sm mt-1">We need to confirm you work at the company you're creating a referral for.</p>
+              <h2 className="text-xl font-bold text-ink">Verify your employer</h2>
+              <p className="text-muted text-sm mt-1">We need to confirm you work at the company you're creating a referral for.</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Company name</label>
               <input
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
                 placeholder="e.g. Google, Stripe, Figma"
                 value={form.company_name}
                 onChange={e => setField('company_name', e.target.value)}
@@ -259,8 +268,8 @@ export default function CreateReferralPost() {
                       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
                     </svg>
                     <div>
-                      <div className="font-semibold text-slate-800 text-sm">LinkedIn</div>
-                      <div className="text-xs text-slate-500">{user.company}</div>
+                      <div className="font-semibold text-ink text-sm">LinkedIn</div>
+                      <div className="text-xs text-muted">{user.company}</div>
                     </div>
                   </button>
                 )}
@@ -269,13 +278,13 @@ export default function CreateReferralPost() {
                   className="flex items-center gap-3 p-4 border-2 border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all text-left"
                 >
                   <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4 text-accent-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-800 text-sm">Work Email</div>
-                    <div className="text-xs text-slate-500">Verify via OTP</div>
+                    <div className="font-semibold text-ink text-sm">Work Email</div>
+                    <div className="text-xs text-muted">Verify via OTP</div>
                   </div>
                 </button>
               </div>
@@ -304,7 +313,7 @@ export default function CreateReferralPost() {
                     {/* Inline status icon */}
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
                       {domainState === 'checking' && (
-                        <svg className="w-4 h-4 text-slate-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-muted animate-spin" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
                         </svg>
@@ -355,7 +364,7 @@ export default function CreateReferralPost() {
                   <button
                     onClick={handleSendOtp}
                     disabled={loading || !workEmail || !form.company_name || domainState === 'invalid' || domainState === 'free_provider' || domainState === 'checking'}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl disabled:opacity-50 transition-colors"
+                    className="bg-accent hover:opacity-90 text-white text-sm font-medium px-5 py-2.5 rounded-xl disabled:opacity-50 transition-colors"
                   >
                     {loading ? 'Sending...' : domainState === 'checking' ? 'Verifying domain...' : 'Send OTP'}
                   </button>
@@ -366,7 +375,7 @@ export default function CreateReferralPost() {
                       <input
                         type="text"
                         maxLength={6}
-                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-center text-lg tracking-widest font-mono"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent bg-white text-center text-lg tracking-widest font-mono"
                         placeholder="000000"
                         value={otp}
                         onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
@@ -376,11 +385,11 @@ export default function CreateReferralPost() {
                       <button
                         onClick={handleConfirmOtp}
                         disabled={loading || otp.length !== 6}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl disabled:opacity-50 transition-colors"
+                        className="flex-1 bg-accent hover:opacity-90 text-white text-sm font-medium px-5 py-2.5 rounded-xl disabled:opacity-50 transition-colors"
                       >
                         {loading ? 'Verifying...' : 'Verify'}
                       </button>
-                      <button onClick={() => { setOtpSent(false); setOtp('') }} className="text-sm text-slate-500 hover:text-slate-700">Resend</button>
+                      <button onClick={() => { setOtpSent(false); setOtp('') }} className="text-sm text-muted hover:text-slate-700">Resend</button>
                     </div>
                   </div>
                 )}
@@ -391,22 +400,22 @@ export default function CreateReferralPost() {
 
         {/* ── Step: Details ── */}
         {step === 'details' && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card shadow-sm p-8 space-y-6">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-xl font-bold text-slate-800">Job Details</h2>
+                <h2 className="text-xl font-bold text-ink">Job Details</h2>
                 <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 rounded-full font-medium">
                   Verified: {form.company_name}
                 </span>
               </div>
-              <p className="text-slate-500 text-sm">Provide the job info — this is what candidates will see.</p>
+              <p className="text-muted text-sm">Provide the job info — this is what candidates will see.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Job Title</label>
                 <input
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
                   placeholder="e.g. Senior Software Engineer"
                   value={form.title}
                   onChange={e => setField('title', e.target.value)}
@@ -416,7 +425,7 @@ export default function CreateReferralPost() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Location</label>
                 <input
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
                   placeholder="e.g. Bangalore / Remote"
                   value={form.location}
                   onChange={e => setField('location', e.target.value)}
@@ -426,7 +435,7 @@ export default function CreateReferralPost() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Employment Type</label>
                 <select
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent bg-white"
                   value={form.employment_type}
                   onChange={e => setField('employment_type', e.target.value)}
                 >
@@ -445,8 +454,8 @@ export default function CreateReferralPost() {
                     onClick={() => setField('link_type', lt)}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
                       form.link_type === lt
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200'
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-[color:var(--violet-line)]'
                     }`}
                   >
                     {lt === 'internal' ? 'Job on Platform' : 'External Link'}
@@ -460,7 +469,7 @@ export default function CreateReferralPost() {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Job ID (optional)</label>
                 <input
                   type="number"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
                   placeholder="Paste the job ID from TalentAI"
                   value={form.job_id}
                   onChange={e => setField('job_id', e.target.value)}
@@ -473,7 +482,7 @@ export default function CreateReferralPost() {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Job Posting URL</label>
                 <input
                   type="url"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
                   placeholder="https://careers.company.com/job/..."
                   value={form.external_job_url}
                   onChange={e => setField('external_job_url', e.target.value)}
@@ -485,22 +494,57 @@ export default function CreateReferralPost() {
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Job Description</label>
               <textarea
                 rows={10}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-mono"
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent resize-none font-mono"
                 placeholder="Paste the full job description here. This will be shown to candidates and used for AI matching."
                 value={form.jd_raw}
                 onChange={e => setField('jd_raw', e.target.value)}
               />
-              <p className="text-xs text-slate-400 mt-1">The more detailed, the better the AI matching quality.</p>
+              <p className="text-xs text-muted mt-1">The more detailed, the better the AI matching quality.</p>
+            </div>
+
+            {/* Referrer presentation — powers your public referrer card */}
+            <div className="border-t border-slate-100 pt-5 space-y-4">
+              <p className="text-sm font-semibold text-ink">About you as the referrer <span className="font-normal text-muted">(optional)</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Your title</label>
+                  <input
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
+                    placeholder="e.g. Staff Engineer, Platform"
+                    value={form.referrer_title}
+                    onChange={e => setField('referrer_title', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Tenure</label>
+                  <input
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent"
+                    placeholder="e.g. 3 yrs at Lumen"
+                    value={form.referrer_tenure}
+                    onChange={e => setField('referrer_tenure', e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Note to candidates</label>
+                <textarea
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent resize-none"
+                  placeholder="e.g. I review every applicant myself. Show me one thing you've shipped end-to-end."
+                  value={form.referrer_note}
+                  onChange={e => setField('referrer_note', e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setStep('verify')} className="px-5 py-2.5 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 rounded-xl">
+              <button onClick={() => setStep('verify')} className="px-5 py-2.5 text-sm text-slate-600 hover:text-ink border border-slate-200 rounded-xl">
                 Back
               </button>
               <button
                 onClick={() => setStep('settings')}
                 disabled={!form.title || !form.jd_raw}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-50 transition-colors"
+                className="flex-1 bg-accent hover:opacity-90 text-white text-sm font-medium py-2.5 rounded-xl disabled:opacity-50 transition-colors"
               >
                 Continue
               </button>
@@ -510,17 +554,17 @@ export default function CreateReferralPost() {
 
         {/* ── Step: Settings ── */}
         {step === 'settings' && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card shadow-sm p-8 space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Pool Settings</h2>
-              <p className="text-slate-500 text-sm mt-1">Configure how the referral pool works.</p>
+              <h2 className="text-xl font-bold text-ink">Pool Settings</h2>
+              <p className="text-muted text-sm mt-1">Configure how the referral pool works.</p>
             </div>
 
             <div className="space-y-5">
               <div>
                 <label className="flex items-center justify-between text-sm font-medium text-slate-700 mb-2">
                   <span>Pool Size</span>
-                  <span className="text-indigo-600 font-bold text-base">{form.pool_size}</span>
+                  <span className="text-accent-ink font-bold text-base">{form.pool_size}</span>
                 </label>
                 <input
                   type="range" min={5} max={30} step={1}
@@ -528,8 +572,8 @@ export default function CreateReferralPost() {
                   onChange={e => setField('pool_size', parseInt(e.target.value))}
                   className="w-full accent-indigo-600"
                 />
-                <div className="flex justify-between text-xs text-slate-400 mt-1"><span>5</span><span>30</span></div>
-                <p className="text-xs text-slate-500 mt-1">Top candidates you'll refer when closing. Default: 15.</p>
+                <div className="flex justify-between text-xs text-muted mt-1"><span>5</span><span>30</span></div>
+                <p className="text-xs text-muted mt-1">Top candidates you'll refer when closing. Default: 15.</p>
               </div>
 
               <div>
@@ -543,14 +587,14 @@ export default function CreateReferralPost() {
                   onChange={e => setField('waitlist_size', parseInt(e.target.value))}
                   className="w-full accent-amber-500"
                 />
-                <div className="flex justify-between text-xs text-slate-400 mt-1"><span>0</span><span>20</span></div>
-                <p className="text-xs text-slate-500 mt-1">Backup candidates referred only if you have remaining capacity.</p>
+                <div className="flex justify-between text-xs text-muted mt-1"><span>0</span><span>20</span></div>
+                <p className="text-xs text-muted mt-1">Backup candidates referred only if you have remaining capacity.</p>
               </div>
 
               <div>
                 <label className="flex items-center justify-between text-sm font-medium text-slate-700 mb-2">
                   <span>Min Match Score</span>
-                  <span className="text-slate-800 font-bold text-base">{form.min_match_score}%</span>
+                  <span className="text-ink font-bold text-base">{form.min_match_score}%</span>
                 </label>
                 <input
                   type="range" min={20} max={80} step={5}
@@ -558,8 +602,8 @@ export default function CreateReferralPost() {
                   onChange={e => setField('min_match_score', parseInt(e.target.value))}
                   className="w-full accent-slate-600"
                 />
-                <div className="flex justify-between text-xs text-slate-400 mt-1"><span>20%</span><span>80%</span></div>
-                <p className="text-xs text-slate-500 mt-1">Candidates below this score are instantly rejected.</p>
+                <div className="flex justify-between text-xs text-muted mt-1"><span>20%</span><span>80%</span></div>
+                <p className="text-xs text-muted mt-1">Candidates below this score are instantly rejected.</p>
               </div>
             </div>
 
@@ -577,13 +621,13 @@ export default function CreateReferralPost() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setStep('details')} className="px-5 py-2.5 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 rounded-xl">
+              <button onClick={() => setStep('details')} className="px-5 py-2.5 text-sm text-slate-600 hover:text-ink border border-slate-200 rounded-xl">
                 Back
               </button>
               <button
                 onClick={handleCreate}
                 disabled={loading}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 transition-colors"
+                className="flex-1 bg-accent hover:opacity-90 text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Publishing...' : 'Publish Referral Post'}
               </button>
@@ -593,20 +637,20 @@ export default function CreateReferralPost() {
 
         {/* ── Step: Done ── */}
         {step === 'done' && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center space-y-5">
+          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card shadow-sm p-10 text-center space-y-5">
             <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto">
               <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">Your referral post is live!</h2>
-              <p className="text-slate-500 text-sm mt-2">Candidates can now find it on the {form.company_name} referral page.</p>
+              <h2 className="text-2xl font-bold text-ink">Your referral post is live!</h2>
+              <p className="text-muted text-sm mt-2">Candidates can now find it on the {form.company_name} referral page.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               <button
                 onClick={() => navigate(`/referrals/${createdSlug}`)}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors"
+                className="px-6 py-2.5 bg-accent hover:opacity-90 text-white rounded-xl text-sm font-medium transition-colors"
               >
                 View Post
               </button>

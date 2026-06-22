@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, ActiveMode } from '../context/AuthContext'
 import { useStudentMode } from '../context/StudentModeContext'
+import { Avatar, Logo } from './ui'
+
+function initialsOf(name?: string | null): string {
+  if (!name) return '?'
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
 
 // ── Add-capability modal ──────────────────────────────────────────────────────
 
@@ -83,7 +89,7 @@ function AddCapabilityModal({ targetMode, onClose }: AddCapabilityModalProps) {
                   type="checkbox"
                   checked={isThirdParty}
                   onChange={e => setIsThirdParty(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-accent"
                 />
                 <span className="text-sm text-slate-700">
                   <span className="font-semibold">I'm a third-party recruiter</span>
@@ -103,7 +109,7 @@ function AddCapabilityModal({ targetMode, onClose }: AddCapabilityModalProps) {
                     value={company}
                     onChange={e => setCompany(e.target.value)}
                     placeholder="e.g. Acme Corp"
-                    className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                    className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-accent transition"
                   />
                 </div>
               )}
@@ -136,8 +142,8 @@ function AddCapabilityModal({ targetMode, onClose }: AddCapabilityModalProps) {
               disabled={loading}
               className={`flex-1 font-semibold rounded-lg py-2.5 text-sm text-white transition-colors disabled:opacity-50 ${
                 isRecruiterMode
-                  ? 'bg-brand-blue hover:bg-blue-600'
-                  : 'bg-brand-teal hover:bg-teal-600'
+                  ? 'bg-accent hover:opacity-90'
+                  : 'bg-accent hover:opacity-90'
               }`}
             >
               {loading ? 'Setting up…' : `Enable ${isRecruiterMode ? 'Recruiter' : 'Candidate'} Mode`}
@@ -160,28 +166,20 @@ function ModeSwitcher() {
     navigate(mode === 'recruiter' ? '/recruiter' : '/', { replace: true })
   }
 
+  const opts: [ActiveMode, string][] = [['candidate', 'Candidate'], ['recruiter', 'Recruiter']]
   return (
-    <div className="flex items-center bg-navy-800 border border-navy-600 rounded-full p-0.5 gap-0.5">
-      <button
-        onClick={() => handleSwitch('candidate')}
-        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all duration-200 ${
-          activeMode === 'candidate'
-            ? 'bg-brand-teal text-white shadow-sm'
-            : 'text-slate-400 hover:text-white'
-        }`}
-      >
-        🎯 Candidate
-      </button>
-      <button
-        onClick={() => handleSwitch('recruiter')}
-        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all duration-200 ${
-          activeMode === 'recruiter'
-            ? 'bg-brand-blue text-white shadow-sm'
-            : 'text-slate-400 hover:text-white'
-        }`}
-      >
-        💼 Recruiter
-      </button>
+    <div style={{ display: 'flex', gap: 3, padding: 3, background: 'var(--surface-2)', border: '2px solid var(--line)', borderRadius: 12 }}>
+      {opts.map(([val, label]) => {
+        const active = activeMode === val
+        return (
+          <button key={val} onClick={() => handleSwitch(val)} style={{
+            padding: '7px 14px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+            fontFamily: 'var(--font-display)', letterSpacing: '-0.01em', border: 'none',
+            background: active ? 'var(--ink)' : 'transparent', color: active ? 'var(--bg)' : 'var(--muted)',
+            transition: 'all .15s ease',
+          }}>{label}</button>
+        )
+      })}
     </div>
   )
 }
@@ -205,8 +203,9 @@ export default function Navbar() {
   const [addModal, setAddModal] = useState<ActiveMode | null>(null)
 
   const linkClass = (path: string) =>
-    `text-sm font-medium transition-colors ${
-      pathname.startsWith(path) ? 'text-white' : 'text-slate-300 hover:text-white'
+    `text-sm font-bold transition-colors ${
+      pathname === path || (path !== '/' && pathname.startsWith(path))
+        ? 'text-ink' : 'text-muted hover:text-ink'
     }`
 
   const handleLogout = () => {
@@ -218,127 +217,111 @@ export default function Navbar() {
   const canAddRecruiter = user?.is_candidate && !user?.is_recruiter
   const canAddCandidate = user?.is_recruiter && !user?.is_candidate
 
+  const sub = isDualMode ? `${activeMode} mode · Profile` : `${activeMode ?? 'Account'} · Profile`
+
   return (
     <>
-      <nav className="bg-navy-900 border-b border-navy-700 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="text-brand-teal font-bold text-xl tracking-tight">
-              Talent<span className="text-brand-blue">AI</span>
-            </span>
-          </Link>
+      <header
+        className="sticky top-0 z-40 border-b-2 border-ink"
+        style={{ background: 'color-mix(in oklch, var(--bg) 88%, transparent)', backdropFilter: 'blur(10px)' }}
+      >
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-5">
+          <Link to="/" aria-label="Home"><Logo /></Link>
 
-          <div className="flex items-center gap-6">
-            <Link to="/" className={linkClass('/')}>
-              Jobs
-            </Link>
-            <Link to="/colleges" className={linkClass('/colleges')}>
-              Colleges
-            </Link>
-            {/* Referral portal is candidate-facing — hidden from recruiter-only users */}
+          <nav className="flex items-center gap-5 ml-2">
+            <Link to="/" className={linkClass('/')}>Jobs</Link>
+            <Link to="/colleges" className={linkClass('/colleges')}>Colleges</Link>
             {!(isRecruiter && !isCandidate) && (
-              <Link to="/referrals" className={linkClass('/referrals')}>
-                Referrals
-              </Link>
+              <Link to="/referrals" className={linkClass('/referrals')}>Referrals</Link>
             )}
-
             {isCandidate && (
-              <Link to="/dashboard" className={linkClass('/dashboard')}>
-                My Applications
-              </Link>
+              <Link to="/dashboard" className={linkClass('/dashboard')}>My Applications</Link>
             )}
+            {isRecruiter && (
+              <Link to="/recruiter" className={linkClass('/recruiter')}>Recruiter</Link>
+            )}
+            {isRecruiter && (
+              <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>Rank</Link>
+            )}
+          </nav>
 
-            {/* Student mode toggle — visible for candidates and unauthenticated users */}
+          <div className="ml-auto flex items-center gap-3">
+            {/* Student-mode toggle — candidates + signed-out visitors */}
             {!isRecruiter && (
               <button
                 onClick={toggleStudentMode}
                 title={studentMode ? 'Student Mode is ON — click to turn off' : 'Switch to Student Mode for readiness roadmaps & practice apply'}
-                className={`relative text-xs font-bold px-3.5 py-1.5 rounded-full border transition-all duration-300 ${
-                  studentMode
-                    ? 'bg-gradient-to-r from-violet-500 to-pink-500 border-transparent text-white shadow-lg shadow-violet-500/40'
-                    : 'border-navy-600 text-slate-300 hover:border-violet-400 hover:text-violet-300'
-                }`}
+                className="text-xs font-bold rounded-full px-3 py-1.5 transition-colors"
+                style={studentMode
+                  ? { background: 'var(--violet)', color: '#fff', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)' }
+                  : { background: 'var(--surface)', color: 'var(--muted)', border: '2px solid var(--line)' }}
               >
-                {studentMode && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-navy-900" />
-                )}
                 🎓 Student Mode
               </button>
             )}
 
-            {isRecruiter && (
-              <Link to="/recruiter" className={linkClass('/recruiter')}>
-                Recruiter Portal
-              </Link>
-            )}
-            {isRecruiter && (
-              <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>
-                Rank Candidates
-              </Link>
-            )}
-
             {isAuthenticated ? (
-              <div className="flex items-center gap-3 border-l border-navy-700 pl-6">
-                {/* ── Dual-mode switcher ─────────────────────────────────────── */}
+              <>
                 {isDualMode && <ModeSwitcher />}
 
-                {/* ── Single-mode: offer to add the other capability ─────────── */}
                 {!isDualMode && canAddRecruiter && (
                   <button
                     onClick={() => setAddModal('recruiter')}
                     title="Add recruiter access to post jobs from this account"
-                    className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-brand-blue border border-dashed border-navy-600 hover:border-brand-blue rounded-lg px-3 py-1.5 transition-colors"
+                    className="hidden sm:inline-flex text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
+                    style={{ border: '2px dashed var(--line)' }}
                   >
-                    + Recruiter Mode
+                    + Recruiter
                   </button>
                 )}
                 {!isDualMode && canAddCandidate && (
                   <button
                     onClick={() => setAddModal('candidate')}
                     title="Add candidate access to apply to jobs from this account"
-                    className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-brand-teal border border-dashed border-navy-600 hover:border-brand-teal rounded-lg px-3 py-1.5 transition-colors"
+                    className="hidden sm:inline-flex text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
+                    style={{ border: '2px dashed var(--line)' }}
                   >
-                    + Candidate Mode
+                    + Candidate
                   </button>
                 )}
 
-                {/* ── Profile link ──────────────────────────────────────────── */}
                 <Link
                   to="/profile"
-                  className="text-right hidden sm:block hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+                  style={{ padding: '5px 12px 5px 6px', background: 'var(--surface)', border: '2px solid var(--line)', borderRadius: 99 }}
                 >
-                  <p className="text-white text-xs font-semibold leading-tight">{user?.full_name}</p>
-                  <p className="text-slate-400 text-xs capitalize">
-                    {isDualMode ? `${activeMode} mode` : activeMode} · Profile
-                  </p>
+                  <Avatar initials={initialsOf(user?.full_name)} color="violet" size={30} />
+                  <div style={{ lineHeight: 1.15 }} className="hidden sm:block">
+                    <div className="text-ink" style={{ fontSize: 13, fontWeight: 800 }}>{user?.full_name}</div>
+                    <div className="text-muted capitalize" style={{ fontSize: 11, fontWeight: 600 }}>{sub}</div>
+                  </div>
                 </Link>
 
                 <button
                   onClick={handleLogout}
-                  className="text-xs font-medium text-slate-300 hover:text-white bg-navy-800 hover:bg-navy-700 border border-navy-600 rounded-lg px-3 py-1.5 transition-colors"
+                  className="text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
+                  style={{ background: 'var(--surface-2)', border: '2px solid var(--line)' }}
                 >
                   Sign out
                 </button>
-              </div>
+              </>
             ) : (
-              <div className="flex items-center gap-3 border-l border-navy-700 pl-6">
-                <Link
-                  to="/login"
-                  className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
-                >
+              <>
+                <Link to="/login" className="text-sm font-bold text-muted hover:text-ink transition-colors">
                   Sign in
                 </Link>
                 <Link
                   to="/register"
-                  className="text-sm font-semibold bg-brand-blue hover:bg-blue-600 text-white rounded-lg px-4 py-1.5 transition-colors"
+                  className="text-sm font-extrabold text-white rounded-xl px-4 py-2 transition-transform active:translate-x-0.5 active:translate-y-0.5"
+                  style={{ background: 'var(--violet)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', fontFamily: 'var(--font-display)' }}
                 >
                   Register
                 </Link>
-              </div>
+              </>
             )}
           </div>
         </div>
-      </nav>
+      </header>
 
       {/* Add-capability modal */}
       {addModal && (

@@ -2,18 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Vouch design system — neo-brutalist / soft-stationery.
+   Tokens are CSS variables so they can theme at runtime and be referenced from
+   both inline styles (primitives) and Tailwind (mapped in tailwind.config.js).
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+
+  /* Core neutrals (fixed) */
+  --bg: #FBF9F4;          /* warm paper page background */
+  --surface: #FFFFFF;     /* cards */
+  --surface-2: #F4F1EA;   /* inset boxes, soft buttons */
+  --track: #ECE7DD;       /* progress / meter tracks */
+  --ink: #1A1726;         /* text, borders, hard shadows */
+  --muted: #6E6878;       /* secondary text */
+  --line: #E7E1D6;        /* hairline borders */
+
+  /* Primary — "Electric" violet (the one brand primary) */
+  --violet: oklch(0.55 0.23 285);
+  --violet-soft: oklch(0.95 0.04 290);
+  --violet-line: oklch(0.86 0.08 290);
+  --violet-ink: oklch(0.46 0.20 285);
+  --hero: oklch(0.96 0.035 290);
+  --card-shadow: #1A1726;
+
+  /* Semantic + avatar colors (fixed, each a 4-stop ramp) */
+  --green: oklch(0.62 0.15 155); --green-soft: oklch(0.95 0.05 155); --green-line: oklch(0.84 0.09 158); --green-ink: oklch(0.45 0.12 158);
+  --amber: oklch(0.80 0.15 75);  --amber-soft: oklch(0.96 0.06 80);  --amber-line: oklch(0.87 0.11 80);  --amber-ink: oklch(0.54 0.13 60);
+  --red: oklch(0.60 0.20 25);    --red-soft: oklch(0.95 0.045 25);   --red-line: oklch(0.86 0.09 25);    --red-ink: oklch(0.51 0.18 25);
+  --pink: oklch(0.66 0.20 5);    --pink-soft: oklch(0.95 0.045 5);   --pink-line: oklch(0.86 0.09 5);    --pink-ink: oklch(0.50 0.18 5);
+  --cyan: oklch(0.66 0.13 232);  --cyan-soft: oklch(0.95 0.045 232); --cyan-line: oklch(0.86 0.08 232);  --cyan-ink: oklch(0.47 0.12 235);
+}
+
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #f8fafc;
+  font-family: var(--font-body);
+  background-color: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--violet); color: #fff; }
+input::placeholder { color: var(--muted); }
+
+/* Interactive card lift (hard offset shadow, no blur) */
+.vouch-card { transition: transform .15s cubic-bezier(.2,.8,.2,1), box-shadow .15s ease; }
+.vouch-card:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--card-shadow) !important; }
+
+/* ── Keyframes (entrance animations drive transform/backdrop only, never
+      opacity → 0, so a frozen frame is always fully visible) ── */
+@keyframes vouch-fall { to { transform: translateY(560px) rotate(540deg); opacity: 0; } }
+@keyframes vouch-pop  { from { transform: scale(.94) translateY(10px); } to { transform: scale(1) translateY(0); } }
+@keyframes vouch-fade { from { backdrop-filter: blur(0); background: rgba(20,16,30,0); } to { backdrop-filter: blur(6px); background: rgba(20,16,30,0.55); } }
+@keyframes vouch-rise { from { transform: translateY(16px); } to { transform: translateY(0); } }
+@keyframes vouch-spin-kf { to { transform: rotate(360deg); } }
+
+.vouch-spin { animation: vouch-spin-kf .7s linear infinite; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .vouch-rankcard { animation: vouch-rise .45s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--rise-delay, 0s); }
+  .vouch-overlay { animation: vouch-fade .2s ease; }
+  .vouch-modal { animation: vouch-pop .28s cubic-bezier(.2,.9,.3,1.2); }
+}
+
+/* Themed scrollbars */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+
+/* Pool detail two-column grid collapses on narrow screens */
+@media (max-width: 860px) {
+  .vouch-detail-grid { grid-template-columns: 1fr !important; }
 }
 
 @layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-in-out;
-  }
+  .animate-fade-in { animation: fadeIn 0.4s ease-in-out; }
 }
-
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }

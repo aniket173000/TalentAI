@@ -3,6 +3,7 @@ import api from '../api/client'
 import CompanyCard from '../components/CompanyCard'
 import JobCard from '../components/JobCard'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { Icon } from '../components/ui'
 import { useStudentMode } from '../context/StudentModeContext'
 import { Job, JobListResponse } from '../types'
 
@@ -123,85 +124,44 @@ export default function Home() {
           <span className="text-slate-800 font-semibold">{selectedCompany}</span>
         </button>
 
-        {/* Company header card */}
-        <div className="relative bg-gradient-to-r from-navy-900 via-slate-800 to-navy-900 rounded-2xl overflow-hidden mb-10 shadow-xl">
-          {/* decorative circles */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-brand-blue/10" />
-          <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-brand-teal/10" />
+        {/* Company header banner */}
+        <div className="mb-10 flex flex-col sm:flex-row items-start sm:items-center gap-6" style={{ background: 'var(--hero)', border: '2px solid var(--ink)', borderRadius: 26, boxShadow: '6px 6px 0 var(--card-shadow)', padding: 28 }}>
+          <div style={{ width: 72, height: 72, borderRadius: 18, background: 'var(--surface)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', display: 'grid', placeItems: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {logoUrl && !companyLogoError ? (
+              <img src={logoUrl} alt={selectedCompany} style={{ width: 48, height: 48, objectFit: 'contain' }} onError={() => setCompanyLogoError(true)} />
+            ) : (
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 30, color: 'var(--violet-ink)' }}>{selectedCompany.slice(0, 2).toUpperCase()}</span>
+            )}
+          </div>
 
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-6 p-8">
-            {/* Logo */}
-            <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center overflow-hidden shrink-0">
-              {logoUrl && !companyLogoError ? (
-                <img
-                  src={logoUrl}
-                  alt={selectedCompany}
-                  className="w-14 h-14 object-contain"
-                  onError={() => setCompanyLogoError(true)}
-                />
-              ) : (
-                <span className="text-3xl font-black text-brand-blue">
-                  {selectedCompany.slice(0, 2).toUpperCase()}
-                </span>
-              )}
-            </div>
+          <div className="flex-1 min-w-0">
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32, letterSpacing: '-0.03em', color: 'var(--ink)', margin: 0 }}>{selectedCompany}</h1>
+            {displayUrl && (
+              <a href={companyUrl!.startsWith('http') ? companyUrl! : `https://${companyUrl}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--violet-ink)', fontSize: 13.5, fontWeight: 700, marginTop: 4, textDecoration: 'none' }}>
+                🔗 {displayUrl}
+              </a>
+            )}
+            <p style={{ color: 'var(--muted)', fontSize: 14, fontWeight: 600, marginTop: 6 }}>
+              {selectedCompanyData.jobs.length} open position{selectedCompanyData.jobs.length !== 1 ? 's' : ''}
+            </p>
+          </div>
 
-            {/* Company info */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-extrabold text-white leading-tight">{selectedCompany}</h1>
-              {displayUrl && (
-                <a
-                  href={companyUrl!.startsWith('http') ? companyUrl! : `https://${companyUrl}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 text-brand-teal text-sm mt-1 hover:underline"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  {displayUrl}
-                </a>
-              )}
-              <p className="text-slate-400 text-sm mt-2">
-                {selectedCompanyData.jobs.length} open position{selectedCompanyData.jobs.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-
-            {/* Stats pills */}
-            <div className="flex flex-wrap gap-2">
-              {[...new Set(selectedCompanyData.jobs.map(j => j.remote_policy).filter(Boolean))].map(p => (
-                <span key={p} className="bg-white/10 text-white text-xs font-semibold px-3 py-1.5 rounded-full border border-white/20">
-                  {p}
-                </span>
-              ))}
-              {[...new Set(selectedCompanyData.jobs.map(j => j.location))].slice(0, 2).map(l => (
-                <span key={l} className="bg-white/10 text-white text-xs font-semibold px-3 py-1.5 rounded-full border border-white/20">
-                  📍 {l}
-                </span>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {[...new Set(selectedCompanyData.jobs.map(j => j.remote_policy).filter(Boolean))].map(p => (
+              <span key={p} style={{ background: 'var(--surface)', color: 'var(--ink)', fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 99, border: '2px solid var(--line)' }}>{p}</span>
+            ))}
           </div>
         </div>
 
         {/* Job filter */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1 max-w-sm">
-            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={jobSearch}
-              onChange={e => setJobSearch(e.target.value)}
-              placeholder="Filter by role, department…"
-              className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition bg-white"
-            />
+          <div className="flex-1 max-w-sm" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 14px', background: 'var(--surface)', border: '2px solid var(--line)', borderRadius: 99 }}>
+            <Icon name="search" size={16} stroke={2.2} style={{ color: 'var(--muted)' }} />
+            <input type="text" value={jobSearch} onChange={e => setJobSearch(e.target.value)} placeholder="Filter by role, department…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)', width: '100%' }} />
           </div>
-          <p className="text-sm text-slate-400">
-            {selectedCompanyJobs.length} role{selectedCompanyJobs.length !== 1 ? 's' : ''}
-          </p>
+          <p style={{ fontSize: 13.5, color: 'var(--muted)', fontWeight: 600 }}>{selectedCompanyJobs.length} role{selectedCompanyJobs.length !== 1 ? 's' : ''}</p>
         </div>
 
         {/* Job grid */}
@@ -227,55 +187,41 @@ export default function Home() {
 
       {/* Student Mode Banner */}
       {studentMode && (
-        <div className="mb-8 rounded-2xl overflow-hidden relative">
-          <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 px-6 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎓</span>
-              <div>
-                <p className="text-white font-bold text-sm">Student Mode is ON</p>
-                <p className="text-violet-200 text-xs mt-0.5">
-                  Readiness roadmaps · Project-First scoring · "Test My Chances" on every job
-                </p>
-              </div>
+        <div className="mb-8 flex items-center justify-between gap-4" style={{ background: 'var(--violet-soft)', border: '2px solid var(--ink)', borderRadius: 18, boxShadow: '4px 4px 0 var(--card-shadow)', padding: '16px 22px' }}>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎓</span>
+            <div>
+              <p style={{ color: 'var(--ink)', fontWeight: 800, fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>Student Mode is ON</p>
+              <p style={{ color: 'var(--violet-ink)', fontSize: 12, margin: '2px 0 0', fontWeight: 600 }}>Readiness roadmaps · Project-First scoring · "Test My Chances" on every job</p>
             </div>
-            <button
-              onClick={toggleStudentMode}
-              className="shrink-0 text-xs text-violet-200 hover:text-white border border-violet-400 hover:border-white rounded-full px-3 py-1 transition-colors"
-            >
-              Turn Off
-            </button>
           </div>
+          <button onClick={toggleStudentMode} className="shrink-0 text-xs font-bold rounded-full px-3 py-1.5" style={{ background: 'var(--surface)', color: 'var(--violet-ink)', border: '2px solid var(--violet-line)' }}>
+            Turn Off
+          </button>
         </div>
       )}
 
       {/* Hero */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-extrabold text-navy-900 mb-3">Explore Top Companies</h1>
-        <p className="text-slate-500 text-lg max-w-xl mx-auto">
+      <div className="text-center mb-10">
+        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 44, letterSpacing: '-0.035em', color: 'var(--ink)', margin: '0 0 12px', lineHeight: 1.04 }}>Explore top companies</h1>
+        <p className="max-w-xl mx-auto" style={{ color: 'var(--muted)', fontSize: 17, fontWeight: 500, lineHeight: 1.5 }}>
           Discover who's hiring. Click a company to see their open roles — and apply in seconds with AI-powered screening.
         </p>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-lg mx-auto mb-10">
-        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search companies or roles…"
-          className="w-full pl-12 pr-4 py-3.5 text-sm border border-slate-200 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition bg-white"
-        />
+      <div className="max-w-lg mx-auto mb-10" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 16px', background: 'var(--surface)', border: '2px solid var(--ink)', borderRadius: 16, boxShadow: '3px 3px 0 var(--card-shadow)' }}>
+        <Icon name="search" size={18} stroke={2.2} style={{ color: 'var(--muted)' }} />
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search companies or roles…"
+          style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-body)', fontSize: 14.5, color: 'var(--ink)', width: '100%' }} />
       </div>
 
       {/* Summary */}
       {companies.length > 0 && (
-        <p className="text-sm text-slate-400 text-center mb-8">
-          <span className="font-semibold text-slate-600">{filteredCompanies.length}</span> compan{filteredCompanies.length !== 1 ? 'ies' : 'y'} hiring
+        <p className="text-center mb-8" style={{ fontSize: 13.5, color: 'var(--muted)', fontWeight: 600 }}>
+          <span style={{ color: 'var(--ink)', fontWeight: 800 }}>{filteredCompanies.length}</span> compan{filteredCompanies.length !== 1 ? 'ies' : 'y'} hiring
           &nbsp;·&nbsp;
-          <span className="font-semibold text-slate-600">{jobs.length}</span> open position{jobs.length !== 1 ? 's' : ''}
+          <span style={{ color: 'var(--ink)', fontWeight: 800 }}>{jobs.length}</span> open position{jobs.length !== 1 ? 's' : ''}
         </p>
       )}
 

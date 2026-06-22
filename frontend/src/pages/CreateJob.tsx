@@ -14,9 +14,9 @@ export const CURRENCIES = [
   { code: 'GBP', symbol: '£' },
 ] as const
 
-const inputCls = 'w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition'
-const selectCls = `${inputCls} bg-white`
-const labelCls = 'block text-sm font-semibold text-slate-700 mb-1.5'
+const inputCls = 'w-full border-2 border-hairline rounded-lg px-4 py-2.5 text-sm bg-surface text-ink focus:outline-none focus:border-accent transition'
+const selectCls = `${inputCls}`
+const labelCls = 'block text-sm font-bold text-ink mb-1.5'
 
 export default function CreateJob() {
   const navigate = useNavigate()
@@ -175,8 +175,8 @@ export default function CreateJob() {
         )}
 
         {/* Basic Info */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Basic Info</h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Basic Info</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={labelCls}>Job Title <span className="text-red-500">*</span></label>
@@ -306,8 +306,8 @@ export default function CreateJob() {
         </section>
 
         {/* Compensation */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className={labelCls}>Currency</label>
@@ -332,8 +332,8 @@ export default function CreateJob() {
         </section>
 
         {/* Job Description */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Job Description <span className="text-red-500">*</span></h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Job Description <span className="text-red-500">*</span></h2>
           <textarea
             value={jdText}
             onChange={e => setJdText(e.target.value)}
@@ -358,8 +358,8 @@ export default function CreateJob() {
         </section>
 
         {/* Screening Settings */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Screening Settings</h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Screening Settings</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Max Pool Size</label>
@@ -377,7 +377,7 @@ export default function CreateJob() {
         </section>
 
         {/* Eligibility Criteria */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-bold text-slate-800">Eligibility Criteria</h2>
@@ -417,7 +417,7 @@ export default function CreateJob() {
             Cancel
           </button>
           <button type="submit" disabled={submitting}
-            className="flex-1 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-lg py-3 transition-colors text-sm">
+            className="flex-1 disabled:opacity-50 text-white font-extrabold rounded-xl py-3 text-sm">
             {submitting ? 'Saving…' : 'Save as Draft'}
           </button>
         </div>

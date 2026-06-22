@@ -194,12 +194,12 @@ export default function RecruiterPortal() {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-navy-900">Recruiter Portal</h1>
+          <h1 className="font-display font-extrabold text-ink" style={{fontSize:36,letterSpacing:"-0.035em"}}>Recruiter Portal</h1>
           <p className="text-slate-500 text-sm mt-1">Manage job postings and review AI-screened candidates.</p>
         </div>
         <button
           onClick={() => navigate('/recruiter/jobs/create')}
-          className="bg-brand-blue hover:bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm"
+          className="bg-accent hover:opacity-90 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm"
         >
           + New Job
         </button>
@@ -209,7 +209,7 @@ export default function RecruiterPortal() {
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit mb-8">
         {([['jobs', 'My Jobs'], ['applications', 'Applications']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t ? 'bg-white shadow text-navy-900' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t ? 'bg-white shadow text-ink' : 'text-slate-500 hover:text-slate-700'}`}>
             {label}
           </button>
         ))}
@@ -225,7 +225,7 @@ export default function RecruiterPortal() {
               value={searchInput}
               onChange={e => handleSearchChange(e.target.value)}
               placeholder="Search by title…"
-              className="border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition w-64"
+              className="border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent transition w-64"
             />
             <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
               {(['all', 'draft', 'published', 'closed'] as StatusFilter[]).map(s => (
@@ -245,7 +245,7 @@ export default function RecruiterPortal() {
             </div>
           ) : (
             <>
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
@@ -274,7 +274,7 @@ export default function RecruiterPortal() {
                     {jobs.map(job => (
                       <tr key={job.id} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-5 py-4">
-                          <div className="font-semibold text-slate-800 group-hover:text-brand-blue transition">{job.title}</div>
+                          <div className="font-semibold text-slate-800 group-hover:text-accent-ink transition">{job.title}</div>
                           {(job.location || job.department) && (
                             <div className="text-xs text-slate-400 mt-0.5">
                               {[job.location, job.department].filter(Boolean).join(' · ')}
@@ -306,7 +306,7 @@ export default function RecruiterPortal() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => navigate(`/recruiter/jobs/${job.id}/edit`)}
-                              className="text-xs font-semibold text-brand-blue hover:underline px-2 py-1"
+                              className="text-xs font-semibold text-accent-ink hover:underline px-2 py-1"
                             >
                               Edit
                             </button>
@@ -350,7 +350,7 @@ export default function RecruiterPortal() {
                       const p = pages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= pages - 3 ? pages - 6 + i : page - 3 + i
                       return (
                         <button key={p} onClick={() => setPage(p)}
-                          className={`w-9 py-1.5 text-sm border rounded-lg transition ${p === page ? 'bg-brand-blue text-white border-brand-blue' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          className={`w-9 py-1.5 text-sm border rounded-lg transition ${p === page ? 'bg-accent text-white border-accent' : 'border-slate-200 hover:bg-slate-50'}`}>
                           {p}
                         </button>
                       )
@@ -380,7 +380,7 @@ export default function RecruiterPortal() {
               onChange={e => setFeedbackText(e.target.value)}
               placeholder="e.g. Did not demonstrate sufficient experience with distributed systems during the technical interview."
               rows={4}
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition resize-none"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent transition resize-none"
             />
             <div className="flex gap-3 mt-4">
               <button
@@ -416,7 +416,7 @@ export default function RecruiterPortal() {
             <select
               value={selectedJob ?? ''}
               onChange={e => { setSelectedJob(Number(e.target.value) || null); setExpandedApp(null) }}
-              className="border border-slate-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition min-w-80"
+              className="border border-slate-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-accent transition min-w-80"
             >
               <option value="">— choose a job —</option>
               {appJobs.map(j => (
@@ -444,12 +444,12 @@ export default function RecruiterPortal() {
                   const strengths = normalizeList(app.strengths)
                   const gaps = normalizeList(app.gaps)
                   return (
-                    <div key={app.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div key={app.id} className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden">
                       <button
                         onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
                         className="w-full flex items-center gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
                       >
-                        <span className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-bold flex items-center justify-center shrink-0">
+                        <span className="w-8 h-8 rounded-full bg-accent text-white text-sm font-bold flex items-center justify-center shrink-0">
                           {app.rank}
                         </span>
                         <div className="flex-1 min-w-0">
@@ -458,7 +458,7 @@ export default function RecruiterPortal() {
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="text-right">
-                            <p className="text-lg font-bold text-brand-blue">{app.match_score.toFixed(1)}%</p>
+                            <p className="text-lg font-bold text-accent-ink">{app.match_score.toFixed(1)}%</p>
                             <p className="text-xs text-slate-400">match</p>
                           </div>
                           {/* Status change dropdown — stop propagation so it doesn't toggle expand */}
@@ -481,7 +481,7 @@ export default function RecruiterPortal() {
                         <div className="border-t border-slate-100 p-5 bg-slate-50 space-y-4">
 
                           {/* ── Contact info ── */}
-                          <div className="bg-white rounded-xl border border-slate-200 p-4">
+                          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-4">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Candidate Info</p>
                             <div className="grid sm:grid-cols-3 gap-3">
                               <div>
@@ -490,12 +490,12 @@ export default function RecruiterPortal() {
                               </div>
                               <div>
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
-                                <a href={`mailto:${app.candidate_email}`} className="text-sm text-brand-blue hover:underline break-all">{app.candidate_email}</a>
+                                <a href={`mailto:${app.candidate_email}`} className="text-sm text-accent-ink hover:underline break-all">{app.candidate_email}</a>
                               </div>
                               <div>
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
                                 {app.phone
-                                  ? <a href={`tel:${app.phone}`} className="text-sm text-brand-blue hover:underline">{app.phone}</a>
+                                  ? <a href={`tel:${app.phone}`} className="text-sm text-accent-ink hover:underline">{app.phone}</a>
                                   : <p className="text-sm text-slate-400 italic">Not provided</p>
                                 }
                               </div>
@@ -505,7 +505,7 @@ export default function RecruiterPortal() {
                           {/* ── Strengths & Gaps ── */}
                           <div className="grid gap-4 sm:grid-cols-2">
                             {strengths.length > 0 && (
-                              <div className="bg-white rounded-xl border border-emerald-100 p-4">
+                              <div className="bg-surface rounded-2xl border-2 border-[color:var(--green-line)] p-4">
                                 <div className="flex items-center gap-1.5 mb-3">
                                   <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold flex items-center justify-center">✓</span>
                                   <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Strengths</p>
@@ -521,7 +521,7 @@ export default function RecruiterPortal() {
                               </div>
                             )}
                             {gaps.length > 0 && (
-                              <div className="bg-white rounded-xl border border-amber-100 p-4">
+                              <div className="bg-surface rounded-2xl border-2 border-[color:var(--amber-line)] p-4">
                                 <div className="flex items-center gap-1.5 mb-3">
                                   <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold flex items-center justify-center">!</span>
                                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gaps / Weaknesses</p>
@@ -542,7 +542,7 @@ export default function RecruiterPortal() {
                           {app.resume_text && (
                             <button
                               onClick={() => setResumeDrawer(app)}
-                              className="flex items-center gap-2 text-sm font-semibold text-brand-blue hover:text-blue-700 border border-brand-blue/30 hover:border-brand-blue bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
+                              className="flex items-center gap-2 text-sm font-semibold text-accent-ink hover:opacity-80 border border-accent hover:border-accent bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
                             >
                               <span>📄</span>
                               View Full Resume
@@ -567,7 +567,7 @@ export default function RecruiterPortal() {
                   const strengths = normalizeList(app.strengths)
                   const gaps = normalizeList(app.gaps)
                   return (
-                    <div key={app.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div key={app.id} className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden">
                       <button
                         onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
                         className="w-full flex items-center gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
@@ -602,7 +602,7 @@ export default function RecruiterPortal() {
                         <div className="border-t border-slate-100 p-5 bg-slate-50 space-y-4">
 
                           {/* Contact info */}
-                          <div className="bg-white rounded-xl border border-slate-200 p-4">
+                          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-4">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Candidate Info</p>
                             <div className="grid sm:grid-cols-3 gap-3">
                               <div>
@@ -611,12 +611,12 @@ export default function RecruiterPortal() {
                               </div>
                               <div>
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
-                                <a href={`mailto:${app.candidate_email}`} className="text-sm text-brand-blue hover:underline break-all">{app.candidate_email}</a>
+                                <a href={`mailto:${app.candidate_email}`} className="text-sm text-accent-ink hover:underline break-all">{app.candidate_email}</a>
                               </div>
                               <div>
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
                                 {app.phone
-                                  ? <a href={`tel:${app.phone}`} className="text-sm text-brand-blue hover:underline">{app.phone}</a>
+                                  ? <a href={`tel:${app.phone}`} className="text-sm text-accent-ink hover:underline">{app.phone}</a>
                                   : <p className="text-sm text-slate-400 italic">Not provided</p>
                                 }
                               </div>
@@ -636,7 +636,7 @@ export default function RecruiterPortal() {
                           {/* Strengths & Gaps */}
                           <div className="grid gap-4 sm:grid-cols-2">
                             {strengths.length > 0 && (
-                              <div className="bg-white rounded-xl border border-emerald-100 p-4">
+                              <div className="bg-surface rounded-2xl border-2 border-[color:var(--green-line)] p-4">
                                 <div className="flex items-center gap-1.5 mb-3">
                                   <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold flex items-center justify-center">✓</span>
                                   <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Strengths</p>
@@ -652,7 +652,7 @@ export default function RecruiterPortal() {
                               </div>
                             )}
                             {gaps.length > 0 && (
-                              <div className="bg-white rounded-xl border border-amber-100 p-4">
+                              <div className="bg-surface rounded-2xl border-2 border-[color:var(--amber-line)] p-4">
                                 <div className="flex items-center gap-1.5 mb-3">
                                   <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold flex items-center justify-center">!</span>
                                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gaps / Weaknesses</p>
@@ -673,7 +673,7 @@ export default function RecruiterPortal() {
                           {app.resume_text && (
                             <button
                               onClick={() => setResumeDrawer(app)}
-                              className="flex items-center gap-2 text-sm font-semibold text-brand-blue hover:text-blue-700 border border-brand-blue/30 hover:border-brand-blue bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
+                              className="flex items-center gap-2 text-sm font-semibold text-accent-ink hover:opacity-80 border border-accent hover:border-accent bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
                             >
                               <span>📄</span>
                               View Full Resume
@@ -716,14 +716,14 @@ export default function RecruiterPortal() {
                     download={resumeDrawer.resume_filename ?? 'resume'}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-semibold bg-brand-blue hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 text-xs font-semibold bg-accent hover:opacity-90 text-white px-3 py-2 rounded-lg transition-colors"
                   >
                     ↓ Download
                   </a>
                 ) : (
                   <button
                     onClick={() => downloadResume(resumeDrawer)}
-                    className="flex items-center gap-1.5 text-xs font-semibold bg-brand-blue hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 text-xs font-semibold bg-accent hover:opacity-90 text-white px-3 py-2 rounded-lg transition-colors"
                   >
                     ↓ Download
                   </button>
@@ -771,7 +771,7 @@ export default function RecruiterPortal() {
                     download={resumeDrawer.resume_filename ?? 'resume'}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                    className="flex items-center gap-2 bg-accent hover:opacity-90 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
                   >
                     ↓ Download to Open
                   </a>

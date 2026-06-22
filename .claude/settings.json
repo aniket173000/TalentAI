@@ -52,7 +52,9 @@
       "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/services/company_logo.py /Users/aniket/Desktop/Mark1Job/backend/routers/jobs.py /Users/aniket/Desktop/Mark1Job/backend/routers/profile.py /Users/aniket/Desktop/Mark1Job/backend/config.py)",
       "Bash(PYTHONPATH=/Users/aniket/Desktop/Mark1Job/backend /Users/aniket/Desktop/Mark1Job/backend/venv/bin/python -c ' *)",
       "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/services/company_logo.py)",
-      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/google_auth.py /Users/aniket/Desktop/Mark1Job/backend/config.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py)"
+      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/google_auth.py /Users/aniket/Desktop/Mark1Job/backend/config.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py)",
+      "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/referrals.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py)",
+      "Bash(python3 -)"
     ],
     "additionalDirectories": [
       "/tmp",

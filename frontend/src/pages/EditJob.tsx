@@ -7,9 +7,9 @@ import { EligibilityCriteria, Job, JobAuditLog } from '../types'
 import { CURRENCIES } from './CreateJob'
 
 const BLANK_CRITERIA: EligibilityCriteria = { min_years_experience: null, required_skills: [], required_education: null }
-const inputCls = 'w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition'
-const selectCls = `${inputCls} bg-white`
-const labelCls = 'block text-sm font-semibold text-slate-700 mb-1.5'
+const inputCls = 'w-full border-2 border-hairline rounded-lg px-4 py-2.5 text-sm bg-surface text-ink focus:outline-none focus:border-accent transition'
+const selectCls = `${inputCls}`
+const labelCls = 'block text-sm font-bold text-ink mb-1.5'
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -198,8 +198,8 @@ export default function EditJob() {
 
       <form onSubmit={handleSave} className="space-y-8">
         {/* Basic Info */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Basic Info</h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Basic Info</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={labelCls}>Job Title</label>
@@ -247,8 +247,8 @@ export default function EditJob() {
         </section>
 
         {/* Compensation */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className={labelCls}>Currency</label>
@@ -270,7 +270,7 @@ export default function EditJob() {
         </section>
 
         {/* Job Description */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
           <h2 className="font-bold text-slate-800 mb-2">Job Description</h2>
           <p className="text-xs text-slate-400 mb-4">Editing a published job flags it for AI re-parsing on the next application submission.</p>
           <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={14}
@@ -278,8 +278,8 @@ export default function EditJob() {
         </section>
 
         {/* Screening Settings */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-5">Screening Settings</h2>
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
+          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Screening Settings</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Max Pool Size</label>
@@ -293,7 +293,7 @@ export default function EditJob() {
         </section>
 
         {/* Eligibility Criteria */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
           <h2 className="font-bold text-slate-800 mb-1.5">Eligibility Criteria</h2>
           <p className="text-xs text-slate-400 mb-5">Changes do not retroactively re-score existing candidates.</p>
           <EligibilityCriteriaEditor value={criteria} onChange={setCriteria} />
@@ -307,14 +307,14 @@ export default function EditJob() {
         )}
 
         <button type="submit" disabled={saving || !isDirty}
-          className="w-full bg-brand-blue hover:bg-blue-600 disabled:opacity-40 text-white font-semibold rounded-lg py-3 transition-colors text-sm">
+          className="w-full disabled:opacity-40 text-white font-extrabold rounded-xl py-3 text-sm">
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </form>
 
       {/* Audit Log */}
       {auditLog.length > 0 && (
-        <section className="mt-10 bg-white rounded-2xl border border-slate-200 p-6">
+        <section className="mt-10 bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
           <h2 className="font-bold text-slate-800 mb-4">Change History</h2>
           <div className="space-y-3">
             {auditLog.map(entry => (

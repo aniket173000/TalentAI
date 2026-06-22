@@ -232,6 +232,11 @@ _MIGRATIONS = [
 
     # ── Job compensation currency ─────────────────────────────────────────────
     "ALTER TABLE jobs ADD COLUMN salary_currency VARCHAR(8)",
+
+    # ── Referral: referrer presentation fields ────────────────────────────────
+    "ALTER TABLE referral_posts ADD COLUMN referrer_title VARCHAR(255)",
+    "ALTER TABLE referral_posts ADD COLUMN referrer_tenure VARCHAR(100)",
+    "ALTER TABLE referral_posts ADD COLUMN referrer_note TEXT",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table

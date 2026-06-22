@@ -89,7 +89,7 @@ export default function CandidateDashboard() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-navy-900">My Applications</h1>
+        <h1 className="font-display font-extrabold text-ink" style={{fontSize:36,letterSpacing:"-0.035em"}}>My Applications</h1>
         <p className="text-slate-500 text-sm mt-1">
           Welcome back, {user?.full_name}. Here's your application history.
         </p>
@@ -156,7 +156,7 @@ export default function CandidateDashboard() {
                 {magicMatches.map((match, i) => (
                   <div
                     key={match.job_id}
-                    className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4 hover:border-indigo-300 transition-colors"
+                    className="bg-surface rounded-2xl border-2 border-ink shadow-card p-4 flex items-center gap-4 hover:border-indigo-300 transition-colors"
                   >
                     {/* Rank bubble */}
                     <div className="shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
@@ -219,7 +219,7 @@ export default function CandidateDashboard() {
           <p className="text-slate-500 font-medium">You haven't applied to any jobs yet.</p>
           <Link
             to="/"
-            className="mt-4 inline-block text-brand-blue hover:underline text-sm font-medium"
+            className="mt-4 inline-block text-accent-ink hover:underline text-sm font-medium"
           >
             Browse open positions
           </Link>
@@ -236,7 +236,7 @@ export default function CandidateDashboard() {
             return (
               <div
                 key={app.id}
-                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm"
+                className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden shadow-sm"
               >
                 <button
                   onClick={() => setExpanded(isOpen ? null : app.id)}
@@ -244,7 +244,7 @@ export default function CandidateDashboard() {
                 >
                   {/* Score ring */}
                   <div className="shrink-0 w-14 h-14 rounded-full border-4 border-brand-blue flex items-center justify-center">
-                    <span className="text-sm font-bold text-brand-blue">
+                    <span className="text-sm font-bold text-accent-ink">
                       {app.match_score.toFixed(0)}%
                     </span>
                   </div>
@@ -358,13 +358,13 @@ export default function CandidateDashboard() {
                     {suggestions.length > 0 && (
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-4">
                         <div className="flex items-center gap-1.5 mb-3">
-                          <span className="text-brand-blue text-sm">💡</span>
-                          <p className="text-xs font-bold text-brand-blue uppercase tracking-wide">How to Improve</p>
+                          <span className="text-accent-ink text-sm">💡</span>
+                          <p className="text-xs font-bold text-accent-ink uppercase tracking-wide">How to Improve</p>
                         </div>
                         <ul className="space-y-2">
                           {suggestions.map((s, i) => (
                             <li key={i} className="flex items-start gap-2.5 text-xs text-slate-700">
-                              <span className="w-4 h-4 rounded-full bg-brand-blue text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                              <span className="w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                                 {i + 1}
                               </span>
                               {s}
@@ -377,14 +377,14 @@ export default function CandidateDashboard() {
                     <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-4">
                       <Link
                         to={`/jobs/${app.job_id}`}
-                        className="text-xs text-brand-blue hover:underline font-medium"
+                        className="text-xs text-accent-ink hover:underline font-medium"
                       >
                         View job details →
                       </Link>
                       {app.status_token && (
                         <Link
                           to={`/status/${app.status_token}`}
-                          className="text-xs text-slate-500 hover:text-brand-blue hover:underline font-medium"
+                          className="text-xs text-slate-500 hover:text-accent-ink hover:underline font-medium"
                         >
                           Track application status →
                         </Link>

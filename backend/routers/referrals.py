@@ -422,6 +422,10 @@ class CreateReferralPostRequest(BaseModel):
     min_match_score: float = 40.0
     pool_size: int = 15
     waitlist_size: int = 10
+    # Referrer presentation (optional)
+    referrer_title: Optional[str] = None
+    referrer_tenure: Optional[str] = None
+    referrer_note: Optional[str] = None
 
 
 class UpdateReferralPostRequest(BaseModel):
@@ -603,6 +607,9 @@ async def create_referral_post(
         min_match_score=req.min_match_score,
         pool_size=pool_size,
         waitlist_size=waitlist_size,
+        referrer_title=(req.referrer_title or "").strip() or None,
+        referrer_tenure=(req.referrer_tenure or "").strip() or None,
+        referrer_note=(req.referrer_note or "").strip() or None,
         status="draft",
     )
     db.add(post)
@@ -955,6 +962,9 @@ async def apply_to_referral(
             "match_score": match_score,
             "min_match_score": post.min_match_score,
             "detail": f"Your profile score ({match_score:.1f}%) did not meet the minimum qualification threshold ({post.min_match_score:.1f}%) for this referral.",
+            # Real, specific gaps + fixes so the candidate sees no black box
+            "gaps": screening.get("gaps", [])[:4],
+            "suggestions": screening.get("improvement_suggestions", [])[:4],
         }
 
     # Count current pool / waitlist
@@ -1286,6 +1296,52 @@ async def get_pool(
     }
 
 
+@router.get("/posts/{post_id}/leaderboard")
+def get_referral_leaderboard(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Anonymized pool leaderboard for candidates — ranked by match score, with the
+    viewer surfaced as "You". Never leaks other candidates' identities.
+    """
+    post = db.query(models.ReferralPost).filter(models.ReferralPost.id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Referral post not found.")
+
+    pool_apps = (
+        db.query(models.ReferralApplication)
+        .filter(
+            models.ReferralApplication.referral_post_id == post_id,
+            models.ReferralApplication.pool_type == "pool",
+            models.ReferralApplication.status.in_(["in_pool", "referred"]),
+        )
+        .order_by(models.ReferralApplication.rank.asc())
+        .all()
+    )
+
+    rows = []
+    your_rank = None
+    for i, app in enumerate(pool_apps):
+        you = app.candidate_user_id == current_user.id
+        if you:
+            your_rank = app.rank or (i + 1)
+        rows.append({
+            "rank": app.rank or (i + 1),
+            "score": round(app.match_score, 1),
+            "you": you,
+            "handle": "You" if you else f"Candidate {chr(65 + (i % 26))}",
+        })
+
+    return {
+        "leaderboard": rows,
+        "pool_size": post.pool_size,
+        "pool_count": len(rows),
+        "your_rank": your_rank,
+    }
+
+
 # ── Discovery (public) ────────────────────────────────────────────────────────
 
 @router.get("/companies")
@@ -1405,8 +1461,26 @@ def _post_response(post: models.ReferralPost, db: Session) -> dict:
             "linkedin_verified": referrer.linkedin_verified,
             "current_company": referrer.candidate_ext.current_company if referrer.candidate_ext else None,
             "candidate_linkedin_url": referrer.candidate_ext.candidate_linkedin_url if referrer.candidate_ext else None,
+            # Vouch referrer-card enrichment
+            "title": post.referrer_title,
+            "tenure": post.referrer_tenure,
+            "note": post.referrer_note,
+            "referred_count": _referrer_referred_count(referrer.id, db),
         } if referrer else None,
     }
+
+
+def _referrer_referred_count(referrer_user_id: int, db: Session) -> int:
+    """Total candidates this referrer has actually referred (real, across all their posts)."""
+    return (
+        db.query(models.ReferralApplication)
+        .join(models.ReferralPost, models.ReferralApplication.referral_post_id == models.ReferralPost.id)
+        .filter(
+            models.ReferralPost.referrer_user_id == referrer_user_id,
+            models.ReferralApplication.status == "referred",
+        )
+        .count()
+    )
 
 
 def _post_public_summary(post: models.ReferralPost, db: Session) -> dict:

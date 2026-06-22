@@ -12,13 +12,13 @@ function StatusBadge({ status }: { status: string }) {
     closed: 'bg-amber-50 text-amber-700 border-amber-100',
     referring: 'bg-blue-50 text-blue-700 border-blue-100',
     referred_all: 'bg-slate-50 text-slate-600 border-slate-200',
-    draft: 'bg-slate-50 text-slate-400 border-slate-100',
+    draft: 'bg-slate-50 text-muted border-slate-100',
   }
   const labels: Record<string, string> = {
     open: 'Open', closed: 'Closed', referring: 'Referring', referred_all: 'Referred All', draft: 'Draft',
   }
   return (
-    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${map[status] ?? 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${map[status] ?? 'bg-slate-50 text-muted border-slate-100'}`}>
       {labels[status] ?? status}
     </span>
   )
@@ -60,7 +60,7 @@ function CandidateCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800 text-sm truncate">{c?.full_name ?? 'Candidate'}</span>
+            <span className="font-semibold text-ink text-sm truncate">{c?.full_name ?? 'Candidate'}</span>
             {app.rank && (
               <span className="flex-shrink-0 text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
                 #{app.rank}
@@ -68,10 +68,10 @@ function CandidateCard({
             )}
           </div>
           {c?.college_name && (
-            <p className="text-xs text-slate-500 mt-0.5 truncate">{c.college_name}</p>
+            <p className="text-xs text-muted mt-0.5 truncate">{c.college_name}</p>
           )}
           {c?.current_company && (
-            <p className="text-xs text-slate-400 truncate">{c.current_company}</p>
+            <p className="text-xs text-muted truncate">{c.current_company}</p>
           )}
         </div>
 
@@ -104,7 +104,7 @@ function CandidateCard({
             LinkedIn
           </a>
         )}
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-muted">
           Applied {app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
         </span>
       </div>
@@ -125,7 +125,7 @@ function MyPostItem({ post, active, onClick }: { post: ReferralPost; active: boo
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className={`text-sm font-semibold truncate ${active ? 'text-indigo-700' : 'text-slate-700'}`}>{post.title}</p>
-          <p className="text-xs text-slate-400 mt-0.5">{post.pool_count}/{post.pool_size} filled</p>
+          <p className="text-xs text-muted mt-0.5">{post.pool_count}/{post.pool_size} filled</p>
         </div>
         <StatusBadge status={post.status} />
       </div>
@@ -216,12 +216,12 @@ export default function ReferrerDashboard() {
       <div className="bg-white border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-800">Referral Dashboard</h1>
-            <p className="text-slate-500 text-sm mt-0.5">Manage your referral pools and refer candidates</p>
+            <h1 className="text-xl font-bold text-ink">Referral Dashboard</h1>
+            <p className="text-muted text-sm mt-0.5">Manage your referral pools and refer candidates</p>
           </div>
           <button
             onClick={() => navigate('/referrals/create')}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+            className="flex items-center gap-2 bg-accent hover:opacity-90 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -235,13 +235,13 @@ export default function ReferrerDashboard() {
 
         {/* Sidebar — my posts */}
         <div className="w-64 flex-shrink-0 space-y-2">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-1 mb-3">Your Posts</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide px-1 mb-3">Your Posts</p>
           {postsLoading ? (
             <div className="flex justify-center py-8"><LoadingSpinner /></div>
           ) : myPosts.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-sm text-slate-400">No posts yet.</p>
-              <button onClick={() => navigate('/referrals/create')} className="text-indigo-600 text-sm hover:underline mt-1">Create one</button>
+              <p className="text-sm text-muted">No posts yet.</p>
+              <button onClick={() => navigate('/referrals/create')} className="text-accent-ink text-sm hover:underline mt-1">Create one</button>
             </div>
           ) : (
             myPosts.map(post => (
@@ -262,8 +262,8 @@ export default function ReferrerDashboard() {
           )}
 
           {!activePostId ? (
-            <div className="text-center py-24 text-slate-400">
-              <p className="text-lg font-medium text-slate-500">Select a post to manage</p>
+            <div className="text-center py-24 text-muted">
+              <p className="text-lg font-medium text-muted">Select a post to manage</p>
             </div>
           ) : poolLoading ? (
             <div className="flex justify-center py-24"><LoadingSpinner /></div>
@@ -275,10 +275,10 @@ export default function ReferrerDashboard() {
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div>
                     <div className="flex items-center gap-3">
-                      <h2 className="text-xl font-bold text-slate-800">{poolData.post.title}</h2>
+                      <h2 className="text-xl font-bold text-ink">{poolData.post.title}</h2>
                       <StatusBadge status={poolData.post.status} />
                     </div>
-                    <p className="text-slate-500 text-sm mt-1">{poolData.post.company_name}</p>
+                    <p className="text-muted text-sm mt-1">{poolData.post.company_name}</p>
                   </div>
 
                   {/* Action buttons based on lifecycle state */}
@@ -294,7 +294,7 @@ export default function ReferrerDashboard() {
                     {postStatus === 'closed' && (
                       <button
                         onClick={() => setConfirmAction('referring')}
-                        className="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-xl transition-colors"
+                        className="px-4 py-2 text-sm font-medium bg-accent text-white hover:opacity-90 rounded-xl transition-colors"
                       >
                         Mark as Referring
                       </button>
@@ -313,20 +313,20 @@ export default function ReferrerDashboard() {
                 {/* Stats strip */}
                 <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: 'Total Applicants', value: poolData.stats.total_applicants, color: 'text-slate-800' },
+                    { label: 'Total Applicants', value: poolData.stats.total_applicants, color: 'text-ink' },
                     { label: 'In Pool', value: `${poolData.stats.pool_count}/${poolData.stats.pool_capacity}`, color: 'text-indigo-700' },
                     { label: 'Waitlist', value: `${poolData.stats.waitlist_count}/${poolData.stats.waitlist_capacity}`, color: 'text-amber-700' },
                     { label: 'Spots Left', value: poolData.stats.pool_capacity - poolData.stats.pool_count, color: 'text-emerald-700' },
                   ].map(stat => (
                     <div key={stat.label} className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
-                      <p className="text-xs text-slate-400">{stat.label}</p>
+                      <p className="text-xs text-muted">{stat.label}</p>
                       <p className={`text-xl font-bold mt-0.5 ${stat.color}`}>{stat.value}</p>
                     </div>
                   ))}
                 </div>
 
                 {poolData.post.closes_at && (
-                  <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                  <div className="mt-4 flex items-center gap-2 text-sm text-muted">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -347,7 +347,7 @@ export default function ReferrerDashboard() {
                   </span>
                 </div>
                 {poolData.pool.length === 0 ? (
-                  <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 text-slate-400">
+                  <div className="text-center py-12 bg-surface rounded-2xl border-2 border-ink shadow-card text-muted">
                     <p className="text-sm">No candidates in the pool yet.</p>
                   </div>
                 ) : (
@@ -374,7 +374,7 @@ export default function ReferrerDashboard() {
                     </span>
                   </div>
                   {poolData.waitlist.length === 0 ? (
-                    <div className="text-center py-8 bg-white rounded-2xl border border-slate-100 text-slate-400">
+                    <div className="text-center py-8 bg-surface rounded-2xl border-2 border-ink shadow-card text-muted">
                       <p className="text-sm">Waitlist is empty.</p>
                     </div>
                   ) : (
@@ -400,12 +400,12 @@ export default function ReferrerDashboard() {
       {confirmAction && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
-            <h3 className="font-bold text-slate-800 text-lg">
+            <h3 className="font-bold text-ink text-lg">
               {confirmAction === 'close' && 'Close the referral pool?'}
               {confirmAction === 'referring' && 'Mark as Referring?'}
               {confirmAction === 'referred_all' && 'Mark as Referred All?'}
             </h3>
-            <p className="text-slate-500 text-sm">
+            <p className="text-muted text-sm">
               {confirmAction === 'close' && 'No new candidates can apply after closing. You can then review the pool and begin referring.'}
               {confirmAction === 'referring' && 'This signals that you\'ve started submitting referrals to your company.'}
               {confirmAction === 'referred_all' && 'All pool candidates will receive a referral confirmation email. This action cannot be undone.'}
@@ -422,7 +422,7 @@ export default function ReferrerDashboard() {
                 disabled={actionLoading}
                 className={`flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 ${
                   confirmAction === 'referred_all' ? 'bg-emerald-600 hover:bg-emerald-700' :
-                  confirmAction === 'referring' ? 'bg-blue-600 hover:bg-blue-700' :
+                  confirmAction === 'referring' ? 'bg-accent hover:opacity-90' :
                   'bg-amber-600 hover:bg-amber-700'
                 }`}
               >

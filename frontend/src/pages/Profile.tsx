@@ -101,7 +101,7 @@ function WEDescription({ text }: { text: string }) {
     <ul className="mt-2 space-y-1">
       {bullets.map((b, i) => (
         <li key={i} className="flex gap-2 text-sm text-slate-600 leading-relaxed">
-          <span className="text-brand-blue mt-0.5 shrink-0">•</span>
+          <span className="text-accent-ink mt-0.5 shrink-0">•</span>
           <span>{b}</span>
         </li>
       ))}
@@ -163,9 +163,9 @@ function SectionCard({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-        <h2 className="font-bold text-slate-900 text-base">{title}</h2>
+    <div className="bg-surface rounded-2xl border-2 border-ink shadow-card">
+      <div className="flex items-center justify-between px-6 py-4 border-b-2 border-ink">
+        <h2 className="font-display font-extrabold text-ink text-lg tracking-tight">{title}</h2>
         {action && <div className="flex items-center gap-2">{action}</div>}
       </div>
       <div className="px-6 py-5">{children}</div>
@@ -180,7 +180,7 @@ function MonthYearSelect({
   onMonthChange: (v: string) => void; onYearChange: (v: string) => void
   disabled?: boolean
 }) {
-  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition bg-white'
+  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-accent transition bg-white'
   return (
     <div className="flex gap-2">
       <select value={monthVal} onChange={e => onMonthChange(e.target.value)} disabled={disabled} className={sel}>
@@ -206,7 +206,7 @@ function WEFormPanel({
   error: string | null
   isEdit: boolean
 }) {
-  const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition'
+  const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-accent transition'
   const set = (k: keyof WEForm, v: string | boolean) => onChange({ ...form, [k]: v })
   const canSave = form.company.trim() && form.title.trim() && form.start_year && !saving
 
@@ -236,7 +236,7 @@ function WEFormPanel({
       <label className="flex items-center gap-2.5 cursor-pointer select-none">
         <input type="checkbox" checked={form.is_current}
           onChange={e => set('is_current', e.target.checked)}
-          className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" />
+          className="h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
         <span className="text-sm text-slate-700 font-medium">I currently work here</span>
       </label>
 
@@ -270,7 +270,7 @@ function WEFormPanel({
           Cancel
         </button>
         <button onClick={onSave} disabled={!canSave}
-          className="flex-1 bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-lg py-2.5 text-sm transition disabled:opacity-50">
+          className="flex-1 bg-accent hover:opacity-90 text-white font-semibold rounded-lg py-2.5 text-sm transition disabled:opacity-50">
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add position'}
         </button>
       </div>
@@ -322,12 +322,12 @@ function EduFormPanel({
           <div className="flex items-center gap-3 h-10">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" checked={isGraduated} onChange={() => setIsGraduated(true)}
-                className="text-brand-blue" />
+                className="text-accent-ink" />
               <span className="text-sm text-slate-700">Graduated</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" checked={!isGraduated} onChange={() => setIsGraduated(false)}
-                className="text-brand-blue" />
+                className="text-accent-ink" />
               <span className="text-sm text-slate-700">Current student</span>
             </label>
           </div>
@@ -336,7 +336,7 @@ function EduFormPanel({
       {showPrimaryToggle && (
         <label className="flex items-center gap-2.5 cursor-pointer select-none">
           <input type="checkbox" checked={isPrimary} onChange={e => setIsPrimary(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" />
+            className="h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
           <span className="text-sm text-slate-700 font-medium">Show this as my primary credential</span>
         </label>
       )}
@@ -347,7 +347,7 @@ function EduFormPanel({
           Cancel
         </button>
         <button onClick={onSave} disabled={saving || !institution.trim()}
-          className="flex-1 bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
+          className="flex-1 bg-accent hover:opacity-90 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add education'}
         </button>
       </div>
@@ -380,10 +380,10 @@ function ImportModal({
             <p className="text-sm text-slate-500 text-center py-6">No work experience found in your resume.</p>
           ) : entries.map((entry, i) => (
             <label key={i} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition ${
-              entry.selected ? 'border-brand-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
+              entry.selected ? 'border-accent bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
             }`}>
               <input type="checkbox" checked={entry.selected} onChange={() => onToggle(i)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" />
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 truncate">{entry.we.title}</p>
                 <p className="text-sm text-slate-500 truncate">{entry.we.company}</p>
@@ -404,7 +404,7 @@ function ImportModal({
             Cancel
           </button>
           <button onClick={onConfirm} disabled={selectedCount === 0 || saving}
-            className="flex-1 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
+            className="flex-1 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
             {saving ? 'Adding…' : `Add ${selectedCount || ''} ${selectedCount === 1 ? 'position' : 'positions'}`}
           </button>
         </div>
@@ -437,10 +437,10 @@ function EduImportModal({
             <p className="text-sm text-slate-500 text-center py-6">No education found in your resume.</p>
           ) : entries.map((entry, i) => (
             <label key={i} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition ${
-              entry.selected ? 'border-brand-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
+              entry.selected ? 'border-accent bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
             }`}>
               <input type="checkbox" checked={entry.selected} onChange={() => onToggle(i)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" />
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 truncate">{entry.ed.institution_name}</p>
                 {(entry.ed.degree_type || entry.ed.field_of_study) && (
@@ -463,7 +463,7 @@ function EduImportModal({
             Cancel
           </button>
           <button onClick={onConfirm} disabled={selectedCount === 0 || saving}
-            className="flex-1 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
+            className="flex-1 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
             {saving ? 'Adding…' : `Add ${selectedCount || ''} ${selectedCount === 1 ? 'college' : 'colleges'}`}
           </button>
         </div>
@@ -901,7 +901,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-accent/30 border-t-brand-blue rounded-full animate-spin" />
       </div>
     )
   }
@@ -959,7 +959,7 @@ export default function Profile() {
       {/* ── 1. Hero card ───────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {/* Cover */}
-        <div className="h-28 bg-gradient-to-br from-brand-blue via-indigo-500 to-purple-600" />
+        <div className="h-28 bg-gradient-to-br from-brand-blue via-indigo-500 to-purple-600 border-b-2 border-ink" />
 
         {/* Identity row */}
         <div className="px-6 pb-6">
@@ -970,7 +970,7 @@ export default function Profile() {
                 {profile.avatar_url ? (
                   <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-brand-blue">{initials(profile.full_name)}</span>
+                  <span className="text-2xl font-extrabold text-accent-ink">{initials(profile.full_name)}</span>
                 )}
               </div>
               <button
@@ -991,7 +991,7 @@ export default function Profile() {
             {!heroEditing ? (
               <button
                 onClick={() => { setHeroEditing(true); setHeroError(null) }}
-                className="text-sm font-semibold text-slate-500 hover:text-brand-blue border border-slate-200 hover:border-brand-blue rounded-xl px-4 py-1.5 transition-colors"
+                className="text-sm font-semibold text-slate-500 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-xl px-4 py-1.5 transition-colors"
               >
                 Edit profile
               </button>
@@ -1015,7 +1015,7 @@ export default function Profile() {
                 )}
                 <div className="flex gap-2 mt-2 flex-wrap">
                   {profile.is_candidate && (
-                    <span className="text-xs font-semibold bg-blue-50 text-brand-blue border border-blue-100 rounded-full px-2.5 py-1">
+                    <span className="text-xs font-semibold bg-blue-50 text-accent-ink border border-blue-100 rounded-full px-2.5 py-1">
                       Candidate
                     </span>
                   )}
@@ -1115,7 +1115,7 @@ export default function Profile() {
                   Cancel
                 </button>
                 <button onClick={handleHeroSave} disabled={heroSaving || !editName.trim()}
-                  className="flex-1 bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
+                  className="flex-1 bg-accent hover:opacity-90 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
                   {heroSaving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
@@ -1139,7 +1139,7 @@ export default function Profile() {
                 {importing ? 'Importing…' : 'Import from resume'}
               </button>
               <button onClick={startAddWE}
-                className="text-xs font-semibold text-white bg-brand-blue hover:bg-blue-600 rounded-lg px-3 py-1.5 transition-colors">
+                className="text-xs font-semibold text-white bg-accent hover:opacity-90 rounded-lg px-3 py-1.5 transition-colors">
                 + Add
               </button>
             </>
@@ -1188,7 +1188,7 @@ export default function Profile() {
                     {/* Actions (show on hover) */}
                     <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => startEditWE(we)}
-                        className="text-xs font-semibold text-slate-400 hover:text-brand-blue border border-slate-200 hover:border-brand-blue rounded-lg px-2.5 py-1 transition-colors">
+                        className="text-xs font-semibold text-slate-400 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-lg px-2.5 py-1 transition-colors">
                         Edit
                       </button>
                       <button onClick={() => handleWEDelete(we.id)}
@@ -1220,7 +1220,7 @@ export default function Profile() {
                   {eduImporting ? 'Importing…' : 'Import from resume'}
                 </button>
                 <button onClick={() => startEditEdu()}
-                  className="text-xs font-semibold text-white bg-brand-blue hover:bg-blue-600 rounded-lg px-3 py-1.5 transition-colors">
+                  className="text-xs font-semibold text-white bg-accent hover:opacity-90 rounded-lg px-3 py-1.5 transition-colors">
                   + Add
                 </button>
               </>
@@ -1278,7 +1278,7 @@ export default function Profile() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-900 text-sm">{ed.institution_name}</p>
                           {ed.is_primary && (
-                            <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-brand-blue border border-blue-100 rounded px-1.5 py-0.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-accent-ink border border-blue-100 rounded px-1.5 py-0.5">
                               Primary
                             </span>
                           )}
@@ -1296,7 +1296,7 @@ export default function Profile() {
                       </div>
                       <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => startEditEdu(ed)}
-                          className="text-xs font-semibold text-slate-400 hover:text-brand-blue border border-slate-200 hover:border-brand-blue rounded-lg px-2.5 py-1 transition-colors">
+                          className="text-xs font-semibold text-slate-400 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-lg px-2.5 py-1 transition-colors">
                           Edit
                         </button>
                         <button onClick={() => handleEduDelete(ed.id)}
@@ -1320,7 +1320,7 @@ export default function Profile() {
           action={
             hasResume ? (
               <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
-                className="text-xs font-semibold text-slate-500 hover:text-brand-blue border border-slate-200 hover:border-brand-blue rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40">
+                className="text-xs font-semibold text-slate-500 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40">
                 {uploadingResume ? 'Uploading…' : 'Replace'}
               </button>
             ) : null
@@ -1328,7 +1328,7 @@ export default function Profile() {
         >
           {!hasResume ? (
             <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
-              className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-brand-blue hover:bg-blue-50/30 transition-colors p-8 text-center group">
+              className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-accent hover:bg-blue-50/30 transition-colors p-8 text-center group">
               {uploadingResume ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-6 h-6 border-2 border-slate-300 border-t-brand-blue rounded-full animate-spin mx-auto" />
@@ -1337,7 +1337,7 @@ export default function Profile() {
               ) : (
                 <>
                   <p className="text-3xl mb-2 group-hover:scale-110 transition-transform">📄</p>
-                  <p className="font-semibold text-slate-700 group-hover:text-brand-blue text-sm transition-colors">
+                  <p className="font-semibold text-slate-700 group-hover:text-accent-ink text-sm transition-colors">
                     Upload your resume
                   </p>
                   <p className="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT · Click to browse</p>
@@ -1399,7 +1399,7 @@ export default function Profile() {
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Vault — {profile.resumes.length}/3</p>
                   {profile.resumes.map((r: VaultResume) => (
                     <div key={r.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
-                      r.is_primary ? 'border-brand-blue/30 bg-blue-50/40' : 'border-slate-200'
+                      r.is_primary ? 'border-accent/30 bg-blue-50/40' : 'border-slate-200'
                     }`}>
                       <span className="text-base shrink-0">📄</span>
                       <div className="flex-1 min-w-0">
@@ -1421,7 +1421,7 @@ export default function Profile() {
                               try { const res = await api.post<UserProfile>(`/profile/resumes/${r.id}/set-active`); setProfile(res.data) } catch {}
                               setVaultActionId(null)
                             }}
-                            className="text-[11px] font-semibold text-brand-blue hover:text-blue-700 border border-brand-blue/30 hover:border-brand-blue rounded-md px-2 py-1 transition-colors disabled:opacity-40">
+                            className="text-[11px] font-semibold text-accent-ink hover:text-blue-700 border border-accent/30 hover:border-accent rounded-md px-2 py-1 transition-colors disabled:opacity-40">
                             {vaultActionId === r.id ? '…' : 'Set active'}
                           </button>
                         )}
@@ -1440,7 +1440,7 @@ export default function Profile() {
                   ))}
                   {profile.resumes.length < 3 && (
                     <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
-                      className="w-full rounded-lg border border-dashed border-slate-200 hover:border-brand-blue text-xs text-slate-400 hover:text-brand-blue font-medium py-2.5 transition-colors">
+                      className="w-full rounded-lg border border-dashed border-slate-200 hover:border-accent text-xs text-slate-400 hover:text-accent-ink font-medium py-2.5 transition-colors">
                       + Add another version
                     </button>
                   )}
@@ -1485,7 +1485,7 @@ export default function Profile() {
 
 // ── Tiny helpers ──────────────────────────────────────────────────────────────
 
-const INP = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition bg-white'
+const INP = 'w-full border-2 border-hairline rounded-xl px-3.5 py-2.5 text-sm bg-surface text-ink focus:outline-none focus:border-accent transition'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

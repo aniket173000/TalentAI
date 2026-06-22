@@ -80,7 +80,7 @@ export default function LinkedInCallback() {
           <p className="text-slate-500 text-sm mb-6 capitalize">{errorMsg}</p>
           <button
             onClick={() => navigate('/login', { replace: true })}
-            className="bg-brand-blue hover:bg-blue-600 text-white font-semibold rounded-lg px-6 py-3 transition-colors"
+            className="bg-accent hover:opacity-90 text-white font-semibold rounded-lg px-6 py-3 transition-colors"
           >
             Back to login
           </button>
@@ -106,14 +106,14 @@ export default function LinkedInCallback() {
 
           <form
             onSubmit={handleCompanySave}
-            className="bg-white rounded-2xl border border-slate-200 p-8 space-y-5 shadow-sm"
+            className="bg-surface rounded-2xl border-2 border-ink shadow-card p-8 space-y-5 shadow-sm"
           >
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isThirdParty}
                 onChange={e => setIsThirdParty(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-accent"
               />
               <span className="text-sm text-slate-700">
                 <span className="font-semibold">I am a third-party recruiter</span>
@@ -132,7 +132,7 @@ export default function LinkedInCallback() {
                   onChange={e => setCompany(e.target.value)}
                   placeholder="e.g. Acme Corp"
                   required={!isThirdParty}
-                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-accent transition"
                 />
                 <p className="text-xs text-slate-400 mt-1">
                   Jobs you post will be verified against this company name.
@@ -143,7 +143,7 @@ export default function LinkedInCallback() {
             <button
               type="submit"
               disabled={saving || (!isThirdParty && !company.trim())}
-              className="w-full bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-lg py-3 transition-colors"
+              className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-lg py-3 transition-colors"
             >
               {saving ? 'Saving…' : 'Continue to Dashboard'}
             </button>
@@ -157,7 +157,7 @@ export default function LinkedInCallback() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="text-center">
-        <div className="w-8 h-8 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin mx-auto mb-4" />
+        <div className="w-8 h-8 border-4 border-accent/30 border-t-brand-blue rounded-full animate-spin mx-auto mb-4" />
         <p className="text-slate-500 text-sm">Completing LinkedIn sign-in…</p>
       </div>
     </div>

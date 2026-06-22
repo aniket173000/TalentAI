@@ -84,25 +84,25 @@ export default function CandidatesCorpus() {
     <div className="max-w-6xl mx-auto px-4 py-12">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Candidate Corpus</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-ink">Candidate Corpus</h1>
+          <p className="text-muted text-sm mt-1">
             {total} candidate{total === 1 ? '' : 's'} — searchable across all your jobs.
           </p>
         </div>
         <button
           onClick={() => navigate('/recruiter/rank-candidates')}
-          className="bg-brand-blue hover:bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl"
+          className="bg-accent hover:opacity-90 text-white font-semibold px-5 py-2.5 rounded-xl"
         >
           Rank candidates →
         </button>
       </div>
 
       {/* Upload card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6 mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="flex-1">
             <h2 className="font-semibold text-slate-700">Upload resumes</h2>
-            <p className="text-slate-500 text-sm mt-0.5">
+            <p className="text-muted text-sm mt-0.5">
               PDF or DOCX. Each is parsed, structured, and embedded for vector search.
             </p>
           </div>
@@ -115,12 +115,12 @@ export default function CandidatesCorpus() {
             onChange={e => handleUpload(e.target.files)}
             className="block text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-5
                        file:rounded-xl file:border-0 file:font-semibold
-                       file:bg-brand-blue file:text-white hover:file:bg-blue-600
+                       file:bg-accent file:text-white hover:file:opacity-90
                        disabled:opacity-40"
           />
         </div>
         {uploading && (
-          <div className="mt-4 text-sm text-brand-blue font-medium">Ingesting resumes…</div>
+          <div className="mt-4 text-sm text-accent-ink font-medium">Ingesting resumes…</div>
         )}
         {error && (
           <div className="mt-4 text-sm bg-red-50 text-red-600 border border-red-200 rounded-xl px-4 py-2.5">
@@ -133,11 +133,11 @@ export default function CandidatesCorpus() {
       {loading ? (
         <LoadingSpinner />
       ) : candidates.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500">
+        <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-12 text-center text-muted">
           No candidates yet. Upload resumes to build your corpus.
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -154,11 +154,11 @@ export default function CandidatesCorpus() {
                   <td className="px-5 py-4">
                     <button
                       onClick={() => navigate(`/recruiter/candidates/${c.id}`)}
-                      className="font-semibold text-slate-800 hover:text-brand-blue"
+                      className="font-semibold text-ink hover:text-accent-ink"
                     >
                       {c.full_name || 'Unnamed candidate'}
                     </button>
-                    <div className="text-slate-500 text-xs mt-0.5">
+                    <div className="text-muted text-xs mt-0.5">
                       {c.headline || '—'}{c.location ? ` · ${c.location}` : ''}
                     </div>
                   </td>
@@ -170,7 +170,7 @@ export default function CandidatesCorpus() {
                         </span>
                       ))}
                       {c.skill_count > 5 && (
-                        <span className="text-xs text-slate-400">+{c.skill_count - 5}</span>
+                        <span className="text-xs text-muted">+{c.skill_count - 5}</span>
                       )}
                     </div>
                   </td>
@@ -185,7 +185,7 @@ export default function CandidatesCorpus() {
                   <td className="px-5 py-4 text-right">
                     <button
                       onClick={() => removeCandidate(c.id)}
-                      className="text-slate-400 hover:text-red-500 text-xs font-semibold"
+                      className="text-muted hover:text-red-500 text-xs font-semibold"
                     >
                       Remove
                     </button>

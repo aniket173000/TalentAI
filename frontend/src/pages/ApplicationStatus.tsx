@@ -40,7 +40,7 @@ const STATUS_META: Record<string, { color: string; bg: string; border: string; d
   interview_scheduled: {
     color: 'text-indigo-700',
     bg: 'bg-indigo-50',
-    border: 'border-indigo-200',
+    border: 'border-[color:var(--violet-line)]',
     description: 'You have been selected for the interview stage. Our team will reach out with the details.',
   },
   offer_extended: {
@@ -87,7 +87,7 @@ export default function ApplicationStatus() {
   if (loading) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-accent/30 border-t-brand-blue rounded-full animate-spin" />
       </div>
     )
   }
@@ -97,9 +97,9 @@ export default function ApplicationStatus() {
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-5xl mb-4">🔍</p>
-          <h1 className="text-2xl font-extrabold text-slate-900 mb-2">Application not found</h1>
-          <p className="text-slate-500 text-sm mb-6">The link may be invalid or expired.</p>
-          <Link to="/" className="text-brand-blue hover:underline text-sm font-medium">← Browse jobs</Link>
+          <h1 className="text-2xl font-display font-extrabold text-ink mb-2">Application not found</h1>
+          <p className="text-muted text-sm mb-6">The link may be invalid or expired.</p>
+          <Link to="/" className="text-accent-ink hover:underline text-sm font-medium">← Browse jobs</Link>
         </div>
       </div>
     )
@@ -134,18 +134,18 @@ export default function ApplicationStatus() {
     <div className="max-w-lg mx-auto px-4 py-12">
       {/* Header */}
       <div className="text-center mb-8">
-        <p className="text-slate-500 text-sm font-medium">{data.company}</p>
-        <h1 className="text-2xl font-extrabold text-slate-900 mt-1">{data.job_title}</h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-muted text-sm font-medium">{data.company}</p>
+        <h1 className="text-2xl font-display font-extrabold text-ink mt-1">{data.job_title}</h1>
+        <p className="text-xs text-muted mt-1">
           Applied {new Date(data.applied_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
       {/* Current status card */}
       <div className={`rounded-2xl border ${meta.border} ${meta.bg} p-6 mb-6 text-center`}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Current Status</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted mb-2">Current Status</p>
         <p className={`text-2xl font-extrabold ${meta.color}`}>{displayLabel}</p>
-        <p className="text-sm text-slate-500 mt-2 leading-relaxed">{meta.description}</p>
+        <p className="text-sm text-muted mt-2 leading-relaxed">{meta.description}</p>
 
         {/* Score tier badge — visible for pool members */}
         {tier && (
@@ -157,16 +157,16 @@ export default function ApplicationStatus() {
 
       {/* Interview rejection feedback */}
       {isInterviewRejected && data.status_feedback && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Recruiter Feedback</p>
+        <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-5 mb-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted mb-2">Recruiter Feedback</p>
           <p className="text-sm text-slate-700 leading-relaxed">{data.status_feedback}</p>
         </div>
       )}
 
       {/* Progress timeline */}
       {showStepper && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-5">Application Progress</p>
+        <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6 mb-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted mb-5">Application Progress</p>
           <div className="space-y-0">
             {STEPS.map((step, i) => {
               const isDone    = i < activeIdx
@@ -180,7 +180,7 @@ export default function ApplicationStatus() {
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 shrink-0
                       ${isFailed  ? 'bg-red-500 border-red-500 text-white'
                         : isDone  ? 'bg-emerald-500 border-emerald-500 text-white'
-                        : isCurrent ? 'bg-brand-blue border-brand-blue text-white'
+                        : isCurrent ? 'bg-accent border-accent text-white'
                         : 'bg-white border-slate-300 text-slate-300'}`}
                     >
                       {isFailed ? '✕' : isDone ? '✓' : step.icon}
@@ -193,13 +193,13 @@ export default function ApplicationStatus() {
                     <p className={`text-sm font-semibold ${
                       isFailed  ? 'text-red-500'
                         : isFuture  ? 'text-slate-300'
-                        : isCurrent ? 'text-brand-blue'
+                        : isCurrent ? 'text-accent-ink'
                         : 'text-slate-700'
                     }`}>
                       {isFailed ? 'Interview Not Passed' : step.label}
                     </p>
                     {isCurrent && !isFailed && (
-                      <p className="text-xs text-slate-400 mt-0.5">You are here</p>
+                      <p className="text-xs text-muted mt-0.5">You are here</p>
                     )}
                   </div>
                 </div>
@@ -209,13 +209,13 @@ export default function ApplicationStatus() {
         </div>
       )}
 
-      <p className="text-center text-xs text-slate-400 mb-6">
+      <p className="text-center text-xs text-muted mb-6">
         Bookmark this page to check your status anytime — no login required.
       </p>
 
       <Link
         to="/"
-        className="block text-center text-sm text-brand-blue hover:underline font-medium"
+        className="block text-center text-sm text-accent-ink hover:underline font-medium"
       >
         ← Browse more jobs
       </Link>
