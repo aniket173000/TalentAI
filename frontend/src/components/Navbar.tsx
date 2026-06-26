@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, ActiveMode } from '../context/AuthContext'
-import { useStudentMode } from '../context/StudentModeContext'
 import { Avatar, Logo } from './ui'
 
 function initialsOf(name?: string | null): string {
@@ -155,6 +154,19 @@ function AddCapabilityModal({ targetMode, onClose }: AddCapabilityModalProps) {
   )
 }
 
+// Midnight Terminal nav tokens — applied as CSS-var overrides on the /colleges
+// header so the existing Tailwind/inline `var(--…)` styles cascade to dark.
+const NAV_DARK = { bg: '#08080B', ink: '#E7E9EE', muted: '#9CA0AB', surface: '#101218', line: '#262932', violet: '#9D7CFF' }
+const NAV_DARK_VARS = {
+  '--bg': NAV_DARK.bg,
+  '--ink': NAV_DARK.ink,
+  '--muted': NAV_DARK.muted,
+  '--surface': NAV_DARK.surface,
+  '--surface-2': NAV_DARK.surface,
+  '--line': NAV_DARK.line,
+  '--violet': NAV_DARK.violet,
+} as React.CSSProperties
+
 // ── Mode toggle pill (shown for dual-mode users) ──────────────────────────────
 
 function ModeSwitcher() {
@@ -198,9 +210,12 @@ export default function Navbar() {
     activeMode,
     logout,
   } = useAuth()
-  const { studentMode, toggleStudentMode } = useStudentMode()
 
   const [addModal, setAddModal] = useState<ActiveMode | null>(null)
+
+  // Midnight Terminal: the Colleges route uses the dark directory theme, so the
+  // navbar themes dark there too (grid + detail share the /colleges path).
+  const dark = pathname === '/colleges'
 
   const linkClass = (path: string) =>
     `text-sm font-bold transition-colors ${
@@ -222,11 +237,16 @@ export default function Navbar() {
   return (
     <>
       <header
-        className="sticky top-0 z-40 border-b-2 border-ink"
-        style={{ background: 'color-mix(in oklch, var(--bg) 88%, transparent)', backdropFilter: 'blur(10px)' }}
+        className={`sticky top-0 z-40 ${dark ? '' : 'border-b-2 border-ink'}`}
+        style={{
+          ...(dark ? NAV_DARK_VARS : {}),
+          background: dark ? 'rgba(8,8,11,.82)' : 'color-mix(in oklch, var(--bg) 88%, transparent)',
+          backdropFilter: 'blur(12px)',
+          ...(dark ? { borderBottom: `1px solid ${NAV_DARK.line}` } : {}),
+        }}
       >
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-5">
-          <Link to="/" aria-label="Home"><Logo /></Link>
+          <Link to="/" aria-label="Home"><Logo dark={dark} /></Link>
 
           <nav className="flex items-center gap-5 ml-2">
             <Link to="/" className={linkClass('/')}>Jobs</Link>
@@ -246,20 +266,6 @@ export default function Navbar() {
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
-            {/* Student-mode toggle — candidates + signed-out visitors */}
-            {!isRecruiter && (
-              <button
-                onClick={toggleStudentMode}
-                title={studentMode ? 'Student Mode is ON — click to turn off' : 'Switch to Student Mode for readiness roadmaps & practice apply'}
-                className="text-xs font-bold rounded-full px-3 py-1.5 transition-colors"
-                style={studentMode
-                  ? { background: 'var(--violet)', color: '#fff', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)' }
-                  : { background: 'var(--surface)', color: 'var(--muted)', border: '2px solid var(--line)' }}
-              >
-                🎓 Student Mode
-              </button>
-            )}
-
             {isAuthenticated ? (
               <>
                 {isDualMode && <ModeSwitcher />}
@@ -312,8 +318,14 @@ export default function Navbar() {
                 </Link>
                 <Link
                   to="/register"
-                  className="text-sm font-extrabold text-white rounded-xl px-4 py-2 transition-transform active:translate-x-0.5 active:translate-y-0.5"
-                  style={{ background: 'var(--violet)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', fontFamily: 'var(--font-display)' }}
+                  className="text-sm font-extrabold rounded-xl px-4 py-2 transition-transform active:translate-x-0.5 active:translate-y-0.5"
+                  style={{
+                    background: 'var(--violet)',
+                    color: dark ? '#08080B' : '#fff',
+                    border: dark ? '1px solid var(--violet)' : '2px solid var(--ink)',
+                    boxShadow: dark ? `0 0 22px ${NAV_DARK.violet}80` : '3px 3px 0 var(--ink)',
+                    fontFamily: 'var(--font-display)',
+                  }}
                 >
                   Register
                 </Link>

@@ -5,7 +5,6 @@ import JDFormatter from '../components/JDFormatter'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PracticeApplyModal from '../components/PracticeApplyModal'
 import { useAuth } from '../context/AuthContext'
-import { useStudentMode } from '../context/StudentModeContext'
 import { Application, Job } from '../types'
 import { Button, Card, Icon, Tag } from '../components/ui'
 import { formatSalaryRange } from '../utils/currency'
@@ -14,7 +13,6 @@ export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { isRecruiter } = useAuth()
-  const { studentMode } = useStudentMode()
   const [job, setJob] = useState<Job | null>(null)
   const [leaderboard, setLeaderboard] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,7 +90,7 @@ export default function JobDetail() {
                 {spotsLeft > 0 ? 'AI screens your resume instantly. Score high to enter the pool.' : 'The pool is full — a high-scoring resume can still displace the lowest-ranked candidate.'}
               </p>
               <Button full size="lg" variant="primary" iconRight="arrow" onClick={() => navigate(`/jobs/${job.id}/apply`)}>Apply now</Button>
-              <Button full variant={studentMode ? 'dark' : 'soft'} onClick={() => setPracticeOpen(true)}>✨ Test my chances</Button>
+              <Button full variant="soft" onClick={() => setPracticeOpen(true)}>✨ Test my chances</Button>
               {job.is_fresher_friendly && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--green-ink)', fontWeight: 700 }}>
                   <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--green)' }} /> Project-First scoring active

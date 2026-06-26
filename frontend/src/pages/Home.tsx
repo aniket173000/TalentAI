@@ -4,7 +4,6 @@ import CompanyCard from '../components/CompanyCard'
 import JobCard from '../components/JobCard'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { Icon } from '../components/ui'
-import { useStudentMode } from '../context/StudentModeContext'
 import { Job, JobListResponse } from '../types'
 
 function getBestLogoUrl(companyJobs: Job[]): string | null {
@@ -25,7 +24,6 @@ function getBestLogoUrl(companyJobs: Job[]): string | null {
 }
 
 export default function Home() {
-  const { studentMode, toggleStudentMode } = useStudentMode()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -184,22 +182,6 @@ export default function Home() {
   // ── Company grid view ───────────────────────────────────────────────────────
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
-
-      {/* Student Mode Banner */}
-      {studentMode && (
-        <div className="mb-8 flex items-center justify-between gap-4" style={{ background: 'var(--violet-soft)', border: '2px solid var(--ink)', borderRadius: 18, boxShadow: '4px 4px 0 var(--card-shadow)', padding: '16px 22px' }}>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎓</span>
-            <div>
-              <p style={{ color: 'var(--ink)', fontWeight: 800, fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>Student Mode is ON</p>
-              <p style={{ color: 'var(--violet-ink)', fontSize: 12, margin: '2px 0 0', fontWeight: 600 }}>Readiness roadmaps · Project-First scoring · "Test My Chances" on every job</p>
-            </div>
-          </div>
-          <button onClick={toggleStudentMode} className="shrink-0 text-xs font-bold rounded-full px-3 py-1.5" style={{ background: 'var(--surface)', color: 'var(--violet-ink)', border: '2px solid var(--violet-line)' }}>
-            Turn Off
-          </button>
-        </div>
-      )}
 
       {/* Hero */}
       <div className="text-center mb-10">

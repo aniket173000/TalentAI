@@ -558,6 +558,12 @@ async def create_referral_post(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    # Referring is a candidate-side action — mirrors the frontend gate
+    # (/referrals/create requires the candidate capability; recruiters are
+    # blocked from the referrals area entirely). Keep parity with apply_to_referral.
+    if not current_user.is_candidate:
+        raise HTTPException(403, "Only candidates can create referral posts.")
+
     # Determine company_verified from LinkedIn or explicitly set later via OTP
     _ref_ext = current_user.recruiter_ext
     linkedin_verified_company = (

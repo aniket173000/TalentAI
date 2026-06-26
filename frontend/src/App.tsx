@@ -7,7 +7,6 @@ import CandidateRankingDetail from './pages/CandidateRankingDetail'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { StudentModeProvider } from './context/StudentModeContext'
 import Apply from './pages/Apply'
 import ApplicationResult from './pages/ApplicationResult'
 import CandidateDashboard from './pages/CandidateDashboard'
@@ -81,8 +80,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <StudentModeProvider>
-          <OnboardingGate>
+        <OnboardingGate>
             <div className="min-h-screen bg-slate-50 flex flex-col">
               <Navbar />
               <main className="flex-1">
@@ -210,7 +208,6 @@ export default function App() {
               </main>
             </div>
           </OnboardingGate>
-        </StudentModeProvider>
       </AuthProvider>
     </BrowserRouter>
   )

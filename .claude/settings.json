@@ -54,7 +54,11 @@
       "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/services/company_logo.py)",
       "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/google_auth.py /Users/aniket/Desktop/Mark1Job/backend/config.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py)",
       "Bash(python3 -m py_compile /Users/aniket/Desktop/Mark1Job/backend/routers/referrals.py /Users/aniket/Desktop/Mark1Job/backend/models.py /Users/aniket/Desktop/Mark1Job/backend/main.py)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(/Users/aniket/Desktop/Mark1Job/frontend/node_modules/.bin/tsc --noEmit -p /Users/aniket/Desktop/Mark1Job/frontend/tsconfig.json)",
+      "Bash(/Users/aniket/Desktop/Mark1Job/frontend/node_modules/.bin/vite build *)",
+      "Bash(cd /Users/aniket/Desktop/Mark1Job/backend)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/aniket/Desktop/Mark1Job/backend/routers/referrals.py'\\).read\\(\\)\\); print\\('referrals.py OK'\\)\")"
     ],
     "additionalDirectories": [
       "/tmp",
