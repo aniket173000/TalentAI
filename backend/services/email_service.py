@@ -82,6 +82,12 @@ _REFERRAL_TEAM_FOOTER = (
     + _PLATFORM_FOOTER
 )
 
+_TEAM_FOOTER = (
+    "The Nideknil Team\n"
+    "nideknil.in"
+    + _PLATFORM_FOOTER
+)
+
 
 def _build_signature(
     recruiter_name: str,
@@ -533,6 +539,30 @@ Next steps:
 Best regards,
 {_REFERRAL_TEAM_FOOTER}"""
     await send_email(referrer_email, f"Referral Post Auto-Closed — {job_title} at {company_name}", body)
+
+
+async def send_signup_otp_email(
+    email: str,
+    full_name: str,
+    otp_code: str,
+    expiry_minutes: int = 10,
+) -> None:
+    greeting = f"Hi {full_name.split()[0]}," if full_name else "Hi,"
+    body = f"""{greeting}
+
+Welcome to Nideknil! Please confirm your email address to finish creating your account.
+
+Your verification code is:
+
+    {otp_code}
+
+This code expires in {expiry_minutes} minutes. Enter it on the signup screen to activate your account.
+
+If you didn't try to sign up for Nideknil, you can safely ignore this email — no account will be created.
+
+Best regards,
+{_TEAM_FOOTER}"""
+    await send_email(email, f"Verify your email — Nideknil ({otp_code})", body)
 
 
 async def send_referral_otp_email(

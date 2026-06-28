@@ -29,6 +29,7 @@ import ReferralPostPage from './pages/ReferralPostPage'
 import ReferrerDashboard from './pages/ReferrerDashboard'
 import Register from './pages/Register'
 import Feedback from './pages/Feedback'
+import AdminPanel from './pages/AdminPanel'
 
 // Skipping hides the modal for the current browser session only.
 // On next login (new session) it reappears until the form is actually completed.
@@ -81,6 +82,14 @@ function ReferralGate({ children }: { children: React.ReactNode }) {
 function RootRoute() {
   const { user } = useAuth()
   return user ? <Home /> : <Landing />
+}
+
+// Admin-only route guard — redirects non-admins (and logged-out users) home.
+function AdminGate({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (!user?.is_admin) return <Navigate to="/" replace />
+  return <>{children}</>
 }
 
 function AppShell() {
@@ -215,6 +224,7 @@ function AppShell() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route path="/admin" element={<AdminGate><AdminPanel /></AdminGate>} />
                 </Routes>
         </main>
       </div>

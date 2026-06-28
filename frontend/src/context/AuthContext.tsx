@@ -20,7 +20,8 @@ interface AuthContextType {
   addCapability: (accountType: ActiveMode, opts?: AddCapabilityOptions) => Promise<void>
 
   login: (email: string, password: string) => Promise<void>
-  register: (
+  /** Step 1 of signup — emails an OTP. No account is created yet. */
+  sendSignupOtp: (
     email: string,
     password: string,
     fullName: string,
@@ -28,12 +29,16 @@ interface AuthContextType {
     company?: string | null,
     isThirdParty?: boolean,
   ) => Promise<void>
-  /** Redirect browser to LinkedIn OAuth for the given account type. */
-  loginWithLinkedIn: (accountType: ActiveMode) => void
+  /** Step 2 of signup — confirms the OTP, creating + logging in the account. */
+  verifySignupOtp: (email: string, otpCode: string, accountType: ActiveMode) => Promise<void>
+  /** Re-send the signup OTP for a pending registration. */
+  resendSignupOtp: (email: string) => Promise<void>
+  /** Redirect browser to LinkedIn OAuth. Pass 'login' to sign in without forcing a role. */
+  loginWithLinkedIn: (accountType: ActiveMode | 'login') => void
   /** Store the token returned from LinkedIn callback and fetch the user. */
   completeLinkedInLogin: (token: string, accountType: ActiveMode) => Promise<void>
-  /** Redirect browser to Google OAuth for the given account type. */
-  loginWithGoogle: (accountType: ActiveMode) => void
+  /** Redirect browser to Google OAuth. Pass 'login' to sign in without forcing a role. */
+  loginWithGoogle: (accountType: ActiveMode | 'login') => void
   /** Store the token returned from the Google callback and fetch the user. */
   completeGoogleLogin: (token: string, accountType: ActiveMode) => Promise<void>
   logout: () => void
@@ -141,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveModeState(mode)
   }
 
-  const register = async (
+  const sendSignupOtp = async (
     email: string,
     password: string,
     fullName: string,
@@ -149,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     company?: string | null,
     isThirdParty = false,
   ) => {
-    const r = await api.post<{ access_token: string; user: AuthUser }>('/auth/register', {
+    await api.post('/auth/register/send-otp', {
       email,
       password,
       full_name: fullName,
@@ -157,13 +162,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       company: company ?? null,
       is_third_party_recruiter: isThirdParty,
     })
+  }
+
+  const verifySignupOtp = async (email: string, otpCode: string, accountType: ActiveMode) => {
+    const r = await api.post<{ access_token: string; user: AuthUser }>('/auth/register/verify-otp', {
+      email,
+      otp_code: otpCode,
+    })
     localStorage.setItem('auth_token', r.data.access_token)
     localStorage.setItem('active_mode', accountType)
     setUser(r.data.user)
     setActiveModeState(accountType)
   }
 
-  const loginWithLinkedIn = (accountType: ActiveMode) => {
+  const resendSignupOtp = async (email: string) => {
+    await api.post('/auth/register/resend-otp', { email })
+  }
+
+  const loginWithLinkedIn = (accountType: ActiveMode | 'login') => {
     window.location.href = `/api/auth/linkedin/authorize?account_type=${accountType}`
   }
 
@@ -175,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveModeState(accountType)
   }
 
-  const loginWithGoogle = (accountType: ActiveMode) => {
+  const loginWithGoogle = (accountType: ActiveMode | 'login') => {
     window.location.href = `/api/auth/google/authorize?account_type=${accountType}`
   }
 
@@ -206,7 +222,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         switchMode,
         addCapability,
         login,
-        register,
+        sendSignupOtp,
+        verifySignupOtp,
+        resendSignupOtp,
         loginWithLinkedIn,
         completeLinkedInLogin,
         loginWithGoogle,

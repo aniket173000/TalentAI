@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     MAX_APPLICATIONS_PER_JOB: int = 10
     MIN_MATCH_SCORE: float = 80.0
 
+    # ── Admin panel access ────────────────────────────────────────────────────
+    # Comma-separated emails allowed into /admin. Gmail "+alias" and dots are
+    # normalised, so one address covers all your test aliases.
+    ADMIN_EMAILS: str = "aniket.s@aspireapp.com,aniketshrivastav02@gmail.com"
+
     # ── JWT auth ──────────────────────────────────────────────────────────────
     JWT_SECRET: str = "change-me-to-a-long-random-string-in-production"
     JWT_ALGORITHM: str = "HS256"

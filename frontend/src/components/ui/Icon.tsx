@@ -5,7 +5,7 @@ import type { CSSProperties, ReactElement } from 'react'
 export type IconName =
   | 'check' | 'x' | 'arrow' | 'back' | 'search' | 'bolt' | 'lock' | 'pin'
   | 'bag' | 'clock' | 'shield' | 'spark' | 'users' | 'trophy' | 'bell'
-  | 'building' | 'chevron' | 'star' | 'alert' | 'plus' | 'sliders'
+  | 'building' | 'chevron' | 'star' | 'alert' | 'plus' | 'sliders' | 'refresh'
 
 const PATHS: Record<IconName, ReactElement> = {
   check: <polyline points="20 6 9 17 4 12" />,
@@ -28,6 +28,7 @@ const PATHS: Record<IconName, ReactElement> = {
   star: <polygon points="12 3 14.6 9 21 9.5 16 13.8 17.6 20 12 16.5 6.4 20 8 13.8 3 9.5 9.4 9" />,
   alert: <g><path d="M12 3l9 16H3z" /><line x1="12" y1="10" x2="12" y2="14" /><line x1="12" y1="17" x2="12" y2="17.01" /></g>,
   plus: <g><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></g>,
+  refresh: <g><polyline points="21 4 21 10 15 10" /><polyline points="3 20 3 14 9 14" /><path d="M5 14a8 8 0 0 0 13 3l3-3" /><path d="M19 10a8 8 0 0 0-13-3L3 10" /></g>,
   sliders: <g><line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" /><circle cx="9" cy="8" r="2.4" /><circle cx="15" cy="16" r="2.4" /></g>,
 }
 

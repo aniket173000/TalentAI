@@ -52,24 +52,147 @@ function initialsOf(name: string | null): string {
   if (!name) return '?'
   return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
+
+// Pull the first non-empty value across a set of possible key names (resilient to
+// schema variance between extractors / legacy rows).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function lineFor(item: any): string {
-  if (typeof item === 'string') return item
-  if (item && typeof item === 'object') {
-    const vals = [item.title || item.role || item.position || item.degree || item.name || item.project_name,
-                  item.company || item.employer || item.institution || item.field || item.field_of_study,
-                  item.duration || item.years || item.graduation_year].filter(Boolean)
-    return vals.join(' · ') || JSON.stringify(item)
+function pick(obj: any, ...keys: string[]): string | null {
+  if (!obj || typeof obj !== 'object') return null
+  for (const k of keys) {
+    const v = obj[k]
+    if (v != null && String(v).trim() !== '') return String(v).trim()
   }
-  return String(item)
+  return null
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dateRange(item: any): string | null {
+  const start = pick(item, 'start_date', 'start', 'from', 'start_year')
+  const endRaw = pick(item, 'end_date', 'end', 'to', 'end_year')
+  const end = endRaw ?? (item?.is_current ? 'Present' : null)
+  if (start && end) return `${start} — ${end}`
+  return start || end || pick(item, 'duration', 'years')
+}
+
+function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
     <Card padding={22}>
-      <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, margin: '0 0 12px', color: 'var(--ink)', letterSpacing: '-0.02em' }}>{title}</h3>
+      <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, margin: '0 0 14px', color: 'var(--ink)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        {title}
+        {count != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{count}</span>}
+      </h3>
       {children}
     </Card>
+  )
+}
+
+// ── Structured profile renderers ───────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ExperienceItem({ w, last }: { w: any; last: boolean }) {
+  if (typeof w === 'string') {
+    return <li style={{ fontSize: 14, color: 'var(--ink)', display: 'flex', gap: 8 }}><span style={{ color: 'var(--violet)' }}>•</span>{w}</li>
+  }
+  const title = pick(w, 'title', 'role', 'position', 'job_title')
+  const company = pick(w, 'company', 'employer', 'organization', 'organisation')
+  const dates = dateRange(w)
+  const desc = pick(w, 'description', 'summary', 'responsibilities', 'details')
+  // Full per-role bullet points exactly as written in the resume.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hlRaw = (w.highlights ?? w.bullets ?? w.achievements) as any
+  const highlights: string[] = Array.isArray(hlRaw)
+    ? hlRaw.map((h: unknown) => String(h).trim()).filter(Boolean)
+    : (typeof hlRaw === 'string' ? hlRaw.split('\n').map(s => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean) : [])
+  return (
+    <li style={{ position: 'relative', paddingLeft: 20, paddingBottom: last ? 0 : 18 }}>
+      {/* timeline dot + line */}
+      <span style={{ position: 'absolute', left: 0, top: 5, width: 9, height: 9, borderRadius: 99, background: 'var(--violet)', border: '2px solid var(--surface)', boxShadow: '0 0 0 1.5px var(--violet)' }} />
+      {!last && <span style={{ position: 'absolute', left: 4, top: 15, bottom: 0, width: 1.5, background: 'var(--line)' }} />}
+      <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.3 }}>{title || 'Role'}</div>
+      <div style={{ fontSize: 13, color: 'var(--violet-ink)', fontWeight: 600, marginTop: 1 }}>
+        {company || '—'}{dates && <span style={{ color: 'var(--muted)', fontWeight: 500 }}>  ·  {dates}</span>}
+      </div>
+      {desc && <p style={{ fontSize: 13, color: 'var(--ink)', opacity: 0.78, margin: '6px 0 0', lineHeight: 1.55, fontWeight: 500 }}>{desc}</p>}
+      {highlights.length > 0 && (
+        <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {highlights.map((h, i) => (
+            <li key={i} style={{ fontSize: 13, color: 'var(--ink)', opacity: 0.82, display: 'flex', gap: 8, lineHeight: 1.5, fontWeight: 500 }}>
+              <span style={{ color: 'var(--violet)', flexShrink: 0 }}>•</span>
+              <span>{h}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ProjectItem({ p }: { p: any }) {
+  if (typeof p === 'string') {
+    return <div style={{ fontSize: 14, color: 'var(--ink)', display: 'flex', gap: 8 }}><span style={{ color: 'var(--violet)' }}>•</span>{p}</div>
+  }
+  const name = pick(p, 'name', 'project_name', 'title')
+  const desc = pick(p, 'description', 'summary')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const techRaw = (p.technologies ?? p.tech ?? p.stack) as any
+  const tech: string[] = Array.isArray(techRaw) ? techRaw : (typeof techRaw === 'string' ? techRaw.split(/[,/]/).map(s => s.trim()).filter(Boolean) : [])
+  return (
+    <div style={{ paddingBottom: 4 }}>
+      <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)' }}>{name || 'Project'}</div>
+      {desc && <p style={{ fontSize: 13, color: 'var(--ink)', opacity: 0.78, margin: '4px 0 0', lineHeight: 1.55, fontWeight: 500 }}>{desc}</p>}
+      {tech.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+          {tech.map((t, i) => <Tag key={i}>{t}</Tag>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Renders the structured profile_summary blurb (title line + "Label: value" lines)
+// with the section labels bolded.
+const SUMMARY_LABELS = ['Skills', 'Experience', 'Industries', 'Projects', 'Education']
+function ProfileSummary({ text }: { text: string }) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {lines.map((line, i) => {
+        const idx = line.indexOf(':')
+        const label = idx > -1 ? line.slice(0, idx).trim() : ''
+        if (label && SUMMARY_LABELS.includes(label)) {
+          return (
+            <div key={i} style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 800, color: 'var(--ink)' }}>{label}: </span>
+              <span style={{ color: 'var(--muted)', fontWeight: 500 }}>{line.slice(idx + 1).trim()}</span>
+            </div>
+          )
+        }
+        // First unlabelled line = role/title headline
+        if (i === 0) {
+          return <div key={i} style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)' }}>{line}</div>
+        }
+        return <div key={i} style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, lineHeight: 1.5 }}>{line}</div>
+      })}
+    </div>
+  )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function EducationItem({ e }: { e: any }) {
+  if (typeof e === 'string') {
+    return <div style={{ fontSize: 14, color: 'var(--ink)', display: 'flex', gap: 8 }}><span style={{ color: 'var(--violet)' }}>•</span>{e}</div>
+  }
+  const degree = pick(e, 'degree', 'qualification', 'field', 'field_of_study')
+  const inst = pick(e, 'institution', 'college', 'university', 'school')
+  const year = pick(e, 'year', 'graduation_year', 'end_year', 'grad_year')
+  return (
+    <div>
+      <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)' }}>{degree || inst || 'Education'}</div>
+      <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginTop: 1 }}>
+        {degree && inst ? inst : ''}{year && <span>{degree && inst ? '  ·  ' : ''}{year}</span>}
+      </div>
+    </div>
   )
 }
 
@@ -178,31 +301,53 @@ export default function CandidateRankingDetail() {
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, alignItems: 'start' }} className="vouch-detail-grid">
         {/* left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <Section title="Skills">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {cand.normalized_skills.map(s => <Tag key={s} tone="match">{s}</Tag>)}
-              {cand.unmapped_skills.map(s => <Tag key={s}>{s}</Tag>)}
-            </div>
-          </Section>
+          {(cand.normalized_skills.length > 0 || cand.unmapped_skills.length > 0) && (
+            <Section title="Skills" count={cand.normalized_skills.length + cand.unmapped_skills.length}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {cand.normalized_skills.map(s => <Tag key={s} tone="match">{s}</Tag>)}
+                {cand.unmapped_skills.map(s => <Tag key={s}>{s}</Tag>)}
+              </div>
+            </Section>
+          )}
           {cand.work_history.length > 0 && (
-            <Section title="Experience">
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {cand.work_history.map((w, i) => <li key={i} style={{ fontSize: 14, color: 'var(--ink)', display: 'flex', gap: 8 }}><span style={{ color: 'var(--violet)' }}>•</span>{lineFor(w)}</li>)}
+            <Section title="Experience" count={cand.work_history.length}>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {cand.work_history.map((w, i) => <ExperienceItem key={i} w={w} last={i === cand.work_history.length - 1} />)}
               </ul>
             </Section>
           )}
           {cand.projects.length > 0 && (
-            <Section title="Projects">
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {cand.projects.map((p, i) => <li key={i} style={{ fontSize: 14, color: 'var(--ink)', display: 'flex', gap: 8 }}><span style={{ color: 'var(--violet)' }}>•</span>{lineFor(p)}</li>)}
-              </ul>
+            <Section title="Projects" count={cand.projects.length}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {cand.projects.map((p, i) => <ProjectItem key={i} p={p} />)}
+              </div>
             </Section>
           )}
           {cand.education.length > 0 && (
-            <Section title="Education">
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {cand.education.map((e, i) => <li key={i} style={{ fontSize: 14, color: 'var(--ink)', display: 'flex', gap: 8 }}><span style={{ color: 'var(--violet)' }}>•</span>{lineFor(e)}</li>)}
+            <Section title="Education" count={cand.education.length}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {cand.education.map((e, i) => <EducationItem key={i} e={e} />)}
+              </div>
+            </Section>
+          )}
+          {cand.certifications.length > 0 && (
+            <Section title="Certifications" count={cand.certifications.length}>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {cand.certifications.map((c, i) => (
+                  <li key={i} style={{ fontSize: 14, color: 'var(--ink)', fontWeight: 500, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ color: 'var(--violet)' }}>🏅</span>{c}
+                  </li>
+                ))}
               </ul>
+            </Section>
+          )}
+          {cand.work_history.length === 0 && cand.projects.length === 0 && cand.education.length === 0 && (
+            <Section title="Profile">
+              <p style={{ fontSize: 13.5, color: 'var(--muted)', fontWeight: 500, margin: 0, lineHeight: 1.55 }}>
+                {cand.ingest_status === 'completed'
+                  ? 'No structured experience, projects, or education were extracted from this résumé. Open the original resume above for the full details.'
+                  : 'This candidate’s résumé is still being processed. Structured experience and education will appear here once parsing completes.'}
+              </p>
             </Section>
           )}
         </div>
@@ -247,7 +392,7 @@ export default function CandidateRankingDetail() {
             </Card>
           ) : cand.profile_summary ? (
             <Section title="Profile summary">
-              <pre style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-body)', margin: 0 }}>{cand.profile_summary}</pre>
+              <ProfileSummary text={cand.profile_summary} />
             </Section>
           ) : null}
         </div>

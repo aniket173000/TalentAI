@@ -167,6 +167,21 @@ async def ingest_resume(
         ingest_status="parsing",
     )
 
+    await _extract_into(db, candidate, resume_text)
+    logger.info(
+        "Ingested candidate id=%d recruiter=%s status=%s",
+        candidate.id, recruiter_id, candidate.ingest_status,
+    )
+    return candidate
+
+
+async def _extract_into(db: Session, candidate: models.Candidate, resume_text: str) -> models.Candidate:
+    """Run structured extraction + embedding and populate `candidate` IN PLACE.
+
+    Works for both brand-new rows (not yet persisted) and existing rows being
+    re-parsed — it never deletes the row, so foreign-key references (e.g.
+    candidate_rankings) stay intact and the candidate id is preserved.
+    """
     embedding: Optional[list[float]] = None
     try:
         raw = await extract_structured_profile(resume_text)
@@ -197,8 +212,9 @@ async def ingest_resume(
         candidate.profile_summary = summary
         candidate.profile_embedding = json.dumps(embedding) if embedding else None
         candidate.ingest_status = "ready"
+        candidate.ingest_error = None
     except Exception as exc:  # noqa: BLE001 — keep the resume, mark failed for retry
-        logger.error("Candidate ingestion failed (recruiter=%d): %s", recruiter_id, exc)
+        logger.error("Candidate extraction failed (candidate=%s): %s", candidate.id, exc)
         candidate.ingest_status = "failed"
         candidate.ingest_error = str(exc)[:1000]
 
@@ -210,8 +226,15 @@ async def ingest_resume(
     if embedding:
         sync_vector(db, "candidates", "profile_vec", candidate.id, embedding)
 
-    logger.info(
-        "Ingested candidate id=%d recruiter=%d status=%s",
-        candidate.id, recruiter_id, candidate.ingest_status,
-    )
     return candidate
+
+
+async def reparse_candidate(db: Session, candidate: models.Candidate) -> models.Candidate:
+    """Re-run extraction on an already-ingested candidate's stored resume, updating
+    the row in place (id and all FK references preserved)."""
+    candidate.ingest_status = "parsing"
+    db.add(candidate)
+    db.commit()
+    result = await _extract_into(db, candidate, candidate.resume_text or "")
+    logger.info("Re-parsed candidate id=%d status=%s", result.id, result.ingest_status)
+    return result

@@ -32,7 +32,7 @@ def _fe(path: str) -> str:
 
 @router.get("/authorize")
 def linkedin_authorize(
-    account_type: str = Query(..., pattern="^(recruiter|candidate)$"),
+    account_type: str = Query(..., pattern="^(recruiter|candidate|login)$"),
 ):
     """
     Kick off the LinkedIn OAuth flow.
@@ -74,7 +74,7 @@ async def linkedin_callback(
     # Parse account_type from state  (format: "candidate|<nonce>")
     try:
         account_type = state.split("|")[0]
-        if account_type not in ("recruiter", "candidate"):
+        if account_type not in ("recruiter", "candidate", "login"):
             raise ValueError
     except (IndexError, ValueError):
         return RedirectResponse(url=_fe("/auth/linkedin/callback?error=invalid_state"))
@@ -129,14 +129,23 @@ async def linkedin_callback(
         .first()
     )
 
-    # 2. Existing email/password account — link LinkedIn to it
+    provider_matched = user is not None
+
+    # 2. Match an existing account by email
     if not user:
         user = db.query(models.User).filter(models.User.email == email).first()
-        if user:
-            user.linkedin_id = linkedin_id
-            user.linkedin_verified = True
 
-    # 3. Brand new user — create the account
+    # Login page: never auto-create, and keep password-based accounts on the
+    # password login (a user who registered with email/password — not LinkedIn —
+    # must sign in that way).
+    if account_type == "login":
+        if not user:
+            return RedirectResponse(url=_fe("/auth/linkedin/callback?error=no_account"))
+        if not provider_matched and user.hashed_password:
+            return RedirectResponse(url=_fe("/auth/linkedin/callback?error=use_password"))
+
+    # 3. Brand new user — create the account (signup only)
+    is_new_user = user is None
     if not user:
         user = models.User(
             email=email,
@@ -145,14 +154,20 @@ async def linkedin_callback(
             linkedin_id=linkedin_id,
             linkedin_verified=True,
             is_active=True,
+            email_verified=True,   # email is provider-verified by LinkedIn
         )
         db.add(user)
         db.flush()
     else:
+        user.linkedin_id = linkedin_id
         user.linkedin_verified = True
 
-    # Ensure the requested capability extension exists
-    if account_type == "recruiter":
+    # "login" = no role forced: sign in with whatever roles they already have.
+    # signup ensures the chosen capability exists.
+    effective_type = account_type
+    if account_type == "login":
+        effective_type = "recruiter" if (user.is_recruiter and not user.is_candidate) else "candidate"
+    elif account_type == "recruiter":
         existing_ext = db.query(models.RecruiterExtension).filter(
             models.RecruiterExtension.user_id == user.id
         ).first()
@@ -166,6 +181,7 @@ async def linkedin_callback(
             db.add(models.CandidateExtension(user_id=user.id))
 
     db.commit()
+    account_type = effective_type
 
     user = _load_user_full(user.id, db)
     jwt = create_access_token(user.id)

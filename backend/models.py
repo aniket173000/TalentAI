@@ -41,6 +41,7 @@ class User(Base):
     full_name = Column(String(255), nullable=False)
     phone = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False)         # True after signup OTP or OAuth
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -566,6 +567,25 @@ class Application(Base):
 
 
 # ── Referral feature ──────────────────────────────────────────────────────────
+
+class PendingRegistration(Base):
+    """A signup awaiting email-OTP verification. No `users` row exists yet — the
+    account is only created once the OTP is confirmed, so unverified/fake emails
+    never pollute the users table."""
+    __tablename__ = "pending_registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    account_type = Column(String(20), nullable=False)        # 'candidate' | 'recruiter'
+    company = Column(String(255), nullable=True)
+    is_third_party = Column(Boolean, default=False)
+    otp_hash = Column(String(64), nullable=False)
+    attempts = Column(Integer, default=0)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
 
 class EmailVerificationOTP(Base):
     __tablename__ = "email_verification_otps"

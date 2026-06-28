@@ -509,7 +509,7 @@ Rules:
         user = f"""Parse this resume and extract all structured fields.
 
 RESUME:
-{resume_text[:5000]}
+{resume_text[:12000]}
 
 Return ONLY this JSON (no markdown, no extra text):
 {{
@@ -524,7 +524,8 @@ Return ONLY this JSON (no markdown, no extra text):
       "title": "<job title>",
       "start_date": "<month year, e.g. Jan 2021, or year>",
       "end_date": "<month year or 'Present' or null>",
-      "description": "<key responsibilities / achievements in 1-3 sentences>"
+      "description": "<a 1-2 sentence summary of the role>",
+      "highlights": ["<every responsibility / achievement / bullet point exactly as written in the resume for this role — do NOT summarise or drop any; keep each bullet as its own string>"]
     }}
   ],
   "raw_skills": ["<skill exactly as written>", "..."],

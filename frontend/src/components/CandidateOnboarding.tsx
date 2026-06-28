@@ -126,6 +126,12 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
     return () => clearTimeout(timer)
   }, [collegeUrl])
 
+  // True when the typed name already appears in the suggestion list — used to decide
+  // whether to offer "Add <name> to our list".
+  const hasExactMatch = suggestions.some(
+    s => s.trim().toLowerCase() === collegeName.trim().toLowerCase(),
+  )
+
   const handleSubmit = async () => {
     if (!collegeName.trim()) { setError('Please enter your college name.'); return }
     if (isGraduated === null) { setError('Please select your student status.'); return }
@@ -254,7 +260,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                   placeholder="e.g. IIT Bombay, BITS Pilani…"
                   className="w-full bg-slate-800 border border-slate-600 rounded-2xl px-5 py-3.5 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
                 />
-                {showSuggestions && (suggestions.length > 0 || aiSearching) && (
+                {showSuggestions && collegeName.trim() && (suggestions.length > 0 || aiSearching || !hasExactMatch) && (
                   <div className="absolute z-10 mt-2 w-full bg-slate-800 border border-slate-600 rounded-2xl overflow-hidden shadow-xl shadow-black/40">
                     <div className="py-1 max-h-64 overflow-y-auto">
                       {suggestions.map(s => (
@@ -275,6 +281,21 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                           </svg>
                           searching more colleges…
                         </div>
+                      )}
+                      {/* Not in the list? Let the candidate add their own college — it's saved to our DB. */}
+                      {!aiSearching && !hasExactMatch && (
+                        <button
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setCollegeName(collegeName.trim()); setShowSuggestions(false) }}
+                          className={`w-full text-left px-5 py-2.5 text-sm text-violet-300 hover:bg-violet-600/30 hover:text-white transition-colors flex items-start gap-2 ${suggestions.length > 0 ? 'border-t border-slate-700' : ''}`}
+                        >
+                          <span className="text-base leading-none mt-0.5">➕</span>
+                          <span>
+                            Add <span className="font-bold">"{collegeName.trim()}"</span> to our list
+                            <span className="block text-slate-500 text-[11px] mt-0.5">Can't find your college? Use this name — we'll add it.</span>
+                          </span>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -340,21 +361,32 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                   <label className="block text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wide">
                     {isGraduated ? 'Graduation Year' : 'Expected Graduation Year'}
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {(isGraduated ? PAST_YEARS : FUTURE_YEARS).map(y => (
-                      <button
-                        key={y}
-                        type="button"
-                        onClick={() => setGradYear(y)}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                          gradYear === y
-                            ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-md shadow-violet-500/30'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                        }`}
-                      >
-                        {y}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <select
+                      value={gradYear ?? ''}
+                      onChange={e => setGradYear(e.target.value ? Number(e.target.value) : null)}
+                      className={`w-full appearance-none rounded-xl px-4 py-3 pr-10 text-sm font-bold cursor-pointer
+                        border transition-all focus:outline-none focus:border-violet-500 ${
+                        gradYear !== null
+                          ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white border-transparent shadow-md shadow-violet-500/30'
+                          : 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600'
+                      }`}
+                    >
+                      <option value="" disabled className="bg-slate-800 text-slate-400">
+                        Select year…
+                      </option>
+                      {(isGraduated ? PAST_YEARS : FUTURE_YEARS).map(y => (
+                        <option key={y} value={y} className="bg-slate-800 text-white font-semibold">
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                    {/* chevron */}
+                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-current opacity-70">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </span>
                   </div>
                 </div>
               )}

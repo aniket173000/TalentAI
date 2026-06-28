@@ -274,6 +274,9 @@ export default function Navbar() {
             {isRecruiter && (
               <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>Rank</Link>
             )}
+            {user?.is_admin && (
+              <Link to="/admin" className={linkClass('/admin')}>Admin</Link>
+            )}
           </nav>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -364,6 +367,9 @@ export default function Navbar() {
             )}
             {isRecruiter && (
               <Link to="/recruiter/rank-candidates" className={mobileLinkClass('/recruiter/rank-candidates')} onClick={() => setMobileOpen(false)}>Rank Candidates</Link>
+            )}
+            {user?.is_admin && (
+              <Link to="/admin" className={mobileLinkClass('/admin')} onClick={() => setMobileOpen(false)}>Admin</Link>
             )}
             {isDualMode && (
               <div className="pt-2 pb-1"><ModeSwitcher /></div>

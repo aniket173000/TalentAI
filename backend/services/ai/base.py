@@ -160,7 +160,7 @@ class AIStrategy(ABC):
           phone          (str | None)
           location       (str | None)
           total_yoe      (float | None)  — total professional years of experience
-          work_history   (list[dict])    — [{company, title, start_date, end_date, description}]
+          work_history   (list[dict])    — [{company, title, start_date, end_date, description, highlights: list[str]}]
           raw_skills     (list[str])     — skills exactly as written in the resume
           education      (list[dict])    — [{degree, institution, year}]
           projects       (list[dict])    — [{name, description, technologies}]

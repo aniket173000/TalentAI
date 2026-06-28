@@ -14,6 +14,11 @@ export default function LinkedInCallback() {
   const error = params.get('error')
   const needsCompany = params.get('needs_company') === 'true'
 
+  const ERROR_MESSAGES: Record<string, string> = {
+    no_account: 'No account found for this LinkedIn profile. Please create an account first.',
+    use_password: 'This email is registered with a password. Please sign in using your email and password instead.',
+  }
+
   const [status, setStatus] = useState<'loading' | 'company' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [company, setCompany] = useState('')
@@ -27,7 +32,7 @@ export default function LinkedInCallback() {
     ranOnce.current = true
 
     if (error) {
-      setErrorMsg(decodeURIComponent(error).replace(/_/g, ' '))
+      setErrorMsg(ERROR_MESSAGES[error] ?? decodeURIComponent(error).replace(/_/g, ' '))
       setStatus('error')
       return
     }
@@ -77,12 +82,12 @@ export default function LinkedInCallback() {
         <div className="w-full max-w-md text-center">
           <div className="text-5xl mb-4">⚠️</div>
           <h1 className="text-2xl font-extrabold text-slate-900 mb-2">LinkedIn sign-in failed</h1>
-          <p className="text-slate-500 text-sm mb-6 capitalize">{errorMsg}</p>
+          <p className="text-slate-500 text-sm mb-6">{errorMsg}</p>
           <button
-            onClick={() => navigate('/login', { replace: true })}
+            onClick={() => navigate(error === 'no_account' ? '/register' : '/login', { replace: true })}
             className="bg-accent hover:opacity-90 text-white font-semibold rounded-lg px-6 py-3 transition-colors"
           >
-            Back to login
+            {error === 'no_account' ? 'Create an account' : 'Back to login'}
           </button>
         </div>
       </div>

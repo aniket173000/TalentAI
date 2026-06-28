@@ -20,7 +20,7 @@ import models
 from database import get_db
 from routers.auth import require_recruiter
 from services import storage_service
-from services.candidate_ingest import ingest_resume
+from services.candidate_ingest import ingest_resume, reparse_candidate
 from services.file_parser import parse_resume
 
 logger = logging.getLogger(__name__)
@@ -166,6 +166,24 @@ def get_candidate(
     db: Session = Depends(get_db),
 ):
     return _detail(_owned_or_404(candidate_id, recruiter, db))
+
+
+@router.post("/{candidate_id}/reparse",
+             summary="Re-run structured extraction on the stored resume (refreshes work-history detail)")
+async def reparse_candidate(
+    candidate_id: int,
+    recruiter: models.User = Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Force a fresh extraction of an already-ingested candidate so older rows pick
+    up newer parser improvements (e.g. full per-role highlights) without needing a
+    resume re-upload."""
+    c = _owned_or_404(candidate_id, recruiter, db)
+    if not c.resume_text or not c.resume_text.strip():
+        raise HTTPException(status_code=400, detail="No stored resume text to re-parse for this candidate.")
+
+    candidate = await reparse_candidate(db, c)
+    return _detail(candidate)
 
 
 @router.get("/{candidate_id}/resume-url",

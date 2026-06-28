@@ -74,7 +74,20 @@
       "Bash(node_modules/.bin/tsc --noEmit)",
       "Skill(claude-api)",
       "Skill(claude-api:*)",
-      "Bash(python -c \"import models; import routers.product_feedback; print\\('OK'\\)\")"
+      "Bash(python -c \"import models; import routers.product_feedback; print\\('OK'\\)\")",
+      "Bash(GVM_ROOT=\"\" node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(echo \"tsc exited $?\")",
+      "Bash(/Users/aniket/.nvm/versions/node/v24.13.0/bin/node /Users/aniket/Desktop/Mark1Job/frontend/node_modules/.bin/tsc --noEmit -p /Users/aniket/Desktop/Mark1Job/frontend/tsconfig.json)",
+      "Bash(./venv/bin/python -c \"import ast; ast.parse\\(open\\('services/candidate_ingest.py'\\).read\\(\\)\\); ast.parse\\(open\\('routers/candidates.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "Bash(./venv/bin/python -c \"from services.candidate_ingest import ingest_resume, reparse_candidate; from routers import candidates; print\\('imports OK'\\)\")",
+      "Bash(./venv/bin/python -c \"import models, schemas; from routers import auth, google_auth, linkedin_auth; from services.email_service import send_signup_otp_email; print\\('backend imports OK'\\)\")",
+      "Bash(./venv/bin/python -c ' *)",
+      "Bash(./venv/bin/python -c \"import ast; ast.parse\\(open\\('main.py'\\).read\\(\\)\\); print\\('main.py syntax OK'\\)\")",
+      "Bash(./venv/bin/python -c \"from services.email_service import send_signup_otp_email; print\\('OK'\\)\")",
+      "Bash(./venv/bin/python -c \"import schemas; from routers import admin; from main import app; print\\('backend OK'\\); print\\([r.path for r in app.routes if '/admin' in getattr\\(r,'path',''\\)]\\)\")",
+      "Bash(grep -n 'pattern=\"\\\\^\\(recruiter|candidate\\)\\\\$\"\\\\|account_type: str = Query\\\\|if not user:\\\\|user = models.User' /Users/aniket/Desktop/Mark1Job/backend/routers/linkedin_auth.py /Users/aniket/Desktop/Mark1Job/backend/routers/google_auth.py)",
+      "Bash(./venv/bin/python -c \"from routers import google_auth, linkedin_auth; import ast; ast.parse\\(open\\('routers/google_auth.py'\\).read\\(\\)\\); ast.parse\\(open\\('routers/linkedin_auth.py'\\).read\\(\\)\\); print\\('OAuth routers OK'\\)\")",
+      "Bash(./venv/bin/python -c \"from routers import google_auth, linkedin_auth, auth; print\\('BE OK'\\)\")"
     ],
     "additionalDirectories": [
       "/tmp",

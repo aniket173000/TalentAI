@@ -4,6 +4,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from typing import Literal, Optional, List
 from datetime import datetime
 import models as _models
+from services.admin_access import is_admin_email as _is_admin_email
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -26,6 +27,8 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     created_at: datetime
     linkedin_verified: bool = False
+    email_verified: bool = False
+    is_admin: bool = False
 
     # Capability flags — derived from which extension rows exist
     is_candidate: bool = False
@@ -63,6 +66,8 @@ class UserResponse(BaseModel):
             phone=user.phone,
             created_at=user.created_at,
             linkedin_verified=bool(user.linkedin_verified),
+            email_verified=bool(user.email_verified),
+            is_admin=_is_admin_email(user.email),
             is_candidate=c is not None,
             is_recruiter=r is not None,
             # candidate fields

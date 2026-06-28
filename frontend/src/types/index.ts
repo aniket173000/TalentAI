@@ -5,6 +5,8 @@ export interface AuthUser {
   phone: string | null
   created_at: string
   linkedin_verified: boolean
+  email_verified?: boolean
+  is_admin?: boolean
 
   // Capability flags — derived from which extension rows exist on the backend
   is_candidate: boolean
@@ -106,6 +108,7 @@ export type CandidateStatus =
 export interface Application {
   id: number
   job_id: number
+  candidate_id?: number | null   // corpus Candidate id → clean profile page
   job_title: string | null
   job_company: string | null
   candidate_name: string

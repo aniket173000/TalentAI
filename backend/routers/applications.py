@@ -1029,14 +1029,21 @@ def get_all_applications(
 
     user_ids = [a.candidate_user_id for a in apps if a.candidate_user_id]
     phone_map: dict[int, str | None] = {}
+    candidate_id_map: dict[int, int] = {}   # user_id → corpus Candidate.id (for the clean profile page)
     if user_ids:
-        from sqlalchemy import tuple_
         users = db.query(models.User.id, models.User.phone).filter(models.User.id.in_(user_ids)).all()
         phone_map = {u.id: u.phone for u in users}
+        corpus = (
+            db.query(models.Candidate.id, models.Candidate.user_id)
+            .filter(models.Candidate.user_id.in_(user_ids))
+            .all()
+        )
+        candidate_id_map = {c.user_id: c.id for c in corpus}
 
     return [
         {
             "id": a.id,
+            "candidate_id": candidate_id_map.get(a.candidate_user_id) if a.candidate_user_id else None,
             "candidate_name": a.candidate_name,
             "candidate_email": a.candidate_email,
             "phone": phone_map.get(a.candidate_user_id) if a.candidate_user_id else None,

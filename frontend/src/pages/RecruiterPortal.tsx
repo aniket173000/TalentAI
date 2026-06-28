@@ -540,16 +540,27 @@ export default function RecruiterPortal() {
                             )}
                           </div>
 
-                          {/* ── Resume ── */}
-                          {app.resume_text && (
-                            <button
-                              onClick={() => setResumeDrawer(app)}
-                              className="flex items-center gap-2 text-sm font-semibold text-accent-ink hover:opacity-80 border border-accent hover:border-accent bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
-                            >
-                              <span>📄</span>
-                              View Full Resume
-                            </button>
-                          )}
+                          {/* ── Actions ── */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            {app.candidate_id && (
+                              <button
+                                onClick={() => navigate(`/recruiter/candidates/${app.candidate_id}?job_id=${selectedJob}`)}
+                                className="flex items-center gap-2 text-sm font-semibold text-white bg-accent hover:opacity-90 border-2 border-ink px-4 py-2.5 rounded-xl transition-colors"
+                              >
+                                <span>👤</span>
+                                View Full Profile
+                              </button>
+                            )}
+                            {app.resume_text && (
+                              <button
+                                onClick={() => setResumeDrawer(app)}
+                                className="flex items-center gap-2 text-sm font-semibold text-accent-ink hover:opacity-80 border border-accent hover:border-accent bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
+                              >
+                                <span>📄</span>
+                                View Full Resume
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -671,16 +682,27 @@ export default function RecruiterPortal() {
                             )}
                           </div>
 
-                          {/* Resume */}
-                          {app.resume_text && (
-                            <button
-                              onClick={() => setResumeDrawer(app)}
-                              className="flex items-center gap-2 text-sm font-semibold text-accent-ink hover:opacity-80 border border-accent hover:border-accent bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
-                            >
-                              <span>📄</span>
-                              View Full Resume
-                            </button>
-                          )}
+                          {/* Actions */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            {app.candidate_id && (
+                              <button
+                                onClick={() => navigate(`/recruiter/candidates/${app.candidate_id}?job_id=${selectedJob}`)}
+                                className="flex items-center gap-2 text-sm font-semibold text-white bg-accent hover:opacity-90 border-2 border-ink px-4 py-2.5 rounded-xl transition-colors"
+                              >
+                                <span>👤</span>
+                                View Full Profile
+                              </button>
+                            )}
+                            {app.resume_text && (
+                              <button
+                                onClick={() => setResumeDrawer(app)}
+                                className="flex items-center gap-2 text-sm font-semibold text-accent-ink hover:opacity-80 border border-accent hover:border-accent bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors"
+                              >
+                                <span>📄</span>
+                                View Full Resume
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

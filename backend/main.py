@@ -22,6 +22,7 @@ from routers import resume_profile as resume_profile_router
 from routers import scores as scores_router
 from routers import semantic as semantic_router
 from routers import product_feedback as product_feedback_router
+from routers import admin as admin_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -242,6 +243,15 @@ _MIGRATIONS = [
     # ── Ranking: AI Fluency factor ────────────────────────────────────────────
     "ALTER TABLE candidate_rankings ADD COLUMN ai_fluency_score FLOAT",
     "ALTER TABLE candidate_rankings ADD COLUMN ai_fluency_note TEXT",
+
+    # ── Signup email verification (OTP) ───────────────────────────────────────
+    # NB: boolean literals (false/true) — NOT 0/1 — so the ALTER/UPDATE are valid on
+    # Postgres (which rejects integer defaults on a boolean column) as well as SQLite.
+    "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false",
+    "CREATE TABLE IF NOT EXISTS pending_registrations (id INTEGER PRIMARY KEY AUTOINCREMENT, email VARCHAR(255) NOT NULL, hashed_password VARCHAR(255) NOT NULL, full_name VARCHAR(255) NOT NULL, account_type VARCHAR(20) NOT NULL, company VARCHAR(255), is_third_party BOOLEAN DEFAULT false, otp_hash VARCHAR(64) NOT NULL, attempts INTEGER DEFAULT 0, expires_at DATETIME NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE INDEX IF NOT EXISTS ix_pending_registrations_email ON pending_registrations (email)",
+    # Existing accounts predate verification — treat them as already verified so they aren't locked out.
+    "UPDATE users SET email_verified = true WHERE email_verified IS NULL OR email_verified = false",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
@@ -406,6 +416,7 @@ app.include_router(scores_router.router)
 app.include_router(colleges_router.router)
 app.include_router(referrals_router.router)
 app.include_router(product_feedback_router.router)
+app.include_router(admin_router.router)
 
 
 @app.on_event("startup")
