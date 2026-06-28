@@ -55,6 +55,7 @@ export default function CreateJob() {
   const [showCriteria, setShowCriteria] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const publishModeRef = useRef(false)
 
   const hasCriteria = criteria.required_skills.length > 0 || !!criteria.min_years_experience ||
     (!!criteria.required_education && criteria.required_education !== 'None')
@@ -91,6 +92,7 @@ export default function CreateJob() {
       if (isCampusHiring && campusCollegeName.trim()) fd.append('campus_college_name', campusCollegeName.trim())
       if (jdText.trim()) fd.append('jd_text', jdText.trim())
       if (jdFile) fd.append('jd_file', jdFile)
+      fd.append('status', publishModeRef.current ? 'published' : 'draft')
 
       const res = await api.post<Job>('/jobs/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
 
@@ -141,7 +143,7 @@ export default function CreateJob() {
         </button>
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Create Job Posting</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Saved as Draft — publish from the dashboard when ready.</p>
+          <p className="text-slate-500 text-sm mt-0.5">Save as a draft or post it live immediately.</p>
         </div>
       </div>
 
@@ -416,9 +418,21 @@ export default function CreateJob() {
             className="px-6 py-3 rounded-lg border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
             Cancel
           </button>
-          <button type="submit" disabled={submitting}
-            className="flex-1 disabled:opacity-50 text-white font-extrabold rounded-xl py-3 text-sm">
-            {submitting ? 'Saving…' : 'Save as Draft'}
+          <button
+            type="submit"
+            disabled={submitting}
+            onClick={() => { publishModeRef.current = false }}
+            className="px-6 py-3 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 transition"
+          >
+            {submitting && !publishModeRef.current ? 'Saving…' : 'Save as Draft'}
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            onClick={() => { publishModeRef.current = true }}
+            className="flex-1 py-3 rounded-xl text-white text-sm font-extrabold disabled:opacity-50 bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 shadow-lg shadow-violet-200 transition hover:scale-[1.01] active:scale-95"
+          >
+            {submitting && publishModeRef.current ? 'Posting…' : 'Post Job 🚀'}
           </button>
         </div>
       </form>

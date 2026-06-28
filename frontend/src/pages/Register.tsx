@@ -52,7 +52,7 @@ export default function Register() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36, letterSpacing: '-0.035em', color: 'var(--ink)', margin: 0 }}>Create account</h1>
-          <p className="text-muted mt-1 text-sm font-medium">Join TalentAI today</p>
+          <p className="text-muted mt-1 text-sm font-medium">Join Nideknil today</p>
         </div>
 
         <Card padding={32}>

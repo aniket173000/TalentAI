@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import CandidateOnboarding from './components/CandidateOnboarding'
 import CandidatesCorpus from './pages/CandidatesCorpus'
 import RankCandidates from './pages/RankCandidates'
@@ -17,6 +17,7 @@ import CreateJob from './pages/CreateJob'
 import CreateReferralPost from './pages/CreateReferralPost'
 import EditJob from './pages/EditJob'
 import Home from './pages/Home'
+import Landing from './pages/Landing'
 import JobDetail from './pages/JobDetail'
 import ApplicationStatus from './pages/ApplicationStatus'
 import LinkedInCallback from './pages/LinkedInCallback'
@@ -27,6 +28,7 @@ import RecruiterPortal from './pages/RecruiterPortal'
 import ReferralPostPage from './pages/ReferralPostPage'
 import ReferrerDashboard from './pages/ReferrerDashboard'
 import Register from './pages/Register'
+import Feedback from './pages/Feedback'
 
 // Skipping hides the modal for the current browser session only.
 // On next login (new session) it reappears until the form is actually completed.
@@ -76,17 +78,25 @@ function ReferralGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-export default function App() {
+function RootRoute() {
+  const { user } = useAuth()
+  return user ? <Home /> : <Landing />
+}
+
+function AppShell() {
+  const location = useLocation()
+  const isLanding = location.pathname === '/'
+  const { user } = useAuth()
+  const showNavbar = !isLanding || !!user
+
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <OnboardingGate>
-            <div className="min-h-screen bg-slate-50 flex flex-col">
-              <Navbar />
-              <main className="flex-1">
-                <Routes>
-                  {/* Public */}
-                  <Route path="/" element={<Home />} />
+    <OnboardingGate>
+      <div className={`min-h-screen flex flex-col${isLanding && !user ? '' : ' bg-slate-50'}`}>
+        {showNavbar && <Navbar />}
+        <main className="flex-1">
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<RootRoute />} />
                   <Route path="/colleges" element={<Colleges />} />
                   <Route path="/jobs/:jobId" element={<JobDetail />} />
                   <Route path="/result" element={<ApplicationResult />} />
@@ -95,6 +105,7 @@ export default function App() {
                   <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
                   <Route path="/auth/google/callback" element={<GoogleCallback />} />
                   <Route path="/status/:token" element={<ApplicationStatus />} />
+                  <Route path="/feedback" element={<Feedback />} />
 
                   {/* Referrals — candidate-facing discovery (recruiters blocked) */}
                   <Route path="/referrals" element={<ReferralGate><CompanyReferrals /></ReferralGate>} />
@@ -205,9 +216,17 @@ export default function App() {
                     }
                   />
                 </Routes>
-              </main>
-            </div>
-          </OnboardingGate>
+        </main>
+      </div>
+    </OnboardingGate>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppShell />
       </AuthProvider>
     </BrowserRouter>
   )

@@ -20,7 +20,8 @@ class AIStrategy(ABC):
         """
         Return a dict with keys:
           match_score (float 0-100), project_scores (list), strengths (list),
-          gaps (list), improvement_suggestions (list), summary (str).
+          gaps (list), improvement_suggestions (list), summary (str),
+          ai_fluency ({score 0-100, signals list[str], rationale str}).
         """
 
     @abstractmethod

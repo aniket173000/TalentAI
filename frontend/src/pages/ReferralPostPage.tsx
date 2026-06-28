@@ -267,7 +267,7 @@ export default function ReferralPostPage() {
   const canApply = isCandidate && post.status === 'open'
 
   return (
-    <div className="max-w-5xl mx-auto px-8 pt-6 pb-32">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-6 pb-32">
       <button onClick={() => navigate(`/referrals/company/${encodeURIComponent(post.company_name)}`)}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)', marginBottom: 20, padding: 0 }}>
         <Icon name="back" size={18} stroke={2.4} /> All referrals at {post.company_name}

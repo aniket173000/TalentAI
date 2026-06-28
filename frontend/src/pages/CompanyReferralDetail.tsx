@@ -95,7 +95,7 @@ export default function CompanyReferralDetail() {
   const badgeColor = colorFor(data.company_name)
 
   return (
-    <div className="max-w-6xl mx-auto px-8 pb-24">
+    <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-24">
       <button onClick={() => navigate('/referrals')}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)', margin: '22px 0 16px', padding: 0 }}>
         <Icon name="back" size={18} stroke={2.4} /> All companies
@@ -131,7 +131,7 @@ export default function CompanyReferralDetail() {
       {posts.length === 0 ? (
         <div className="text-center py-20" style={{ color: 'var(--muted)', fontWeight: 600 }}>No open referrals at this company right now.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px,100%), 1fr))', gap: 20 }}>
           {posts.map(post => (
             <PoolCard key={post.id} post={post} onOpen={() => navigate(`/referrals/${post.slug || post.id}`)} />
           ))}

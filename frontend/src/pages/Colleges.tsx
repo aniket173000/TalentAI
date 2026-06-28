@@ -6,7 +6,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
 import { CampusJob, CollegeCandidateEntry, CollegeDetail, CollegeInfo } from '../types'
 import { formatSalaryRange } from '../utils/currency'
-import { MT, MODES, PALETTES, hexA, brandOf, kfmt, type CampusMode, type Palette } from './collegesTheme'
+import { THEMES, MODES, PALETTES, hexA, brandOf, readableAccent, type CampusMode, type Palette, type Theme, type ThemeMode } from './collegesTheme'
 
 const SCHEME_GRADIENTS = [
   'from-violet-600 via-purple-600 to-indigo-700',
@@ -27,10 +27,11 @@ function hashStr(s: string): number {
 
 // ── Candidate Profile Modal ──────────────────────────────────────────────────
 
-function ProfileModal({ person, collegeName, accent, onClose }: {
+function ProfileModal({ person, collegeName, accent, T, onClose }: {
   person: CollegeCandidateEntry
   collegeName: string
   accent: string
+  T: Theme
   onClose: () => void
 }) {
   const gradient = SCHEME_GRADIENTS[hashStr(person.full_name) % SCHEME_GRADIENTS.length]
@@ -40,8 +41,8 @@ function ProfileModal({ person, collegeName, accent, onClose }: {
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <span style={{ width: 28, textAlign: 'center', fontSize: 16 }}>{icon}</span>
       <div style={{ minWidth: 0 }}>
-        <p style={{ fontFamily: MT.mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: MT.faint2, margin: 0 }}>{label}</p>
-        <div style={{ color: MT.text, fontSize: 14, fontWeight: 600, marginTop: 1 }}>{children}</div>
+        <p style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: T.faint2, margin: 0 }}>{label}</p>
+        <div style={{ color: T.text, fontSize: 14, fontWeight: 600, marginTop: 1 }}>{children}</div>
       </div>
     </div>
   )
@@ -49,18 +50,18 @@ function ProfileModal({ person, collegeName, accent, onClose }: {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(8,8,11,0.78)', backdropFilter: 'blur(8px)' }}
+      style={{ background: T.overlay, backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
       <div
         className="w-full max-w-sm overflow-hidden"
-        style={{ background: MT.cardGrad, borderRadius: 18, border: `1px solid ${MT.border2}`, fontFamily: MT.font, animation: 'mtSlideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.8)' }}
+        style={{ background: T.cardGrad, borderRadius: 18, border: `1px solid ${T.border2}`, fontFamily: T.font, animation: 'mtSlideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)', boxShadow: `0 24px 60px -12px ${T.shadowStrong}` }}
         onClick={e => e.stopPropagation()}
       >
         <style>{`@keyframes mtSlideUp { from { opacity:0; transform:translateY(24px) scale(.95); } to { opacity:1; transform:none; } }`}</style>
 
         {/* Colored header band (white text intentional) */}
-        <div className={`h-24 bg-gradient-to-br ${gradient} relative`} style={{ borderBottom: `1px solid ${MT.border2}` }}>
+        <div className={`h-24 bg-gradient-to-br ${gradient} relative`} style={{ borderBottom: `1px solid ${T.border2}` }}>
           <button
             onClick={onClose}
             className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 flex items-center justify-center text-white hover:bg-black/50 transition-colors text-xs"
@@ -68,7 +69,7 @@ function ProfileModal({ person, collegeName, accent, onClose }: {
             ✕
           </button>
           <div className="absolute -bottom-7 left-5">
-            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center`} style={{ border: `2px solid ${MT.bg}`, boxShadow: '0 8px 20px -6px rgba(0,0,0,.6)' }}>
+            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center`} style={{ border: `2px solid ${T.bg}`, boxShadow: `0 8px 20px -6px ${T.shadowCard}` }}>
               <span className="text-xl font-black text-white">{initials}</span>
             </div>
           </div>
@@ -76,8 +77,8 @@ function ProfileModal({ person, collegeName, accent, onClose }: {
 
         {/* Body */}
         <div className="pt-10 px-5 pb-6">
-          <h2 style={{ fontWeight: 700, fontSize: 20, color: MT.text, letterSpacing: '-0.02em', margin: 0 }}>{person.full_name}</h2>
-          <p style={{ fontFamily: MT.mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: MT.faint, marginTop: 4 }}>{collegeName}</p>
+          <h2 style={{ fontWeight: 700, fontSize: 20, color: T.text, letterSpacing: '-0.02em', margin: 0 }}>{person.full_name}</h2>
+          <p style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: T.faint, marginTop: 4 }}>{collegeName}</p>
 
           <div className="mt-4 space-y-3">
             <Field icon="🎓" label="Batch">
@@ -115,18 +116,18 @@ function ProfileModal({ person, collegeName, accent, onClose }: {
 
 // ── Candidate row card ───────────────────────────────────────────────────────
 
-function CandidateRow({ person, idx, accent, onView }: { person: CollegeCandidateEntry; idx: number; accent: string; onView: () => void }) {
+function CandidateRow({ person, idx, accent, T, onView }: { person: CollegeCandidateEntry; idx: number; accent: string; T: Theme; onView: () => void }) {
   const gradient = SCHEME_GRADIENTS[(hashStr(person.full_name) + idx) % SCHEME_GRADIENTS.length]
   const initials = person.full_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
   return (
-    <div className="flex items-center gap-4" style={{ background: MT.cardGrad, border: `1px solid ${MT.border2}`, borderRadius: 14, padding: '14px 18px' }}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0 bg-gradient-to-br ${gradient}`} style={{ border: `1px solid ${MT.border3}` }}>
+    <div className="flex items-center gap-4" style={{ background: T.cardGrad, border: `1px solid ${T.border2}`, borderRadius: 14, padding: '14px 18px' }}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0 bg-gradient-to-br ${gradient}`} style={{ border: `1px solid ${T.border3}` }}>
         {initials}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate" style={{ color: MT.text, fontSize: 14, fontWeight: 700 }}>{person.full_name}</p>
-        <p style={{ fontFamily: MT.mono, fontSize: 11, color: MT.faint, marginTop: 2 }}>
+        <p className="truncate" style={{ color: T.text, fontSize: 14, fontWeight: 700 }}>{person.full_name}</p>
+        <p style={{ fontFamily: T.mono, fontSize: 11, color: T.faint, marginTop: 2 }}>
           {person.graduation_year
             ? person.is_graduated ? `Class of ${person.graduation_year}` : `Graduating ${person.graduation_year}`
             : person.is_graduated ? 'Alumni' : 'Current Student'}
@@ -139,7 +140,7 @@ function CandidateRow({ person, idx, accent, onView }: { person: CollegeCandidat
             href={person.candidate_linkedin_url.startsWith('http') ? person.candidate_linkedin_url : `https://${person.candidate_linkedin_url}`}
             target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-            style={{ background: MT.chipBg, border: `1px solid ${MT.chipLine}`, color: '#4DA3F0' }}
+            style={{ background: T.chipBg, border: `1px solid ${T.chipLine}`, color: T.linkedin }}
             title="LinkedIn"
           >
             in
@@ -159,9 +160,10 @@ function CandidateRow({ person, idx, accent, onView }: { person: CollegeCandidat
 
 // ── Accent palette picker (Midnight Terminal stakeholder feature) ─────────────
 
-function PalettePicker({ palette, mode, onPick }: {
+function PalettePicker({ palette, mode, T, onPick }: {
   palette: Palette
   mode: CampusMode
+  T: Theme
   onPick: (name: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -175,7 +177,7 @@ function PalettePicker({ palette, mode, onPick }: {
   }, [open])
 
   const swatch = (p: Palette, size: number) => (
-    <span style={{ display: 'inline-flex', borderRadius: 999, overflow: 'hidden', border: `1px solid ${MT.border3}` }}>
+    <span style={{ display: 'inline-flex', borderRadius: 999, overflow: 'hidden', border: `1px solid ${T.border3}` }}>
       <span style={{ width: size, height: size, background: p.candidate }} />
       <span style={{ width: size, height: size, background: p.recruiter }} />
     </span>
@@ -187,20 +189,20 @@ function PalettePicker({ palette, mode, onPick }: {
         onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', cursor: 'pointer',
-          background: MT.surface, border: `1px solid ${MT.border3}`, borderRadius: 11,
-          fontFamily: MT.mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: MT.muted,
+          background: T.surface, border: `1px solid ${T.border3}`, borderRadius: 11,
+          fontFamily: T.mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: T.muted,
         }}
         title="Switch accent palette"
       >
         {swatch(palette, 12)}
         <span>{palette.name}</span>
-        <span style={{ color: MT.faint2 }}>▾</span>
+        <span style={{ color: T.faint2 }}>▾</span>
       </button>
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 30, width: 210,
-          background: MT.panel, border: `1px solid ${MT.border3}`, borderRadius: 12, padding: 6,
-          boxShadow: '0 18px 40px -12px rgba(0,0,0,.7)',
+          background: T.panel, border: `1px solid ${T.border3}`, borderRadius: 12, padding: 6,
+          boxShadow: `0 18px 40px -12px ${T.shadowStrong}`,
         }}>
           {PALETTES.map(p => {
             const active = p.name === palette.name
@@ -211,8 +213,8 @@ function PalettePicker({ palette, mode, onPick }: {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 10px',
                   cursor: 'pointer', border: 'none', borderRadius: 8, textAlign: 'left',
-                  background: active ? MT.chipBg : 'transparent',
-                  fontFamily: MT.mono, fontSize: 12, color: active ? MT.text : MT.muted,
+                  background: active ? T.chipBg : 'transparent',
+                  fontFamily: T.mono, fontSize: 12, color: active ? T.text : T.muted,
                 }}
               >
                 {swatch(p, 13)}
@@ -224,6 +226,28 @@ function PalettePicker({ palette, mode, onPick }: {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Theme toggle (dark / light) ───────────────────────────────────────────────
+
+function ThemeToggle({ theme, T, onToggle }: { theme: ThemeMode; T: Theme; onToggle: () => void }) {
+  const isDark = theme === 'dark'
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer',
+        background: T.surface, border: `1px solid ${T.border3}`, borderRadius: 11,
+        fontFamily: T.mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: T.muted,
+        transition: 'background .15s, border-color .15s',
+      }}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      <span style={{ fontSize: 13, lineHeight: 1 }}>{isDark ? '☀️' : '🌙'}</span>
+      <span>{isDark ? 'Light' : 'Dark'}</span>
+    </button>
   )
 }
 
@@ -242,6 +266,9 @@ export default function Colleges() {
   const [counters, setCounters] = useState({ a: 0, b: 0, c: 0 })
   const [paletteName, setPaletteName] = useState(
     () => localStorage.getItem('campus_palette') || PALETTES[0].name
+  )
+  const [theme, setTheme] = useState<ThemeMode>(
+    () => (localStorage.getItem('campus_theme') === 'light' ? 'light' : 'dark')
   )
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<CollegeDetail | null>(null)
@@ -319,15 +346,24 @@ export default function Colleges() {
   // Mode (candidate/recruiter) drives copy + accent; recruiters see recruiter copy.
   const mode: CampusMode = activeMode === 'recruiter' ? 'recruiter' : 'candidate'
   const M = MODES[mode]
+  const T = THEMES[theme]
   const palette = PALETTES.find(p => p.name === paletteName) ?? PALETTES[0]
-  const accent = mode === 'recruiter' ? palette.recruiter : palette.candidate
-  const accentGlow = hexA(accent, 0.5)
+  const rawAccent = mode === 'recruiter' ? palette.recruiter : palette.candidate
+  // Light mode darkens the neon palette accent so it reads as text/links and
+  // carries white button text; dark mode keeps the raw neon.
+  const accent = readableAccent(rawAccent, theme)
+  const accentGlow = hexA(accent, T.glowAlpha)
   const maxTotal = Math.max(1, ...colleges.map(c => c.total))
   const pickPalette = (name: string) => { setPaletteName(name); localStorage.setItem('campus_palette', name) }
+  const toggleTheme = () => setTheme(t => {
+    const next: ThemeMode = t === 'dark' ? 'light' : 'dark'
+    localStorage.setItem('campus_theme', next)
+    return next
+  })
   const fmt = (n: number) => n.toLocaleString('en-US')
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: MT.bg, backgroundImage: MT.grid, backgroundSize: '26px 26px' }}>
+    <div style={{ minHeight: '100vh', background: T.bg, backgroundImage: T.grid, backgroundSize: '26px 26px' }}>
       <div className="max-w-6xl mx-auto px-4 py-24"><LoadingSpinner message="Loading colleges…" /></div>
     </div>
   )
@@ -341,33 +377,36 @@ export default function Colleges() {
     const ai = detail.ai_info
 
     // Shared styles for the dark info panels + mono section labels + tag chips.
-    const panel: React.CSSProperties = { background: MT.surface, border: `1px solid ${MT.border2}`, borderRadius: 16, padding: 20 }
-    const sectionLabel: React.CSSProperties = { fontFamily: MT.mono, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: MT.faint, margin: '0 0 12px' }
-    const chip = (color: string): React.CSSProperties => ({ fontFamily: MT.mono, fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 8, background: MT.chipBg, border: `1px solid ${MT.chipLine}`, color })
+    const panel: React.CSSProperties = { background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 16, padding: 20 }
+    const sectionLabel: React.CSSProperties = { fontFamily: T.mono, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: T.faint, margin: '0 0 12px' }
+    const chip = (color: string): React.CSSProperties => ({ fontFamily: T.mono, fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 8, background: T.chipBg, border: `1px solid ${T.chipLine}`, color })
 
     return (
-      <div style={{ minHeight: '100vh', background: MT.bg, backgroundImage: MT.grid, backgroundSize: '26px 26px', color: MT.text, fontFamily: MT.font, WebkitFontSmoothing: 'antialiased' }}>
+      <div style={{ minHeight: '100vh', background: T.bg, backgroundImage: T.grid, backgroundSize: '26px 26px', color: T.text, fontFamily: T.font, WebkitFontSmoothing: 'antialiased' }}>
         {viewingProfile && (
-          <ProfileModal person={viewingProfile} collegeName={selected} accent={accent} onClose={() => setViewingProfile(null)} />
+          <ProfileModal person={viewingProfile} collegeName={selected} accent={accent} T={T} onClose={() => setViewingProfile(null)} />
         )}
 
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 28px 90px' }}>
-          {/* Back */}
-          <button
-            onClick={() => { setSelected(null); setDetail(null) }}
-            className="inline-flex items-center gap-2 mb-8 group"
-            style={{ fontFamily: MT.mono, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: MT.faint, background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span style={{ color: accent }}>◀ all colleges</span>
-            <span style={{ opacity: 0.4 }}>/</span>
-            <span style={{ color: MT.text }}>{selected}</span>
-          </button>
+          {/* Back + theme toggle */}
+          <div className="flex items-center justify-between gap-3 mb-8">
+            <button
+              onClick={() => { setSelected(null); setDetail(null) }}
+              className="inline-flex items-center gap-2 group"
+              style={{ fontFamily: T.mono, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: T.faint, background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span style={{ color: accent }}>◀ all colleges</span>
+              <span style={{ opacity: 0.4 }}>/</span>
+              <span style={{ color: T.text }}>{selected}</span>
+            </button>
+            <ThemeToggle theme={theme} T={T} onToggle={toggleTheme} />
+          </div>
 
           {/* Hero card */}
-          <div style={{ position: 'relative', background: MT.cardGrad, border: `1px solid ${MT.border2}`, borderRadius: 18, overflow: 'hidden', marginBottom: 28 }}>
+          <div style={{ position: 'relative', background: T.cardGrad, border: `1px solid ${T.border2}`, borderRadius: 18, overflow: 'hidden', marginBottom: 28 }}>
             <div style={{ height: 4, background: brand }} />
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6" style={{ padding: 28 }}>
               {/* Logo / monogram tile */}
@@ -375,29 +414,29 @@ export default function Colleges() {
                 {detail.college_logo_url && !logoErr ? (
                   <img src={detail.college_logo_url} alt={selected} className="object-contain" style={{ width: 52, height: 52 }} onError={() => setLogoErr(true)} />
                 ) : (
-                  <span style={{ fontFamily: MT.mono, fontWeight: 700, fontSize: 20, color: brand }}>{badge || '🎓'}</span>
+                  <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 20, color: brand }}>{badge || '🎓'}</span>
                 )}
               </div>
 
               <div className="flex-1 min-w-0">
                 <h1 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1.05, margin: 0 }}>{selected}</h1>
                 {ai?.location && (
-                  <p style={{ fontFamily: MT.mono, fontSize: 12, letterSpacing: '.08em', textTransform: 'uppercase', color: MT.muted, marginTop: 8 }}>
+                  <p style={{ fontFamily: T.mono, fontSize: 12, letterSpacing: '.08em', textTransform: 'uppercase', color: T.muted, marginTop: 8 }}>
                     📍 {ai.location}{ai.founded_year ? ` · est. ${ai.founded_year}` : ''}
                   </p>
                 )}
                 {detail.website_url && (
                   <a href={detail.website_url.startsWith('http') ? detail.website_url : `https://${detail.website_url}`}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ fontFamily: MT.mono, fontSize: 12, color: MT.faint, marginTop: 4, display: 'inline-block' }}
+                    style={{ fontFamily: T.mono, fontSize: 12, color: T.faint, marginTop: 4, display: 'inline-block' }}
                     className="hover:underline">
                     🔗 {detail.website_url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
                   </a>
                 )}
                 <div className="flex flex-wrap gap-2" style={{ marginTop: 14 }}>
-                  <span style={chip('#C7CAD2')}><b style={{ color: '#fff' }}>{detail.current_students.length}</b> {M.chipA}</span>
-                  <span style={chip('#C7CAD2')}><b style={{ color: '#fff' }}>{detail.alumni.length}</b> {M.chipB}</span>
-                  <span style={chip('#C7CAD2')}><b style={{ color: '#fff' }}>{detail.current_students.length + detail.alumni.length}</b> total</span>
+                  <span style={chip(T.chipText)}><b style={{ color: T.chipTextStrong }}>{detail.current_students.length}</b> {M.chipA}</span>
+                  <span style={chip(T.chipText)}><b style={{ color: T.chipTextStrong }}>{detail.alumni.length}</b> {M.chipB}</span>
+                  <span style={chip(T.chipText)}><b style={{ color: T.chipTextStrong }}>{detail.current_students.length + detail.alumni.length}</b> total</span>
                 </div>
               </div>
             </div>
@@ -410,11 +449,11 @@ export default function Colleges() {
             {ai && (ai.description || ai.highlights.length > 0) && (
               <div style={panel}>
                 <p style={sectionLabel}>// about</p>
-                {ai.description && <p style={{ color: MT.text, fontSize: 14, lineHeight: 1.6, marginBottom: ai.highlights.length ? 16 : 0 }}>{ai.description}</p>}
+                {ai.description && <p style={{ color: T.text, fontSize: 14, lineHeight: 1.6, marginBottom: ai.highlights.length ? 16 : 0 }}>{ai.description}</p>}
                 {ai.highlights.length > 0 && (
                   <ul className="space-y-2" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                     {ai.highlights.map((h, i) => (
-                      <li key={i} className="flex items-start gap-2" style={{ fontSize: 14, color: MT.text }}>
+                      <li key={i} className="flex items-start gap-2" style={{ fontSize: 14, color: T.text }}>
                         <span style={{ color: accent, marginTop: 1, flexShrink: 0 }}>✦</span>
                         {h}
                       </li>
@@ -439,7 +478,7 @@ export default function Colleges() {
                 <div style={panel}>
                   <p style={sectionLabel}>// alumni work at</p>
                   <div className="flex flex-wrap gap-2">
-                    {detail.talent_stats.top_companies.map((c, i) => <span key={i} style={chip('#36B7F5')}>🏢 {c}</span>)}
+                    {detail.talent_stats.top_companies.map((c, i) => <span key={i} style={chip(T.accentBlue)}>🏢 {c}</span>)}
                   </div>
                 </div>
               )}
@@ -448,7 +487,7 @@ export default function Colleges() {
                 <div style={panel}>
                   <p style={sectionLabel}>// top skills on platform</p>
                   <div className="flex flex-wrap gap-2">
-                    {detail.talent_stats.top_skills.map((s, i) => <span key={i} style={chip('#9B7BFF')}>{s}</span>)}
+                    {detail.talent_stats.top_skills.map((s, i) => <span key={i} style={chip(T.accentPurple)}>{s}</span>)}
                   </div>
                 </div>
               )}
@@ -457,15 +496,15 @@ export default function Colleges() {
 
           {/* Recruiter CTA — recruiter mode only (posting a job is a recruiter action) */}
           {isRecruiter && (
-            <div className="flex items-center justify-between gap-4" style={{ background: MT.cardGrad, border: `1px solid ${MT.border2}`, borderLeft: `3px solid ${brand}`, borderRadius: 14, padding: 20, marginBottom: 28 }}>
+            <div className="flex items-center justify-between gap-4" style={{ background: T.cardGrad, border: `1px solid ${T.border2}`, borderLeft: `3px solid ${brand}`, borderRadius: 14, padding: 20, marginBottom: 28 }}>
               <div>
                 <p style={{ fontWeight: 700, fontSize: 14, margin: 0 }}>🎯 Recruiting from {detail.short_name || selected}?</p>
-                <p style={{ color: MT.muted, fontSize: 13, marginTop: 4 }}>Post a campus job — only candidates from this college will see it.</p>
+                <p style={{ color: T.muted, fontSize: 13, marginTop: 4 }}>Post a campus job — only candidates from this college will see it.</p>
               </div>
               <button
                 onClick={() => navigate(`/recruiter/jobs/create?campus=${encodeURIComponent(selected)}`)}
                 className="shrink-0"
-                style={{ border: 'none', borderRadius: 10, background: accent, color: MT.onAccent, fontFamily: MT.font, fontWeight: 700, fontSize: 13, padding: '10px 16px', cursor: 'pointer', boxShadow: `0 0 22px ${accentGlow}` }}
+                style={{ border: 'none', borderRadius: 10, background: accent, color: T.onAccent, fontFamily: T.font, fontWeight: 700, fontSize: 13, padding: '10px 16px', cursor: 'pointer', boxShadow: `0 0 22px ${accentGlow}` }}
               >
                 Post a Campus Job →
               </button>
@@ -476,45 +515,53 @@ export default function Colleges() {
           {(isRecruiter || (isCandidate && user?.college_name === selected)) && (
             <div style={{ marginBottom: 28 }}>
               <div className="flex items-center gap-3" style={{ marginBottom: 16 }}>
-                <div className="flex-1" style={{ height: 1, background: MT.border }} />
-                <p style={{ fontFamily: MT.mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: MT.faint, padding: '0 8px', margin: 0 }}>🏛️ campus hiring</p>
-                <div className="flex-1" style={{ height: 1, background: MT.border }} />
+                <div className="flex-1" style={{ height: 1, background: T.border }} />
+                <p style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: T.faint, padding: '0 8px', margin: 0 }}>🏛️ campus hiring</p>
+                <div className="flex-1" style={{ height: 1, background: T.border }} />
               </div>
 
               {campusJobsLoading ? (
-                <div className="text-center" style={{ padding: '24px 0', color: MT.faint, fontFamily: MT.mono, fontSize: 13 }}>loading campus jobs…</div>
+                <div className="text-center" style={{ padding: '24px 0', color: T.faint, fontFamily: T.mono, fontSize: 13 }}>loading campus jobs…</div>
               ) : campusJobs.length === 0 ? (
-                <div className="text-center" style={{ border: `1px dashed #2A2D36`, borderRadius: 16, padding: 32 }}>
+                <div className="text-center" style={{ border: `1px dashed ${T.dashed}`, borderRadius: 16, padding: 32 }}>
                   <p style={{ fontSize: 28, margin: '0 0 8px' }}>🏛️</p>
-                  <p style={{ color: MT.muted, fontWeight: 600, fontSize: 14, margin: 0 }}>No campus jobs posted yet</p>
+                  <p style={{ color: T.muted, fontWeight: 600, fontSize: 14, margin: 0 }}>No campus jobs posted yet</p>
                   {isRecruiter && (
-                    <p style={{ color: MT.faint, fontSize: 12, marginTop: 4 }}>Be the first recruiter to post a campus job for {detail.short_name || selected}.</p>
+                    <>
+                      <p style={{ color: T.faint, fontSize: 12, marginTop: 4, marginBottom: 16 }}>Be the first to post an exclusive opportunity for {detail.short_name || selected} students.</p>
+                      <button
+                        onClick={() => navigate(`/recruiter/jobs/create?campus=${encodeURIComponent(selected)}`)}
+                        style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, padding: '10px 20px', borderRadius: 10, background: accent, color: T.onAccent, border: 'none', cursor: 'pointer', boxShadow: `0 0 18px ${accentGlow}` }}
+                      >
+                        Post a Campus Job →
+                      </button>
+                    </>
                   )}
                   {isCandidate && (
-                    <p style={{ color: MT.faint, fontSize: 12, marginTop: 4 }}>Recruiters can post exclusive opportunities here for {detail.short_name || selected} students.</p>
+                    <p style={{ color: T.faint, fontSize: 12, marginTop: 4 }}>Recruiters can post exclusive opportunities here for {detail.short_name || selected} students.</p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
                   {campusJobs.map(job => (
-                    <div key={job.id} className="flex items-center gap-4" style={{ background: MT.cardGrad, border: `1px solid ${MT.border2}`, borderRadius: 14, padding: '14px 18px' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: MT.chipBg, border: `1px solid ${MT.chipLine}`, display: 'grid', placeItems: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    <div key={job.id} className="flex items-center gap-4" style={{ background: T.cardGrad, border: `1px solid ${T.border2}`, borderRadius: 14, padding: '14px 18px' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: T.chipBg, border: `1px solid ${T.chipLine}`, display: 'grid', placeItems: 'center', flexShrink: 0, overflow: 'hidden' }}>
                         {job.company_logo_url ? (
                           <img src={job.company_logo_url} alt={job.company} style={{ width: 28, height: 28, objectFit: 'contain' }} />
                         ) : (
-                          <span style={{ fontFamily: MT.mono, fontWeight: 700, fontSize: 13, color: MT.muted }}>{job.company[0]?.toUpperCase()}</span>
+                          <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: T.muted }}>{job.company[0]?.toUpperCase()}</span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="truncate" style={{ color: MT.text, fontSize: 14, fontWeight: 700, margin: 0 }}>{job.title}</p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5" style={{ fontFamily: MT.mono, fontSize: 11, color: MT.faint, marginTop: 3 }}>
+                        <p className="truncate" style={{ color: T.text, fontSize: 14, fontWeight: 700, margin: 0 }}>{job.title}</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5" style={{ fontFamily: T.mono, fontSize: 11, color: T.faint, marginTop: 3 }}>
                           <span>{job.company}</span>
                           <span>· {job.location}</span>
                           {job.employment_type && <span>· {job.employment_type}</span>}
                           {job.remote_policy && <span>· {job.remote_policy}</span>}
                         </div>
                         {(job.salary_range_min || job.salary_range_max) && (
-                          <p style={{ color: '#2BD17E', fontFamily: MT.mono, fontSize: 11, fontWeight: 500, marginTop: 3 }}>
+                          <p style={{ color: T.success, fontFamily: T.mono, fontSize: 11, fontWeight: 500, marginTop: 3 }}>
                             {formatSalaryRange(job.salary_range_min, job.salary_range_max, job.salary_currency, true)}
                           </p>
                         )}
@@ -543,9 +590,9 @@ export default function Colleges() {
                   onClick={() => setActiveTab(tab)}
                   style={{
                     padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    fontFamily: MT.font, transition: 'all .15s',
-                    background: active ? accent : MT.surface, color: active ? MT.onAccent : MT.muted,
-                    border: active ? 'none' : `1px solid ${MT.border3}`,
+                    fontFamily: T.font, transition: 'all .15s',
+                    background: active ? accent : T.surface, color: active ? T.onAccent : T.muted,
+                    border: active ? 'none' : `1px solid ${T.border3}`,
                   }}
                 >
                   {tab === 'current' ? `📚 Current Students (${detail.current_students.length})` : `🎓 Alumni (${detail.alumni.length})`}
@@ -556,14 +603,14 @@ export default function Colleges() {
 
           {/* People list */}
           {displayList.length === 0 ? (
-            <div className="text-center" style={{ padding: '64px 0', color: MT.faint }}>
+            <div className="text-center" style={{ padding: '64px 0', color: T.faint }}>
               <p style={{ fontSize: 32, margin: '0 0 12px' }}>{activeTab === 'current' ? '📚' : '🎓'}</p>
-              <p style={{ fontFamily: MT.mono, fontSize: 13 }}>// no {activeTab === 'current' ? 'current students' : 'alumni'} yet</p>
+              <p style={{ fontFamily: T.mono, fontSize: 13 }}>// no {activeTab === 'current' ? 'current students' : 'alumni'} yet</p>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {displayList.map((person, idx) => (
-                <CandidateRow key={person.id} person={person} idx={idx} accent={accent} onView={() => setViewingProfile(person)} />
+                <CandidateRow key={person.id} person={person} idx={idx} accent={accent} T={T} onView={() => setViewingProfile(person)} />
               ))}
             </div>
           )}
@@ -573,7 +620,7 @@ export default function Colleges() {
   }
 
   if (selected && detailLoading) return (
-    <div style={{ minHeight: '100vh', background: MT.bg, backgroundImage: MT.grid, backgroundSize: '26px 26px' }}
+    <div style={{ minHeight: '100vh', background: T.bg, backgroundImage: T.grid, backgroundSize: '26px 26px' }}
       className="flex items-center justify-center">
       <LoadingSpinner message="Loading college…" />
     </div>
@@ -588,41 +635,42 @@ export default function Colleges() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: MT.bg, backgroundImage: MT.grid, backgroundSize: '26px 26px',
-      color: MT.text, fontFamily: MT.font, WebkitFontSmoothing: 'antialiased',
+      minHeight: '100vh', background: T.bg, backgroundImage: T.grid, backgroundSize: '26px 26px',
+      color: T.text, fontFamily: T.font, WebkitFontSmoothing: 'antialiased',
     }}>
       <style>{`
         @keyframes mtBlink { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
         @keyframes mtRise { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }
         .mt-card { animation: mtRise .5s cubic-bezier(.2,.7,.2,1) both; }
-        .mt-search input::placeholder { color:${MT.placeholder}; }
-        .mt-search input::selection { background:${accent}; color:${MT.onAccent}; }
+        .mt-search input::placeholder { color:${T.placeholder}; }
+        .mt-search input::selection { background:${accent}; color:${T.onAccent}; }
       `}</style>
 
       <main style={{ maxWidth: 1240, margin: '0 auto', padding: '56px 28px 90px' }}>
-        {/* Accent palette picker (stakeholder feature) */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 18 }}>
-          <PalettePicker palette={palette} mode={mode} onPick={pickPalette} />
+        {/* Theme toggle + accent palette picker (stakeholder features) */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 18 }}>
+          <ThemeToggle theme={theme} T={T} onToggle={toggleTheme} />
+          <PalettePicker palette={palette} mode={mode} T={T} onPick={pickPalette} />
         </div>
 
         {/* Hero + stats */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 40, flexWrap: 'wrap' }}>
           <div style={{ maxWidth: 720 }}>
-            <div style={{ fontFamily: MT.mono, fontSize: 12, letterSpacing: '.18em', textTransform: 'uppercase', color: accent, marginBottom: 18 }}>
-              $ talentai --campus 2026
+            <div style={{ fontFamily: T.mono, fontSize: 12, letterSpacing: '.18em', textTransform: 'uppercase', color: accent, marginBottom: 18 }}>
+              $ nideknil --campus 2026
             </div>
             <h1 style={{ fontSize: 'clamp(40px,6vw,72px)', lineHeight: 1, letterSpacing: '-.03em', fontWeight: 700, margin: 0 }}>
               {M.headline}
             </h1>
-            <p style={{ fontSize: 18, lineHeight: 1.5, color: MT.muted, maxWidth: 560, margin: '22px 0 0' }}>
+            <p style={{ fontSize: 18, lineHeight: 1.5, color: T.muted, maxWidth: 560, margin: '22px 0 0' }}>
               {M.sub}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             {statPanels.map(s => (
-              <div key={s.label} style={{ padding: '18px 22px', border: `1px solid #1F2128`, borderRadius: 14, background: MT.panelGrad, minWidth: 108 }}>
-                <div style={{ fontFamily: MT.mono, fontWeight: 700, fontSize: 30, lineHeight: 1, color: s.accent ? accent : MT.text }}>{s.val}</div>
-                <div style={{ fontFamily: MT.mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: MT.faint, marginTop: 8 }}>{s.label}</div>
+              <div key={s.label} style={{ padding: '18px 22px', border: `1px solid ${T.statBorder}`, borderRadius: 14, background: T.panelGrad, minWidth: 108 }}>
+                <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 30, lineHeight: 1, color: s.accent ? accent : T.text }}>{s.val}</div>
+                <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: T.faint, marginTop: 8 }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -631,39 +679,39 @@ export default function Colleges() {
         {/* Terminal search */}
         <div className="mt-search" style={{
           position: 'relative', margin: '44px 0 38px', display: 'flex', alignItems: 'center', gap: 12,
-          border: `1px solid ${MT.border3}`, borderRadius: 14, background: MT.panel, padding: '4px 16px',
+          border: `1px solid ${T.border3}`, borderRadius: 14, background: T.panel, padding: '4px 16px',
         }}>
-          <span style={{ fontFamily: MT.mono, fontSize: 18, color: accent }}>&gt;</span>
+          <span style={{ fontFamily: T.mono, fontSize: 18, color: accent }}>&gt;</span>
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="search colleges, codes…"
-            style={{ flex: 1, border: 'none', background: 'transparent', padding: '16px 0', fontFamily: MT.mono, fontSize: 16, color: MT.text, outline: 'none' }}
+            style={{ flex: 1, border: 'none', background: 'transparent', padding: '16px 0', fontFamily: T.mono, fontSize: 16, color: T.text, outline: 'none' }}
           />
           {colleges.length > 0 && (
-            <span style={{ fontFamily: MT.mono, fontSize: 12, color: MT.placeholder }}>{filtered.length}/{colleges.length}</span>
+            <span style={{ fontFamily: T.mono, fontSize: 12, color: T.placeholder }}>{filtered.length}/{colleges.length}</span>
           )}
           <span style={{ width: 9, height: 18, background: accent, animation: 'mtBlink 1.1s steps(1) infinite' }} />
         </div>
 
         {error && (
-          <div style={{ border: `1px solid ${MT.border3}`, background: MT.panel, color: '#FF8A8A', fontFamily: MT.mono, fontSize: 13 }}
+          <div style={{ border: `1px solid ${T.border3}`, background: T.panel, color: T.danger, fontFamily: T.mono, fontSize: 13 }}
             className="rounded-2xl p-4 text-center mb-8">// {error}</div>
         )}
 
         {colleges.length === 0 && !error && (
-          <div style={{ border: `1px dashed #2A2D36`, borderRadius: 16, padding: 60, textAlign: 'center' }}>
-            <div style={{ fontFamily: MT.mono, fontSize: 13, letterSpacing: '.1em', color: MT.faint }}>// no campuses on the platform yet</div>
-            <p style={{ color: MT.faint2, fontSize: 13, marginTop: 10 }}>Be the first candidate to set up your campus.</p>
+          <div style={{ border: `1px dashed ${T.dashed}`, borderRadius: 16, padding: 60, textAlign: 'center' }}>
+            <div style={{ fontFamily: T.mono, fontSize: 13, letterSpacing: '.1em', color: T.faint }}>// no campuses on the platform yet</div>
+            <p style={{ color: T.faint2, fontSize: 13, marginTop: 10 }}>Be the first candidate to set up your campus.</p>
           </div>
         )}
 
         {/* Empty search state */}
         {filtered.length === 0 && colleges.length > 0 && (
-          <div style={{ border: `1px dashed #2A2D36`, borderRadius: 16, padding: 60, textAlign: 'center' }}>
-            <div style={{ fontFamily: MT.mono, fontSize: 13, letterSpacing: '.1em', color: MT.faint }}>// no campuses match “{search}”</div>
+          <div style={{ border: `1px dashed ${T.dashed}`, borderRadius: 16, padding: 60, textAlign: 'center' }}>
+            <div style={{ fontFamily: T.mono, fontSize: 13, letterSpacing: '.1em', color: T.faint }}>// no campuses match “{search}”</div>
             <button
               onClick={() => setSearch('')}
-              style={{ marginTop: 18, border: 'none', borderRadius: 10, background: accent, color: MT.onAccent, fontFamily: MT.font, fontWeight: 700, fontSize: 14, padding: '11px 18px', cursor: 'pointer' }}
+              style={{ marginTop: 18, border: 'none', borderRadius: 10, background: accent, color: T.onAccent, fontFamily: T.font, fontWeight: 700, fontSize: 14, padding: '11px 18px', cursor: 'pointer' }}
             >
               Clear search
             </button>
@@ -677,6 +725,7 @@ export default function Colleges() {
               <div key={college.college_name} className="mt-card" style={{ animationDelay: `${0.02 + i * 0.06}s` }}>
                 <CollegeCard
                   college={college}
+                  T={T}
                   accent={accent}
                   accentGlow={accentGlow}
                   fill={college.total / maxTotal}
@@ -691,9 +740,9 @@ export default function Colleges() {
         )}
       </main>
 
-      <footer style={{ borderTop: `1px solid ${MT.border}` }}>
-        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 28px', display: 'flex', justifyContent: 'space-between', fontFamily: MT.mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: MT.faint }}>
-          <span>TalentAI © 2026</span>
+      <footer style={{ borderTop: `1px solid ${T.border}` }}>
+        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 28px', display: 'flex', justifyContent: 'space-between', fontFamily: T.mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: T.faint }}>
+          <span>Nideknil © 2026</span>
           <span style={{ color: accent }}>campus hiring, leveled up.</span>
         </div>
       </footer>

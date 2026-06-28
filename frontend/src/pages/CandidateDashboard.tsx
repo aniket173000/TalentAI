@@ -89,7 +89,7 @@ export default function CandidateDashboard() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
       <div className="mb-8">
-        <h1 className="font-display font-extrabold text-ink" style={{fontSize:36,letterSpacing:"-0.035em"}}>My Applications</h1>
+        <h1 className="font-display font-extrabold text-ink" style={{fontSize:'clamp(26px,6vw,36px)',letterSpacing:"-0.035em"}}>My Applications</h1>
         <p className="text-slate-500 text-sm mt-1">
           Welcome back, {user?.full_name}. Here's your application history.
         </p>

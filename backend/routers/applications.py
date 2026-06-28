@@ -236,18 +236,6 @@ async def _send_displacement_notification(
     )
 
 
-async def _run_gaming_analysis(
-    new_app_id: int,
-    prev_app_id: int,
-    new_resume_text: str,
-    prev_resume_text: str,
-    job_id: int,
-) -> None:
-    """Background task: run resume gaming analysis for reapplications."""
-    from services.gaming.analyzer import analyze_reapplication
-    await analyze_reapplication(new_app_id, prev_app_id, job_id, new_resume_text, prev_resume_text)
-
-
 async def _store_profile_embedding(user_id: int, resume_text: str) -> None:
     """Background task: compute and cache a candidate's profile embedding after a new resume upload."""
     try:
@@ -664,7 +652,6 @@ async def apply_to_job(
             raise HTTPException(status_code=404, detail="Selected resume not found in your vault.")
         resume_text = vault_entry.resume_text
         resume_filename = vault_entry.filename
-        confirmed_reapply = True  # vault selection is always an explicit choice
     elif resume_file and resume_file.filename:
         content = await resume_file.read()
         resume_text = parse_resume(content, resume_file.filename)
@@ -731,31 +718,26 @@ async def apply_to_job(
         .first()
     )
     if prior:
-        same = prior.resume_text and _resume_hash(prior.resume_text) == _resume_hash(resume_text)
-        if same:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "same_resume",
-                    "message": (
-                        "You have already applied to this job with the same resume. "
-                        "Please update your resume with skills relevant to this role before reapplying."
-                    ),
-                    "previous_match_score": round(prior.match_score, 1),
-                },
-            )
-        if not confirmed_reapply:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "reapply_confirmation_required",
-                    "message": (
-                        "You have already applied to this job. "
-                        "Please confirm that your new resume better matches the job requirements."
-                    ),
-                    "previous_match_score": round(prior.match_score, 1),
-                },
-            )
+        status_label = {
+            "accepted": "currently in the candidate pool",
+            "rejected": "not shortlisted",
+            "displaced": "no longer in the candidate pool",
+        }.get(prior.status, "already submitted")
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "already_applied",
+                "message": (
+                    f"You have already applied to this position — your application is {status_label}. "
+                    "Each candidate may submit only one application per job opening. "
+                    "Use the link below to check your current application status."
+                ),
+                "previous_match_score": round(prior.match_score, 1),
+                "previous_status": prior.status,
+                "previous_candidate_status": prior.candidate_status or "received",
+                "status_token": prior.status_token,
+            },
+        )
 
     # 4. AI screening (eligibility criteria injected into JD context) ──────────
     effective_jd = job.jd_text
@@ -830,10 +812,6 @@ async def apply_to_job(
     if match_score < min_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
-        if prior:
-            background_tasks.add_task(
-                _run_gaming_analysis, saved.id, prior.id, resume_text, prior.resume_text, job_id
-            )
         background_tasks.add_task(
             send_rejection_email,
             resolved_email, resolved_name, job_title, job_company,
@@ -874,10 +852,6 @@ async def apply_to_job(
         db.refresh(app)
         total_pool = len(accepted) + 1
         background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
-        if prior:
-            background_tasks.add_task(
-                _run_gaming_analysis, app.id, prior.id, resume_text, prior.resume_text, job_id
-            )
         for change in rank_changes:
             background_tasks.add_task(
                 send_rank_change_email,
@@ -916,10 +890,6 @@ async def apply_to_job(
     if match_score <= lowest.match_score:
         saved = _save("rejected")
         background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
-        if prior:
-            background_tasks.add_task(
-                _run_gaming_analysis, saved.id, prior.id, resume_text, prior.resume_text, job_id
-            )
         background_tasks.add_task(
             send_rejection_email,
             resolved_email, resolved_name, job_title, job_company,
@@ -958,10 +928,6 @@ async def apply_to_job(
     rank_changes = await _rerank(db, job_id)
     db.refresh(app)
     background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
-    if prior:
-        background_tasks.add_task(
-            _run_gaming_analysis, app.id, prior.id, resume_text, prior.resume_text, job_id
-        )
     for change in rank_changes:
         background_tasks.add_task(
             send_rank_change_email,
@@ -1061,10 +1027,10 @@ def get_all_applications(
         .all()
     )
 
-    # Build a map of user_id → phone for candidates who have accounts
     user_ids = [a.candidate_user_id for a in apps if a.candidate_user_id]
     phone_map: dict[int, str | None] = {}
     if user_ids:
+        from sqlalchemy import tuple_
         users = db.query(models.User.id, models.User.phone).filter(models.User.id.in_(user_ids)).all()
         phone_map = {u.id: u.phone for u in users}
 

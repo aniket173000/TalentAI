@@ -416,8 +416,10 @@ export default function Apply() {
   }
 
   // ── Normal apply form ─────────────────────────────────────────────────────
+  // Tailor feature is hidden for now; set to true to re-enable
+  const TAILOR_ENABLED = false
   // Show tailor button when user has a profile resume and hasn't swapped to a different one
-  const canTailor = !!(profile?.resume_filename) && !file && !selectedVaultId
+  const canTailor = TAILOR_ENABLED && !!(profile?.resume_filename) && !file && !selectedVaultId
 
   return (
     <div className="max-w-xl mx-auto px-4 py-12 animate-fade-in">
@@ -495,7 +497,7 @@ export default function Apply() {
                         Upload new
                       </button>
                     )}
-                    {(tailorState === 'idle' || tailorState === 'blocked') && (
+                    {TAILOR_ENABLED && (tailorState === 'idle' || tailorState === 'blocked') && (
                       <button
                         type="button"
                         onClick={handleTailor}
@@ -504,13 +506,13 @@ export default function Apply() {
                         ✨ Tailor
                       </button>
                     )}
-                    {tailorState === 'loading' && (
+                    {TAILOR_ENABLED && tailorState === 'loading' && (
                       <span className="text-xs text-violet-500 flex items-center gap-1.5">
                         <span className="w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin block" />
                         Analysing fit…
                       </span>
                     )}
-                    {tailorState === 'done' && (
+                    {TAILOR_ENABLED && tailorState === 'done' && (
                       <span className="text-xs font-semibold text-violet-600 bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
                         ✨ Tailored
                       </span>
@@ -521,7 +523,7 @@ export default function Apply() {
             </div>
 
             {/* Tailor: blocked (incompatible roles or excessive drift) */}
-            {tailorState === 'blocked' && tailorBlockedMsg && (
+            {TAILOR_ENABLED && tailorState === 'blocked' && tailorBlockedMsg && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2 animate-fade-in">
                 <div className="flex items-start gap-2">
                   <span className="text-red-400 text-base shrink-0 mt-0.5">🚫</span>
@@ -537,7 +539,7 @@ export default function Apply() {
             )}
 
             {/* Tailor preview panel (success) */}
-            {tailorState === 'done' && canTailor && (
+            {TAILOR_ENABLED && tailorState === 'done' && canTailor && (
               <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3 animate-fade-in">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-violet-500 text-base">✨</span>
@@ -665,7 +667,7 @@ export default function Apply() {
 
             <p className="text-xs text-muted text-center">
               Our AI will score your resume instantly against the job description.
-              {useTailored && tailoredText && (
+              {TAILOR_ENABLED && useTailored && tailoredText && (
                 <span className="text-violet-500"> Sending tailored version.</span>
               )}
             </p>

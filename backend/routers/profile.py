@@ -73,6 +73,7 @@ class CollegeUpdateBody(BaseModel):
     college_url: Optional[str] = None
     candidate_linkedin_url: Optional[str] = None
     current_company: Optional[str] = None
+    phone: Optional[str] = None
 
 
 # ── Response helper ───────────────────────────────────────────────────────────
@@ -533,6 +534,8 @@ async def update_college_info(
     ext.onboarding_completed = True
     ext.candidate_linkedin_url = (body.candidate_linkedin_url or "").strip() or None
     ext.current_company = (body.current_company or "").strip() or None
+    if body.phone:
+        current_user.phone = body.phone.strip() or None
 
     # Upsert the primary UserEducation row
     primary_ed = db.query(models.UserEducation).filter(

@@ -69,17 +69,30 @@ def _bullet_section(title: str, items: list) -> str:
     return f"\n{title}\n{bullets}\n"
 
 
+_PLATFORM_FOOTER = (
+    "\n──────────────────────────────────────────\n"
+    "This email was sent via Nideknil AI — an AI-powered recruitment platform.\n"
+    "nideknil.in  ·  Do not reply to this email directly.\n"
+    "──────────────────────────────────────────"
+)
+
+_REFERRAL_TEAM_FOOTER = (
+    "Nideknil Referral Team\n"
+    "nideknil.in"
+    + _PLATFORM_FOOTER
+)
+
+
 def _build_signature(
     recruiter_name: str,
     recruiter_email: str,
     recruiter_position: str,
 ) -> str:
-    lines = [recruiter_name]
+    lines = [recruiter_name, recruiter_position]
     if recruiter_email:
-        lines.append(recruiter_email)
-    lines.append(recruiter_position)
-    lines.append("TalentAI Recruitment Team")
-    return "\n".join(lines)
+        lines.append(f"📧 {recruiter_email}")
+    lines.append("Nideknil Recruitment Team")
+    return "\n".join(lines) + _PLATFORM_FOOTER
 
 
 async def send_rejection_email(
@@ -117,7 +130,7 @@ Best regards,
 
 
 _STATUS_LABELS = {
-    "pool_accepted":        "Shortlisted",
+    "pool_accepted":        "Shortlisted for the Pool",
     "under_review":         "Under Review",
     "interview_scheduled":  "Interview Stage",
     "offer_extended":       "Offer Extended",
@@ -126,7 +139,7 @@ _STATUS_LABELS = {
 }
 
 _STATUS_MESSAGES = {
-    "pool_accepted":        "Great news! Your application has been shortlisted. A recruiter will be reviewing your profile shortly.",
+    "pool_accepted":        "Great news! Your application has been shortlisted for the pool. You will be notified if your rank changes — top-ranked candidates have the best shot when the recruiter reviews.",
     "under_review":         "Your profile is currently being reviewed by our recruitment team.",
     "interview_scheduled":  "You have been selected for the interview stage. Our team will reach out with the details.",
     "offer_extended":       "We are delighted to extend an offer for this position! Please check your email for the offer details.",
@@ -306,7 +319,7 @@ You are now in the active referral pool. The referrer will review the top candid
 Keep an eye on your email — you'll be notified if your rank changes or if you've been selected for referral.
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"You're in the Referral Pool — {job_title} at {company_name}", body)
 
 
@@ -338,7 +351,7 @@ You are currently on the waitlist, not in the main referral pool. This means:
 We will notify you if your waitlist position changes or if the pool closes.
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"Waitlisted for Referral — {job_title} at {company_name}", body)
 
 
@@ -368,7 +381,7 @@ Reason: {reason_text}
 You are welcome to explore other referral opportunities at different companies or apply directly to job postings.
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"Referral Application Update — {job_title} at {company_name}", body)
 
 
@@ -390,10 +403,10 @@ A stronger candidate has entered, and as the lowest-ranked member at that time (
 
 This is not a reflection of weak qualifications — you were shortlisted, which means you cleared the initial threshold. The {pool_label} simply filled with stronger matches.
 
-You are welcome to apply to other referral opportunities on TalentAI.
+You are welcome to apply to other referral opportunities on Nideknil.
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"Displaced from Referral {pool_label.title()} — {job_title} at {company_name}", body)
 
 
@@ -416,7 +429,7 @@ Your position in the {pool_label} for {job_title} at {company_name} has {directi
 You remain active in the {pool_label}. We'll notify you when the pool closes or your status changes.
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"Referral Rank {'Improved' if moved > 0 else 'Updated'} — {job_title} at {company_name}", body)
 
 
@@ -444,7 +457,7 @@ Please ensure your resume and profile are up to date. The company's recruitment 
 Best of luck!
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"You've Been Referred! — {job_title} at {company_name}", body)
 
 
@@ -465,10 +478,10 @@ Unfortunately, you were not selected for referral from the {pool_label} this tim
 
 {"As a waitlist member, referrals were prioritized for the main pool candidates and the referrer did not have remaining capacity to refer waitlist members." if was_waitlist else "The referrer has completed their referrals for this round."}
 
-Don't be discouraged — you can continue exploring referral opportunities at other companies on TalentAI.
+Don't be discouraged — you can continue exploring referral opportunities at other companies on Nideknil.
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(candidate_email, f"Referral Pool Closed — {job_title} at {company_name}", body)
 
 
@@ -493,7 +506,7 @@ Log in to review candidates in your pool before it fills up:
 {frontend_url}/referrals/{post_slug}/dashboard
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(referrer_email, f"Your Referral Pool is {int((filled/pool_size)*100)}% Full — {job_title}", body)
 
 
@@ -518,7 +531,7 @@ Next steps:
   3. Once you've submitted referrals, mark it as "Referred All" to complete the process
 
 Best regards,
-TalentAI Referral Team"""
+{_REFERRAL_TEAM_FOOTER}"""
     await send_email(referrer_email, f"Referral Post Auto-Closed — {job_title} at {company_name}", body)
 
 
@@ -539,8 +552,8 @@ This code expires in 15 minutes. Do not share it with anyone.
 If you did not request this, please ignore this email.
 
 Best regards,
-TalentAI Referral Team"""
-    await send_email(work_email, f"Work Email Verification — TalentAI Referrals ({otp_code})", body)
+{_REFERRAL_TEAM_FOOTER}"""
+    await send_email(work_email, f"Work Email Verification — Nideknil Referrals ({otp_code})", body)
 
 
 async def send_acceptance_notification(
@@ -565,14 +578,29 @@ async def send_acceptance_notification(
         if rank > 1 and rank_explanation else ""
     )
 
+    rank_note = (
+        f"You are currently ranked #{rank} in the pool. "
+        "Stronger candidates can enter after you and may push your rank down — "
+        "the top-ranked candidates have the best shot when the recruiter reviews the pool."
+        if rank > 1
+        else
+        "You are currently ranked #1 in the pool — the strongest match so far. "
+        "Stay ahead by keeping your profile and resume up to date."
+    )
+
     body = f"""Dear {candidate_name},
 
-Your application for {job_title} has been shortlisted!
+Great news — your application for {job_title} has been shortlisted for the pool!
 
 AI Match Score: {match_score:.1f}%
 Your Rank: #{rank}
 {strengths_section}{gaps_section}{rank1_section}
-A recruiter will be in touch shortly with next steps.
+What this means:
+You have cleared the minimum match threshold and earned a spot in the competitive candidate pool. The recruiter will review the top-ranked candidates when the pool closes.
+
+{rank_note}
+
+Keep an eye on your email — you will be notified if your rank changes or if a stronger candidate displaces your position.
 
 Best regards,
 {signature}"""

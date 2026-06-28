@@ -183,29 +183,42 @@ export default function Home() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
 
-      {/* Hero */}
-      <div className="text-center mb-10">
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 44, letterSpacing: '-0.035em', color: 'var(--ink)', margin: '0 0 12px', lineHeight: 1.04 }}>Explore top companies</h1>
-        <p className="max-w-xl mx-auto" style={{ color: 'var(--muted)', fontSize: 17, fontWeight: 500, lineHeight: 1.5 }}>
-          Discover who's hiring. Click a company to see their open roles — and apply in seconds with AI-powered screening.
-        </p>
-      </div>
+      {/* Midnight-blue hero */}
+      <div style={{ borderRadius: 28, padding: 'clamp(28px,6vw,64px) clamp(20px,4vw,48px)', background: 'radial-gradient(120% 150% at 50% 0%, #163A6E 0%, #0A1730 64%)', textAlign: 'center', overflow: 'hidden', marginBottom: 44 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.14em', color: '#7DD3FC', textTransform: 'uppercase' }}>Now hiring</div>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(34px, 5vw, 54px)', lineHeight: 1.05, fontWeight: 800, color: '#fff', letterSpacing: '-0.03em', margin: '14px 0 0' }}>
+          {jobs.length > 0 ? (
+            <><span style={{ color: '#7DD3FC' }}>{jobs.length} open role{jobs.length !== 1 ? 's' : ''}</span> waiting<br />for you.</>
+          ) : (
+            <>New roles are<br />on the way.</>
+          )}
+        </h1>
+        <div style={{ fontSize: 18, fontWeight: 500, color: '#9DB2CE', marginTop: 18 }}>
+          {companies.length > 0
+            ? `${companies.length} compan${companies.length !== 1 ? 'ies' : 'y'} actively hiring — find your next move.`
+            : 'Check back soon, or visit the Recruiter Portal to post a role.'}
+        </div>
 
-      {/* Search */}
-      <div className="max-w-lg mx-auto mb-10" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 16px', background: 'var(--surface)', border: '2px solid var(--ink)', borderRadius: 16, boxShadow: '3px 3px 0 var(--card-shadow)' }}>
-        <Icon name="search" size={18} stroke={2.2} style={{ color: 'var(--muted)' }} />
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search companies or roles…"
-          style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-body)', fontSize: 14.5, color: 'var(--ink)', width: '100%' }} />
-      </div>
+        {jobs.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 32, flexWrap: 'wrap' }}>
+            <span style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)', color: '#D5E2F2', fontSize: 14, fontWeight: 700, padding: '10px 18px', borderRadius: 999 }}>
+              {companies.length} compan{companies.length !== 1 ? 'ies' : 'y'}
+            </span>
+            <span style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)', color: '#D5E2F2', fontSize: 14, fontWeight: 700, padding: '10px 18px', borderRadius: 999 }}>
+              {jobs.length} open position{jobs.length !== 1 ? 's' : ''}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(56,189,248,.16)', border: '1px solid rgba(56,189,248,.42)', color: '#BAE6FD', fontSize: 14, fontWeight: 700, padding: '10px 18px', borderRadius: 999 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#38BDF8' }} />Actively hiring
+            </span>
+          </div>
+        )}
 
-      {/* Summary */}
-      {companies.length > 0 && (
-        <p className="text-center mb-8" style={{ fontSize: 13.5, color: 'var(--muted)', fontWeight: 600 }}>
-          <span style={{ color: 'var(--ink)', fontWeight: 800 }}>{filteredCompanies.length}</span> compan{filteredCompanies.length !== 1 ? 'ies' : 'y'} hiring
-          &nbsp;·&nbsp;
-          <span style={{ color: 'var(--ink)', fontWeight: 800 }}>{jobs.length}</span> open position{jobs.length !== 1 ? 's' : ''}
-        </p>
-      )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 520, margin: '32px auto 0', background: '#fff', borderRadius: 14, padding: '13px 18px', boxShadow: '0 10px 28px rgba(0,0,0,.35)' }}>
+          <Icon name="search" size={18} stroke={2.2} style={{ color: '#A0A0A8' }} />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search companies or roles…"
+            style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-body)', fontSize: 16, color: 'var(--ink)', width: '100%' }} />
+        </div>
+      </div>
 
       {/* Empty state */}
       {jobs.length === 0 && (
@@ -228,7 +241,7 @@ export default function Home() {
 
       {/* Company cards grid */}
       {filteredCompanies.length > 0 && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px,100%), 1fr))', gap: 24 }}>
           {filteredCompanies.map(company => (
             <CompanyCard
               key={company.name}

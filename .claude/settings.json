@@ -58,12 +58,29 @@
       "Bash(/Users/aniket/Desktop/Mark1Job/frontend/node_modules/.bin/tsc --noEmit -p /Users/aniket/Desktop/Mark1Job/frontend/tsconfig.json)",
       "Bash(/Users/aniket/Desktop/Mark1Job/frontend/node_modules/.bin/vite build *)",
       "Bash(cd /Users/aniket/Desktop/Mark1Job/backend)",
-      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/aniket/Desktop/Mark1Job/backend/routers/referrals.py'\\).read\\(\\)\\); print\\('referrals.py OK'\\)\")"
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/aniket/Desktop/Mark1Job/backend/routers/referrals.py'\\).read\\(\\)\\); print\\('referrals.py OK'\\)\")",
+      "Bash(grep -n \"'0 [0-9].*\\\\${T\\\\.\" frontend/src/pages/Colleges.tsx)",
+      "Bash(python -c \"import ast,sys; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['services/evaluation.py','services/ai/openai_strategy.py','routers/search.py','models.py','main.py','services/ai/base.py']]; print\\('syntax OK'\\)\")",
+      "Bash(grep -rIน --line-number -iE \"talent ?ai\" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=__pycache__ --exclude-dir=dist --exclude-dir=.venv --exclude-dir=venv)",
+      "Bash(grep -nA12 \"accent\")",
+      "Bash(bash --noprofile --norc -c 'npx tsc --noEmit 2>&1 | head -30 || true')",
+      "Bash(/usr/local/bin/node node_modules/.bin/tsc --noEmit)",
+      "Bash(/Users/aniket/.nvm/versions/node/v24.13.0/bin/node node_modules/.bin/tsc --noEmit)",
+      "Bash(env -i HOME=/Users/aniket PATH=/Users/aniket/.nvm/versions/node/v24.13.0/bin:/usr/local/bin:/usr/bin:/bin /Users/aniket/.nvm/versions/node/v24.13.0/bin/node /Users/aniket/Desktop/Mark1Job/frontend/node_modules/.bin/tsc --noEmit)",
+      "Bash(env -i HOME=/Users/aniket PATH=/Users/aniket/.nvm/versions/node/v24.13.0/bin:/usr/local/bin:/usr/bin:/bin /Users/aniket/.nvm/versions/node/v24.13.0/bin/node ./node_modules/.bin/tsc -p tsconfig.json --noEmit)",
+      "Bash(bash -c 'source ~/.nvm/nvm.sh 2>/dev/null; node node_modules/.bin/tsc -p tsconfig.json --noEmit 2>&1')",
+      "Bash(node node_modules/.bin/tsc --noEmit)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(python -c \"import models; import routers.product_feedback; print\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "/tmp",
       "/private/tmp",
-      "/Users/aniket/Desktop/Mark1Job/backend"
+      "/Users/aniket/Desktop/Mark1Job/backend",
+      "/Users/aniket/Desktop/Mark1Job/frontend"
     ]
   }
 }

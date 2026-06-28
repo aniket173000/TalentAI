@@ -76,6 +76,19 @@ STEP 4 — Gaps and suggestions:
   Example: if JD says "Node.js (preferred) or another backend language" and candidate has strong Java/Go → Node.js is NOT a gap.
 - Verify each gap against the actual resume text before listing it — do not hallucinate missing skills.
 
+STEP 5 — AI Fluency (how effectively this candidate uses AI in their work):
+Judge from concrete resume evidence — NOT from whether the role is technical.
+Look for: building with LLMs / GenAI / RAG / agents, shipping AI-powered features,
+ML/AI engineering, prompt engineering, and everyday use of AI tools (Copilot,
+Cursor, ChatGPT, Claude) or AI-driven automation to accelerate their work.
+Scoring rubric (ai_fluency.score, 0-100):
+- 90-100: Builds AI/ML products or deeply integrates LLMs/GenAI into their work.
+- 70-89:  Regularly ships AI features or uses AI tools/automation to accelerate delivery.
+- 40-69:  Some exposure — occasional AI tooling or one AI-adjacent project.
+- 0-39:   Little to no evidence of AI usage.
+List 1-3 short `signals` quoting concrete evidence, and a one-line `rationale`.
+If the resume shows no AI evidence, score it low and say so — do not invent signals.
+
 Return ONLY this JSON (no markdown):
 {{
     "match_score": <final capped composite score 0-100>,
@@ -86,6 +99,11 @@ Return ONLY this JSON (no markdown):
         "skills": <0-100>,
         "projects": <0-100>,
         "experience": <0-100>
+    }},
+    "ai_fluency": {{
+        "score": <0-100>,
+        "signals": ["concrete evidence 1", "concrete evidence 2"],
+        "rationale": "<one-line explanation of the score>"
     }},
     "project_scores": [
         {{
@@ -162,7 +180,7 @@ Be rigorous on experience shortfalls. Be fair on technology alternatives — a s
         if recruiter_email:
             signature_lines.append(recruiter_email)
         signature_lines.append(recruiter_position)
-        signature_lines.append("TalentAI Recruitment Team")
+        signature_lines.append("Nideknil Recruitment Team")
         signature = "\n".join(signature_lines)
 
         prompt = f"""Write a professional, empathetic rejection email for a job applicant.

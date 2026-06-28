@@ -21,6 +21,7 @@ from routers import referrals as referrals_router
 from routers import resume_profile as resume_profile_router
 from routers import scores as scores_router
 from routers import semantic as semantic_router
+from routers import product_feedback as product_feedback_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -237,6 +238,10 @@ _MIGRATIONS = [
     "ALTER TABLE referral_posts ADD COLUMN referrer_title VARCHAR(255)",
     "ALTER TABLE referral_posts ADD COLUMN referrer_tenure VARCHAR(100)",
     "ALTER TABLE referral_posts ADD COLUMN referrer_note TEXT",
+
+    # ── Ranking: AI Fluency factor ────────────────────────────────────────────
+    "ALTER TABLE candidate_rankings ADD COLUMN ai_fluency_score FLOAT",
+    "ALTER TABLE candidate_rankings ADD COLUMN ai_fluency_note TEXT",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
@@ -369,7 +374,7 @@ with SessionLocal() as _s:
     _s.commit()
 
 app = FastAPI(
-    title="TalentAI",
+    title="Nideknil",
     description="AI-Powered Recruitment Intelligence Platform",
     version="2.0.0",
 )
@@ -400,6 +405,7 @@ app.include_router(semantic_router.router)
 app.include_router(scores_router.router)
 app.include_router(colleges_router.router)
 app.include_router(referrals_router.router)
+app.include_router(product_feedback_router.router)
 
 
 @app.on_event("startup")
@@ -417,4 +423,4 @@ def _warm_reranker():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "TalentAI API v2"}
+    return {"status": "ok", "service": "Nideknil API v2"}

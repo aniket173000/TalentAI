@@ -13,7 +13,7 @@ interface StatusData {
 }
 
 const STEPS: { key: CandidateStatus; label: string; icon: string }[] = [
-  { key: 'pool_accepted',       label: 'Shortlisted',     icon: '⭐' },
+  { key: 'pool_accepted',       label: 'Shortlisted for the Pool', icon: '⭐' },
   { key: 'under_review',        label: 'Under Review',    icon: '🔍' },
   { key: 'interview_scheduled', label: 'Interview Stage', icon: '🎤' },
   { key: 'offer_extended',      label: 'Offer Extended',  icon: '🎉' },
@@ -29,7 +29,7 @@ const STATUS_META: Record<string, { color: string; bg: string; border: string; d
     color: 'text-emerald-700',
     bg: 'bg-emerald-50',
     border: 'border-emerald-200',
-    description: 'Congratulations! Your application has been shortlisted. A recruiter will review your profile shortly.',
+    description: 'Congratulations! Your application has been shortlisted for the pool. A recruiter will review your profile shortly.',
   },
   under_review: {
     color: 'text-blue-700',
@@ -122,7 +122,7 @@ export default function ApplicationStatus() {
   const tier = data.score_tier ? TIER_META[data.score_tier] : null
 
   const displayLabel = {
-    pool_accepted:       'Shortlisted',
+    pool_accepted:       'Shortlisted for the Pool',
     under_review:        'Under Review',
     interview_scheduled: 'Interview Stage',
     offer_extended:      'Offer Extended',

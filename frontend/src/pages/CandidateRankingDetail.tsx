@@ -29,16 +29,21 @@ interface CandidateDetail {
   ingest_status: string
 }
 
-interface CandidateApplication {
-  id: number; job_id: number; job_title: string | null; job_company: string | null
-  match_score: number; status: string; candidate_status: string; applied_at: string | null
-}
-
 interface RankingRow {
   rank: number; candidate_id: number; final_score: number; recommendation: string | null
-  breakdown: { embed: number; skill: number; keyword: number; rerank: number; llm: number; experience: number }
+  breakdown: { role_fit: number | null; skills: number | null; experience: number | null; ai_fluency: number | null; assessment: number | null }
+  ai_fluency_note: string | null
   llm_strengths: string[]; llm_risks: string[]; llm_summary: string | null
 }
+
+// Recruiter-facing factors: plain-language label + what it means + weight.
+const SCORE_FACTORS: { key: keyof RankingRow['breakdown']; label: string; desc: string; weight: number }[] = [
+  { key: 'role_fit', label: 'Role Fit', desc: 'Overall match of the profile to this job', weight: 30 },
+  { key: 'skills', label: 'Skills Match', desc: 'Coverage of the must-have skills', weight: 25 },
+  { key: 'experience', label: 'Experience', desc: 'Seniority & years vs the role', weight: 15 },
+  { key: 'ai_fluency', label: 'AI Fluency', desc: 'How effectively they use AI in their work', weight: 15 },
+  { key: 'assessment', label: 'Overall Assessment', desc: "The AI recruiter's holistic verdict", weight: 15 },
+]
 
 function scoreColor(s: number): VouchColor {
   return s >= 80 ? 'green' : s >= 70 ? 'violet' : s >= 60 ? 'amber' : 'pink'
@@ -77,7 +82,6 @@ export default function CandidateRankingDetail() {
   const [cand, setCand] = useState<CandidateDetail | null>(null)
   const [ranking, setRanking] = useState<RankingRow | null>(null)
   const [jobTitle, setJobTitle] = useState<string | null>(null)
-  const [apps, setApps] = useState<CandidateApplication[] | null>(null)
   const [resumeLoading, setResumeLoading] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -85,12 +89,6 @@ export default function CandidateRankingDetail() {
     setLoading(true)
     api.get<CandidateDetail>(`/candidates/${candidateId}`)
       .then(r => setCand(r.data)).catch(() => setCand(null)).finally(() => setLoading(false))
-  }, [candidateId])
-
-  useEffect(() => {
-    if (!candidateId) return
-    api.get<{ applications: CandidateApplication[] }>(`/candidates/${candidateId}/applications`)
-      .then(r => setApps(r.data.applications)).catch(() => setApps([]))
   }, [candidateId])
 
   useEffect(() => {
@@ -177,29 +175,6 @@ export default function CandidateRankingDetail() {
         </Card>
       )}
 
-      {/* platform applications */}
-      {apps && apps.length > 0 && (
-        <Card padding={24} style={{ marginBottom: 20 }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, margin: '0 0 12px', color: 'var(--ink)', letterSpacing: '-0.02em' }}>
-            Applications on the platform <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)' }}>({apps.length})</span>
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {apps.map((a, i) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', margin: 0 }}>{a.job_title || `Job #${a.job_id}`}</p>
-                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0' }}>{a.job_company ? `${a.job_company} · ` : ''}Applied {a.applied_at ? new Date(a.applied_at).toLocaleDateString() : '—'}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 14, color: `var(--${scoreColor(a.match_score)}-ink)` }}>{a.match_score.toFixed(0)}%</span>
-                  <Tag>{a.candidate_status}</Tag>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, alignItems: 'start' }} className="vouch-detail-grid">
         {/* left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -230,11 +205,6 @@ export default function CandidateRankingDetail() {
               </ul>
             </Section>
           )}
-          {cand.resume_text && (
-            <Section title={`Resume${cand.resume_filename ? ` · ${cand.resume_filename}` : ''}`}>
-              <pre style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-body)', maxHeight: 384, overflowY: 'auto', margin: 0 }}>{cand.resume_text}</pre>
-            </Section>
-          )}
         </div>
 
         {/* right: ranking breakdown */}
@@ -245,17 +215,34 @@ export default function CandidateRankingDetail() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, margin: 0, color: 'var(--ink)' }}>Score breakdown</h3>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--muted)' }}>#{ranking.rank}</span>
               </div>
-              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {([['Embedding', ranking.breakdown.embed], ['Skill', ranking.breakdown.skill], ['Rerank', ranking.breakdown.rerank], ['LLM', ranking.breakdown.llm], ['Experience', ranking.breakdown.experience]] as [string, number][]).map(([label, val]) => (
-                  <div key={label}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>
-                      <span>{label}</span><span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink)' }}>{val.toFixed(0)}</span>
+              <p style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, margin: '4px 0 0', lineHeight: 1.45 }}>
+                The match score is a weighted blend of these factors.
+              </p>
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {SCORE_FACTORS.map(({ key, label, desc, weight }) => {
+                  const val = ranking.breakdown[key]
+                  const has = val != null
+                  return (
+                    <div key={key}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{label}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: has ? 'var(--ink)' : 'var(--muted)' }}>
+                          {has ? (val as number).toFixed(0) : '—'}
+                          <span style={{ color: 'var(--muted)', fontWeight: 500 }}> · {weight}%</span>
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 500, margin: '1px 0 5px' }}>{desc}</div>
+                      <div style={{ height: 8, borderRadius: 99, background: 'var(--track)', overflow: 'hidden', border: '1px solid var(--line)' }}>
+                        {has && <div style={{ height: '100%', borderRadius: 99, background: `var(--${color})`, width: `${Math.min(100, val as number)}%` }} />}
+                      </div>
+                      {key === 'ai_fluency' && ranking.ai_fluency_note && (
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 500, marginTop: 5, fontStyle: 'italic', lineHeight: 1.4 }}>
+                          {ranking.ai_fluency_note}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ height: 8, borderRadius: 99, background: 'var(--track)', overflow: 'hidden', border: '1px solid var(--line)' }}>
-                      <div style={{ height: '100%', borderRadius: 99, background: `var(--${color})`, width: `${Math.min(100, val)}%` }} />
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </Card>
           ) : cand.profile_summary ? (

@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./talentai.db"
     OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
     MAX_APPLICATIONS_PER_JOB: int = 10
     MIN_MATCH_SCORE: float = 80.0
 

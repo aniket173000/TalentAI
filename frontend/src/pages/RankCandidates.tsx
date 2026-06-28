@@ -11,7 +11,7 @@ interface RankingRow {
   headline: string | null
   final_score: number
   recommendation: string | null
-  breakdown: { embed: number; skill: number; keyword: number; rerank: number; llm: number; experience: number }
+  breakdown: { role_fit: number | null; skills: number | null; experience: number | null; ai_fluency: number | null; assessment: number | null }
   llm_strengths: string[]
   llm_risks: string[]
   llm_summary: string | null
@@ -96,10 +96,8 @@ function CandidateCard({ c, idx, jobId, onView }: { c: RankingRow; idx: number; 
           </div>
           <div style={{ fontSize: 13.5, color: 'var(--muted)', fontWeight: 600, marginTop: 3 }}>{c.headline || '—'}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8, fontSize: 12, color: 'var(--muted)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-            <span>skill {c.breakdown.skill.toFixed(0)}</span>
-            <span>rerank {c.breakdown.rerank.toFixed(0)}</span>
-            <span>llm {c.breakdown.llm.toFixed(0)}</span>
-            <span>exp {c.breakdown.experience.toFixed(0)}</span>
+            {([['role fit', c.breakdown.role_fit], ['skills', c.breakdown.skills], ['AI fluency', c.breakdown.ai_fluency], ['exp', c.breakdown.experience]] as [string, number | null][])
+              .map(([label, val]) => <span key={label}>{label} {val != null ? val.toFixed(0) : '—'}</span>)}
           </div>
         </div>
         <div style={{ textAlign: 'center', flexShrink: 0 }}>
@@ -191,9 +189,9 @@ export default function RankCandidates() {
   const job = jobs.find(j => j.id === jobId)
 
   return (
-    <div className="max-w-5xl mx-auto px-8 pt-8 pb-28">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-6 sm:pt-8 pb-28">
       <div style={{ marginBottom: 12 }}><Tag icon="sliders" tone="longshot">Recruiter</Tag></div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, lineHeight: 1.04, letterSpacing: '-0.035em', margin: '0 0 12px', color: 'var(--ink)' }}>Rank the candidates</h1>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(28px,6vw,40px)', lineHeight: 1.04, letterSpacing: '-0.035em', margin: '0 0 12px', color: 'var(--ink)' }}>Rank the candidates</h1>
       <p style={{ margin: '0 0 28px', fontSize: 16.5, color: 'var(--muted)', fontWeight: 500, maxWidth: 620, lineHeight: 1.5 }}>
         Pick one of your open roles and rank the candidate base against it — with a clear read on what makes each person strong or risky for that exact job.
       </p>
@@ -202,7 +200,7 @@ export default function RankCandidates() {
       {jobs.length === 0 ? (
         <Card padding={40} style={{ textAlign: 'center', color: 'var(--muted)', marginBottom: 22 }}>No posted jobs yet — create one to rank candidates.</Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 22 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px,100%), 1fr))', gap: 14, marginBottom: 22 }}>
           {jobs.map(j => <JobCardOption key={j.id} job={j} active={j.id === jobId} onSelect={selectJob} />)}
         </div>
       )}

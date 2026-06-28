@@ -138,7 +138,8 @@ export default function CandidatesCorpus() {
         </div>
       ) : (
         <div className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[520px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600">Candidate</th>
@@ -194,6 +195,7 @@ export default function CandidatesCorpus() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

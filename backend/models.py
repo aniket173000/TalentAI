@@ -366,6 +366,8 @@ class CandidateRanking(Base):
     rerank_score = Column(Float, nullable=True)
     llm_score = Column(Float, nullable=True)
     experience_score = Column(Float, nullable=True)
+    ai_fluency_score = Column(Float, nullable=True)   # how well the candidate uses AI
+    ai_fluency_note = Column(Text, nullable=True)      # one-line evidence / rationale
     final_score = Column(Float, nullable=False)
 
     rank = Column(Integer, nullable=True)
@@ -659,3 +661,25 @@ class WorkExperience(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User", back_populates="work_experiences")
+
+
+# ── Product / user-submitted feedback ────────────────────────────────────────
+
+class ProductFeedback(Base):
+    __tablename__ = "product_feedback"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
+    name         = Column(String(255), nullable=True)
+    email        = Column(String(255), nullable=True)
+    mood         = Column(String(20),  nullable=True)   # love|happy|neutral|frustrated|bug
+    raw_text     = Column(Text, nullable=False)
+
+    # AI-derived fields
+    category     = Column(String(50),  nullable=True)   # bug|feature_request|ui_ux|performance|praise|question|security|other
+    summary      = Column(String(500), nullable=True)   # 1-line AI title
+    priority     = Column(String(20),  nullable=True)   # low|medium|high
+    sentiment    = Column(String(20),  nullable=True)   # positive|neutral|negative
+    affected_area = Column(String(100), nullable=True)  # onboarding|job_search|application|profile|colleges|referrals|recruiter|general
+
+    created_at   = Column(DateTime, server_default=func.now())

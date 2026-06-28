@@ -183,6 +183,7 @@ async def create_job(
     campus_college_name: Optional[str] = Form(default=None),
     jd_text: Optional[str] = Form(default=None),
     jd_file: Optional[UploadFile] = File(default=None),
+    status: Optional[str] = Form(default="draft"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_recruiter),
 ):
@@ -244,7 +245,8 @@ async def create_job(
         is_campus_hiring=is_campus_hiring,
         campus_college_name=campus_college_name if is_campus_hiring else None,
         recruiter_id=current_user.id,
-        status="draft",
+        status="published" if status == "published" else "draft",
+        published_at=__import__('datetime').datetime.utcnow() if status == "published" else None,
         slug=_unique_slug(db, title, location),
     )
     db.add(job)

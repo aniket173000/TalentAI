@@ -15,6 +15,7 @@ from database import get_db
 import json
 
 from routers.auth import require_recruiter
+from services.evaluation import role_fit_score
 from services.funnel import start_ranking_run
 from services.reranker import rerank_candidates
 from services.retrieval import retrieve_candidates
@@ -214,10 +215,15 @@ def get_rankings(
             "final_score": r.final_score,
             "recommendation": r.recommendation,
             "breakdown": {
-                "embed": r.embed_score, "skill": r.skill_score,
-                "keyword": r.keyword_score, "rerank": r.rerank_score,
-                "llm": r.llm_score, "experience": r.experience_score,
+                # Recruiter-facing factors (0-100). Role Fit folds the embedding
+                # + rerank stages into one number; the rest map 1:1.
+                "role_fit": role_fit_score(r.embed_score or 0.0, r.rerank_score or 0.0),
+                "skills": r.skill_score,
+                "experience": r.experience_score,
+                "ai_fluency": r.ai_fluency_score,
+                "assessment": r.llm_score,
             },
+            "ai_fluency_note": r.ai_fluency_note,
             "llm_strengths": json.loads(r.llm_strengths or "[]"),
             "llm_risks": json.loads(r.llm_risks or "[]"),
             "llm_summary": r.llm_summary,

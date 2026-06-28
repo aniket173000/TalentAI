@@ -194,7 +194,7 @@ export default function RecruiterPortal() {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display font-extrabold text-ink" style={{fontSize:36,letterSpacing:"-0.035em"}}>Recruiter Portal</h1>
+          <h1 className="font-display font-extrabold text-ink" style={{fontSize:'clamp(26px,6vw,36px)',letterSpacing:"-0.035em"}}>Recruiter Portal</h1>
           <p className="text-slate-500 text-sm mt-1">Manage job postings and review AI-screened candidates.</p>
         </div>
         <button
@@ -225,7 +225,7 @@ export default function RecruiterPortal() {
               value={searchInput}
               onChange={e => handleSearchChange(e.target.value)}
               placeholder="Search by title…"
-              className="border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent transition w-64"
+              className="border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent transition w-full sm:w-64"
             />
             <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
               {(['all', 'draft', 'published', 'closed'] as StatusFilter[]).map(s => (
@@ -246,7 +246,8 @@ export default function RecruiterPortal() {
           ) : (
             <>
               <div className="bg-surface rounded-2xl border-2 border-ink shadow-card overflow-hidden">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="text-left px-5 py-3.5 font-semibold text-slate-600 w-2/5">
@@ -333,6 +334,7 @@ export default function RecruiterPortal() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Pagination */}
@@ -416,7 +418,7 @@ export default function RecruiterPortal() {
             <select
               value={selectedJob ?? ''}
               onChange={e => { setSelectedJob(Number(e.target.value) || null); setExpandedApp(null) }}
-              className="border border-slate-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-accent transition min-w-80"
+              className="border border-slate-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-accent transition w-full max-w-lg"
             >
               <option value="">— choose a job —</option>
               {appJobs.map(j => (
@@ -483,7 +485,7 @@ export default function RecruiterPortal() {
                           {/* ── Contact info ── */}
                           <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-4">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Candidate Info</p>
-                            <div className="grid sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               <div>
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Name</p>
                                 <p className="text-sm font-medium text-slate-800">{app.candidate_name}</p>
@@ -503,7 +505,7 @@ export default function RecruiterPortal() {
                           </div>
 
                           {/* ── Strengths & Gaps ── */}
-                          <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                             {strengths.length > 0 && (
                               <div className="bg-surface rounded-2xl border-2 border-[color:var(--green-line)] p-4">
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -604,7 +606,7 @@ export default function RecruiterPortal() {
                           {/* Contact info */}
                           <div className="bg-surface rounded-2xl border-2 border-ink shadow-card p-4">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Candidate Info</p>
-                            <div className="grid sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               <div>
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Name</p>
                                 <p className="text-sm font-medium text-slate-800">{app.candidate_name}</p>
@@ -634,7 +636,7 @@ export default function RecruiterPortal() {
                           </div>
 
                           {/* Strengths & Gaps */}
-                          <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                             {strengths.length > 0 && (
                               <div className="bg-surface rounded-2xl border-2 border-[color:var(--green-line)] p-4">
                                 <div className="flex items-center gap-1.5 mb-3">

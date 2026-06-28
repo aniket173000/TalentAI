@@ -107,17 +107,11 @@ def register(body: schemas.UserCreate, db: Session = Depends(get_db)):
     )
 
     if existing:
-        # User exists — check if they already have this capability
+        # Block same-role re-registration; cross-role adds a second capability (dual-mode via signup)
         if body.account_type == "recruiter" and existing.is_recruiter:
-            raise HTTPException(
-                status_code=400,
-                detail="This email already has a recruiter account.",
-            )
+            raise HTTPException(status_code=400, detail="This email already has a recruiter account.")
         if body.account_type == "candidate" and existing.is_candidate:
-            raise HTTPException(
-                status_code=400,
-                detail="This email already has a candidate account.",
-            )
+            raise HTTPException(status_code=400, detail="This email already has a candidate account.")
         user = existing
     else:
         user = models.User(

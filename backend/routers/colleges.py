@@ -134,7 +134,7 @@ def search_colleges(
     q: str = Query(default="", min_length=0),
     db: Session = Depends(get_db),
 ):
-    """Return matching college names for autocomplete."""
+    """Return matching college names for autocomplete (DB only)."""
     base = (
         db.query(models.UserEducation.institution_name)
         .join(
@@ -151,6 +151,48 @@ def search_colleges(
     if q.strip():
         base = base.filter(models.UserEducation.institution_name.ilike(f"%{q.strip()}%"))
     return {"colleges": [r.institution_name for r in base.limit(20).all()]}
+
+
+@router.get("/ai-search")
+async def ai_search_colleges(q: str = Query(..., min_length=2)):
+    """AI-powered fallback: find college names for obscure / unrecognised queries."""
+    from config import settings
+    prompt = (
+        f'The user typed "{q}" as their college/university name. '
+        "List up to 5 real Indian colleges or universities that best match this query. "
+        "Use the most commonly known short name for each "
+        "(e.g. 'IIT Bombay' not 'Indian Institute of Technology Bombay', "
+        "'NIT Trichy' not 'National Institute of Technology Tiruchirappalli'). "
+        'Return only JSON: {"colleges": ["name1", "name2", ...]}'
+    )
+    try:
+        if settings.AI_PROVIDER == "claude" and settings.ANTHROPIC_API_KEY:
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            resp = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+            data = json.loads(text)
+        else:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+            data = json.loads(resp.choices[0].message.content)
+        return {"colleges": data.get("colleges", [])[:5]}
+    except Exception:
+        return {"colleges": []}
 
 
 @router.get("/{college_name}/campus-jobs", response_model=List[CampusJobResponse])

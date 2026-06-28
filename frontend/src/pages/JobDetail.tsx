@@ -37,7 +37,7 @@ export default function JobDetail() {
 
   if (loading) return <LoadingSpinner message="Loading job…" />
   if (error || !job) return (
-    <div className="max-w-3xl mx-auto px-8 py-16 text-center" style={{ color: 'var(--red-ink)', fontWeight: 600 }}>{error || 'Job not found'}</div>
+    <div className="max-w-3xl mx-auto px-4 py-16 text-center" style={{ color: 'var(--red-ink)', fontWeight: 600 }}>{error || 'Job not found'}</div>
   )
 
   const spotsLeft = job.max_count - job.active_applications
@@ -54,11 +54,11 @@ export default function JobDetail() {
     {practiceOpen && job && (
       <PracticeApplyModal jobId={job.id} jobTitle={job.title} company={job.company} isFresherFriendly={job.is_fresher_friendly} onClose={() => setPracticeOpen(false)} />
     )}
-    <div className="max-w-4xl mx-auto px-8 py-10">
+    <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
       {/* Header banner */}
       <Card hero padding={28} radius={26} style={{ marginBottom: 28, boxShadow: '6px 6px 0 var(--card-shadow)' }}>
         <p style={{ color: 'var(--violet-ink)', fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>{job.company}</p>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 34, letterSpacing: '-0.03em', color: 'var(--ink)', margin: '0 0 6px' }}>{job.title}</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(22px,5vw,34px)', letterSpacing: '-0.03em', color: 'var(--ink)', margin: '0 0 6px' }}>{job.title}</h1>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
           <Tag icon="pin">{job.location}</Tag>
           {job.employment_type && <Tag icon="bag">{job.employment_type}</Tag>}

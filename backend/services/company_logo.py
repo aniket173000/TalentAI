@@ -21,7 +21,7 @@ from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
 
-_UA = "Mozilla/5.0 (compatible; TalentAI-LogoBot/1.0)"
+_UA = "Mozilla/5.0 (compatible; Nideknil-LogoBot/1.0)"
 _CLEARBIT = "https://logo.clearbit.com/{}"
 # Keyless name→domain+logo providers
 _CLEARBIT_SUGGEST = "https://autocomplete.clearbit.com/v1/companies/suggest?query={}"

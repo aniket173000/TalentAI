@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api/client'
+import { resolveCanonicalName, searchLocalColleges } from '../data/colleges'
 
 interface Props {
   onComplete: () => void
@@ -7,16 +8,8 @@ interface Props {
 }
 
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 10 }, (_, i) => CURRENT_YEAR + 4 - i)
-
-const POPULAR_COLLEGES = [
-  'IIT Bombay', 'IIT Delhi', 'IIT Madras', 'IIT Kanpur', 'IIT Kharagpur',
-  'IIT Roorkee', 'IIT Guwahati', 'IIT Hyderabad', 'NIT Trichy', 'NIT Surathkal',
-  'BITS Pilani', 'BITS Goa', 'BITS Hyderabad', 'VIT Vellore', 'Manipal Institute of Technology',
-  'Delhi University', 'Mumbai University', 'Anna University', 'Pune University',
-  'IIIT Hyderabad', 'IIIT Delhi', 'ISB Hyderabad', 'IIM Ahmedabad', 'IIM Bangalore',
-  'Christ University', 'Symbiosis International', 'Amity University',
-]
+const FUTURE_YEARS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR + i)       // current student
+const PAST_YEARS   = Array.from({ length: CURRENT_YEAR - 1999 }, (_, i) => CURRENT_YEAR - i)  // graduated (back to 2000)
 
 export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
   const [step, setStep] = useState(0)
@@ -33,38 +26,70 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
   const [logoErr, setLogoErr] = useState(false)
   const [isFirstFromCollege, setIsFirstFromCollege] = useState(false)
 
-  // Candidate public profile fields
+  // Candidate profile fields
   const [candidateLinkedIn, setCandidateLinkedIn] = useState('')
   const [currentCompany, setCurrentCompany] = useState('')
+  const [phone, setPhone] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [aiSearching, setAiSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Resume upload state
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [resumeUploading, setResumeUploading] = useState(false)
+  const [resumeError, setResumeError] = useState('')
+  const [resumeDragging, setResumeDragging] = useState(false)
 
   useEffect(() => {
     if (step === 1) inputRef.current?.focus()
   }, [step])
 
-  // Autocomplete: backend + popular list
+  // Autocomplete: local DB (instant) → backend DB → AI fallback
   useEffect(() => {
+    const local = searchLocalColleges(collegeName)
     if (!collegeName.trim()) {
-      setSuggestions(POPULAR_COLLEGES.slice(0, 8))
+      setSuggestions(local)
       return
     }
+    // Show local results immediately (no delay)
+    setSuggestions(local)
+
     const controller = new AbortController()
-    const timer = setTimeout(() => {
+    // Merge in DB results after 250ms
+    const dbTimer = setTimeout(() => {
       api
         .get<{ colleges: string[] }>(`/colleges/search?q=${encodeURIComponent(collegeName)}`, { signal: controller.signal })
         .then(r => {
-          const fromDb = r.data.colleges
-          const fromLocal = POPULAR_COLLEGES.filter(c => c.toLowerCase().includes(collegeName.toLowerCase()))
-          setSuggestions([...new Set([...fromDb, ...fromLocal])].slice(0, 10))
+          setSuggestions(prev => [...new Set([...prev, ...r.data.colleges])].slice(0, 12))
         })
-        .catch(() => {
-          setSuggestions(POPULAR_COLLEGES.filter(c => c.toLowerCase().includes(collegeName.toLowerCase())).slice(0, 8))
-        })
+        .catch(() => {})
     }, 250)
-    return () => { clearTimeout(timer); controller.abort() }
+
+    // AI fallback after 800ms only when local list returns <3 results
+    let aiTimer: ReturnType<typeof setTimeout> | null = null
+    if (local.length < 3) {
+      aiTimer = setTimeout(() => {
+        setAiSearching(true)
+        api
+          .get<{ colleges: string[] }>(`/colleges/ai-search?q=${encodeURIComponent(collegeName)}`, { signal: controller.signal })
+          .then(r => {
+            if (r.data.colleges.length > 0) {
+              setSuggestions(prev => [...new Set([...prev, ...r.data.colleges])].slice(0, 12))
+            }
+          })
+          .catch(() => {})
+          .finally(() => setAiSearching(false))
+      }, 800)
+    }
+
+    return () => {
+      clearTimeout(dbTimer)
+      if (aiTimer) clearTimeout(aiTimer)
+      controller.abort()
+      setAiSearching(false)
+    }
   }, [collegeName])
 
   // Check if first from this college (to show logo section)
@@ -114,13 +139,30 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
         college_url: collegeUrl.trim() || null,
         candidate_linkedin_url: candidateLinkedIn.trim() || null,
         current_company: currentCompany.trim() || null,
+        phone: phone.trim() || null,
       })
       setStep(3)
-      setTimeout(onComplete, 2000)
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResumeUpload = async (skipUpload = false) => {
+    if (skipUpload || !resumeFile) { setStep(4); setTimeout(onComplete, 2000); return }
+    setResumeUploading(true)
+    setResumeError('')
+    try {
+      const form = new FormData()
+      form.append('resume_file', resumeFile)
+      await api.post('/profile/resume', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setStep(4)
+      setTimeout(onComplete, 2000)
+    } catch {
+      setResumeError('Upload failed — check the file and try again.')
+    } finally {
+      setResumeUploading(false)
     }
   }
 
@@ -151,16 +193,16 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
         `}</style>
 
         {/* Skip */}
-        {step < 3 && (
+        {step < 4 && (
           <button onClick={onSkip} className="absolute -top-10 right-0 text-slate-400 hover:text-white text-xs font-medium transition-colors">
             Skip for now ↗
           </button>
         )}
 
         {/* Progress bar */}
-        {step < 3 && (
+        {step < 4 && (
           <div className="flex justify-center gap-2 mb-4">
-            {[0, 1, 2].map(i => (
+            {[0, 1, 2, 3].map(i => (
               <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${
                 i === step ? 'w-8 bg-violet-400' : i < step ? 'w-4 bg-emerald-400' : 'w-4 bg-slate-600'
               }`} />
@@ -212,20 +254,28 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                   placeholder="e.g. IIT Bombay, BITS Pilani…"
                   className="w-full bg-slate-800 border border-slate-600 rounded-2xl px-5 py-3.5 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
                 />
-                {showSuggestions && suggestions.length > 0 && (
+                {showSuggestions && (suggestions.length > 0 || aiSearching) && (
                   <div className="absolute z-10 mt-2 w-full bg-slate-800 border border-slate-600 rounded-2xl overflow-hidden shadow-xl shadow-black/40">
-                    <div className="py-1 max-h-52 overflow-y-auto">
+                    <div className="py-1 max-h-64 overflow-y-auto">
                       {suggestions.map(s => (
                         <button
                           key={s}
                           type="button"
                           onMouseDown={e => e.preventDefault()}
-                          onClick={() => { setCollegeName(s); setShowSuggestions(false) }}
+                          onClick={() => { setCollegeName(resolveCanonicalName(s)); setShowSuggestions(false) }}
                           className="w-full text-left px-5 py-2.5 text-sm text-slate-200 hover:bg-violet-600/30 hover:text-white transition-colors flex items-center gap-2"
                         >
                           <span className="text-slate-500 text-xs">🏫</span> {s}
                         </button>
                       ))}
+                      {aiSearching && (
+                        <div className="px-5 py-2.5 flex items-center gap-2 text-slate-500 text-xs">
+                          <svg className="w-3 h-3 vouch-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="10" strokeLinecap="round" />
+                          </svg>
+                          searching more colleges…
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -241,6 +291,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                   onClick={() => {
                     if (!collegeName.trim()) { setError('Please enter your college name.'); return }
                     setError('')
+                    setCollegeName(resolveCanonicalName(collegeName))
                     setStep(2)
                   }}
                   className="flex-[2] py-3 rounded-2xl font-black text-white text-sm bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 shadow-lg shadow-violet-700/40 transition-all hover:scale-[1.02] active:scale-95"
@@ -267,7 +318,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                   <button
                     key={String(opt.val)}
                     type="button"
-                    onClick={() => setIsGraduated(opt.val)}
+                    onClick={() => { setIsGraduated(opt.val); setGradYear(null) }}
                     className={`rounded-2xl border-2 p-4 text-center transition-all duration-200 ${
                       isGraduated === opt.val
                         ? 'border-violet-500 bg-violet-500/20 shadow-lg shadow-violet-500/20'
@@ -290,7 +341,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                     {isGraduated ? 'Graduation Year' : 'Expected Graduation Year'}
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {YEARS.map(y => (
+                    {(isGraduated ? PAST_YEARS : FUTURE_YEARS).map(y => (
                       <button
                         key={y}
                         type="button"
@@ -367,9 +418,23 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                 </div>
               )}
 
-              {/* Candidate public profile fields — shown for everyone */}
+              {/* Candidate profile fields — shown for everyone */}
               <div className="mb-5 space-y-3">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">Your public profile <span className="normal-case font-normal text-slate-600">(optional)</span></p>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">Your profile <span className="normal-case font-normal text-slate-600">(optional)</span></p>
+
+                <div>
+                  <label className="block text-slate-500 text-xs mb-1.5">
+                    Phone Number
+                    <span className="ml-2 text-slate-600 normal-case font-normal">🔒 only visible to recruiters, not other candidates</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-violet-500 transition-all"
+                  />
+                </div>
 
                 <div>
                   <label className="block text-slate-500 text-xs mb-1.5">LinkedIn Profile URL</label>
@@ -416,8 +481,76 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
             </div>
           )}
 
-          {/* ── Step 3: Success ───────────────────────────────────────────── */}
+          {/* ── Step 3: Resume upload ────────────────────────────────────── */}
           {step === 3 && (
+            <div className="p-8">
+              <div className="text-4xl mb-3 text-center">📄</div>
+              <h2 className="text-xl font-black text-white text-center mb-1">add your resume</h2>
+              <p className="text-slate-500 text-xs text-center mb-6">PDF, DOCX or TXT · max 10 MB — you can always update it later</p>
+
+              {/* Drop zone */}
+              <label
+                className={`relative flex flex-col items-center justify-center w-full h-36 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 ${
+                  resumeDragging
+                    ? 'border-violet-400 bg-violet-500/10'
+                    : resumeFile
+                    ? 'border-emerald-500 bg-emerald-500/10'
+                    : 'border-slate-600 bg-slate-800/50 hover:border-violet-500 hover:bg-violet-500/5'
+                }`}
+                onDragOver={e => { e.preventDefault(); setResumeDragging(true) }}
+                onDragLeave={() => setResumeDragging(false)}
+                onDrop={e => {
+                  e.preventDefault(); setResumeDragging(false)
+                  const f = e.dataTransfer.files[0]
+                  if (f) { setResumeFile(f); setResumeError('') }
+                }}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) { setResumeFile(f); setResumeError('') }
+                  }}
+                />
+                {resumeFile ? (
+                  <>
+                    <span className="text-3xl mb-2">✅</span>
+                    <p className="text-emerald-400 text-sm font-bold truncate max-w-[260px]">{resumeFile.name}</p>
+                    <p className="text-slate-500 text-xs mt-1">click to change</p>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-3xl mb-2">📁</span>
+                    <p className="text-slate-300 text-sm font-semibold">drag & drop or click to browse</p>
+                    <p className="text-slate-600 text-xs mt-1">PDF · DOCX · TXT</p>
+                  </>
+                )}
+              </label>
+
+              {resumeError && <p className="text-red-400 text-xs mt-2">{resumeError}</p>}
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => handleResumeUpload(true)}
+                  className="flex-1 py-3 rounded-2xl border border-slate-600 text-slate-400 text-sm font-semibold hover:border-slate-400 hover:text-white transition-all"
+                >
+                  skip
+                </button>
+                <button
+                  onClick={() => handleResumeUpload(false)}
+                  disabled={!resumeFile || resumeUploading}
+                  className="flex-[2] py-3 rounded-2xl font-black text-white text-sm bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 disabled:opacity-50 shadow-lg shadow-violet-700/40 transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  {resumeUploading ? 'uploading…' : 'upload resume 🚀'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Success ───────────────────────────────────────────── */}
+          {step === 4 && (
             <div className="p-8 text-center relative overflow-hidden">
               {['🎊', '✨', '🎉', '💫', '🌟', '🎈'].map((e, i) => (
                 <span key={i} className="absolute text-2xl pointer-events-none" style={{

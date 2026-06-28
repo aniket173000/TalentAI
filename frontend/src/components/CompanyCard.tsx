@@ -1,8 +1,23 @@
 import { useState } from 'react'
 import { Job } from '../types'
-import { Card, Icon, Tag, type VouchColor } from './ui'
 
-const COLORS: VouchColor[] = ['violet', 'pink', 'green', 'amber', 'cyan']
+// ──────────────────────────────────────────────────────────────────────────
+// "Gradient Hero" company card. Each company is keyed (by a stable hash of its
+// name) to one of these gradient pairs; `ink` is the matching solid used for
+// the monogram letter on the white logo tile.
+// ──────────────────────────────────────────────────────────────────────────
+const GRADIENTS: { from: string; to: string; ink: string }[] = [
+  { from: '#15A86A', to: '#0E7D4E', ink: '#15A86A' }, // green
+  { from: '#2D7FF9', to: '#1E5FD0', ink: '#2D7FF9' }, // blue
+  { from: '#F2810C', to: '#D86A00', ink: '#F2810C' }, // orange
+  { from: '#19A0E8', to: '#1278C4', ink: '#19A0E8' }, // sky
+  { from: '#E5484D', to: '#C2363B', ink: '#E5484D' }, // red
+  { from: '#3A5BDA', to: '#283FA0', ink: '#3A5BDA' }, // indigo
+  { from: '#7C5CE0', to: '#5A3FC0', ink: '#7C5CE0' }, // violet
+  { from: '#E84393', to: '#C42777', ink: '#E84393' }, // pink
+  { from: '#0EA5A5', to: '#0B7E7E', ink: '#0EA5A5' }, // teal
+]
+
 function hashStr(s: string): number {
   let h = 0
   for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h)
@@ -32,46 +47,93 @@ interface Props {
 
 export default function CompanyCard({ name, jobs, onSelect }: Props) {
   const [logoError, setLogoError] = useState(false)
-  const color = COLORS[hashStr(name) % COLORS.length]
+  const [hover, setHover] = useState(false)
+
+  const g = GRADIENTS[hashStr(name) % GRADIENTS.length]
   const logoUrl = getBestLogoUrl(jobs)
-  const initials = name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
-  const departments = [...new Set(jobs.map(j => j.department).filter((d): d is string => !!d))].slice(0, 3)
-  const locations = jobs.map(j => j.location).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2)
+  const initial = name.trim().charAt(0).toUpperCase() || '?'
+
+  // Category chips: prefer departments; fall back to unique locations so the
+  // chip row is never empty.
+  const departments = [...new Set(jobs.map(j => j.department).filter((d): d is string => !!d))]
+  const tags = (departments.length > 0
+    ? departments
+    : [...new Set(jobs.map(j => j.location).filter(Boolean))]
+  ).slice(0, 3)
 
   return (
-    <Card hover onClick={onSelect} padding={0} style={{ overflow: 'hidden' }}>
-      {/* colored band */}
-      <div style={{ height: 64, background: `var(--${color})`, borderBottom: '2px solid var(--ink)', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 14, right: 14 }}>
-          <span style={{ background: 'rgba(255,255,255,0.9)', color: 'var(--ink)', fontSize: 11.5, fontWeight: 800, padding: '4px 10px', borderRadius: 99, border: '2px solid var(--ink)', fontFamily: 'var(--font-mono)' }}>
-            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'}
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: '#fff',
+        border: '1px solid #ECECEF',
+        borderRadius: 22,
+        boxShadow: hover
+          ? '0 14px 34px rgba(17,17,26,.12), 0 3px 8px rgba(17,17,26,.06)'
+          : '0 6px 20px rgba(17,17,26,.06), 0 1px 3px rgba(17,17,26,.04)',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transform: hover ? 'translateY(-3px)' : 'none',
+        transition: 'transform .18s cubic-bezier(.2,.7,.2,1), box-shadow .18s ease',
+      }}
+    >
+      {/* Gradient hero */}
+      <div style={{ padding: 22, background: `linear-gradient(135deg, ${g.from} 0%, ${g.to} 100%)` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div style={{
+            width: 52, height: 52, background: '#fff', borderRadius: 15,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0,
+          }}>
+            {logoUrl && !logoError
+              ? <img src={logoUrl} alt={name} style={{ width: 36, height: 36, objectFit: 'contain' }} onError={() => setLogoError(true)} />
+              : <span style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800, color: g.ink }}>{initial}</span>}
+          </div>
+          <span style={{
+            background: 'rgba(255,255,255,.22)', color: '#fff', fontSize: 12, fontWeight: 700,
+            padding: '5px 11px', borderRadius: 999, backdropFilter: 'blur(4px)', whiteSpace: 'nowrap',
+          }}>
+            {jobs.length} open
           </span>
         </div>
-        <div style={{ position: 'absolute', bottom: -22, left: 20 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 15, background: 'var(--surface)', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-            {logoUrl && !logoError
-              ? <img src={logoUrl} alt={name} style={{ width: 40, height: 40, objectFit: 'contain' }} onError={() => setLogoError(true)} />
-              : <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: `var(--${color}-ink)` }}>{initials}</span>}
-          </div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: '#fff', marginTop: 16, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
+          {name}
         </div>
       </div>
 
-      <div style={{ padding: '32px 20px 20px' }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, letterSpacing: '-0.025em', color: 'var(--ink)', margin: 0, lineHeight: 1.1 }}>{name}</h3>
-
-        {departments.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-            {departments.map(d => <Tag key={d}>{d}</Tag>)}
+      {/* Body */}
+      <div style={{ padding: '20px 22px 22px' }}>
+        {tags.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+            {tags.map(t => (
+              <span key={t} style={{ background: '#F4F4F6', color: '#494951', fontSize: 12.5, fontWeight: 600, padding: '5px 11px', borderRadius: 999 }}>
+                {t}
+              </span>
+            ))}
           </div>
         )}
 
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{locations.join(' · ')}</span>
-          <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--violet-ink)', display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-display)' }}>
-            View roles <Icon name="arrow" size={15} stroke={2.6} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: tags.length > 0 ? 16 : 0 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700, color: '#15894F' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16A34A', boxShadow: '0 0 0 3px rgba(22,163,74,.16)' }} />
+            Actively hiring
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#6E6878' }}>
+            {jobs.length} open {jobs.length === 1 ? 'position' : 'positions'}
           </span>
         </div>
+
+        <div style={{
+          marginTop: 16, background: hover ? '#000' : '#16161D', color: '#fff',
+          fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700,
+          padding: 11, borderRadius: 13, textAlign: 'center',
+          transition: 'background .15s ease',
+        }}>
+          View roles →
+        </div>
       </div>
-    </Card>
+    </div>
   )
 }

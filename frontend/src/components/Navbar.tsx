@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, ActiveMode } from '../context/AuthContext'
 import { Avatar, Logo } from './ui'
@@ -211,11 +211,14 @@ export default function Navbar() {
     logout,
   } = useAuth()
 
-  const [addModal, setAddModal] = useState<ActiveMode | null>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   // Midnight Terminal: the Colleges route uses the dark directory theme, so the
   // navbar themes dark there too (grid + detail share the /colleges path).
   const dark = pathname === '/colleges'
+
+  // Close mobile menu whenever the route changes
+  useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const linkClass = (path: string) =>
     `text-sm font-bold transition-colors ${
@@ -223,16 +226,22 @@ export default function Navbar() {
         ? 'text-ink' : 'text-muted hover:text-ink'
     }`
 
+  const mobileLinkClass = (path: string) =>
+    `block py-2.5 px-3 rounded-lg text-sm font-bold transition-colors ${
+      pathname === path || (path !== '/' && pathname.startsWith(path))
+        ? 'text-ink bg-surface' : 'text-muted hover:text-ink hover:bg-surface'
+    }`
+
   const handleLogout = () => {
     logout()
+    setMobileOpen(false)
     navigate('/')
   }
 
   // For single-mode users: which capability can they add?
-  const canAddRecruiter = user?.is_candidate && !user?.is_recruiter
-  const canAddCandidate = user?.is_recruiter && !user?.is_candidate
 
-  const sub = isDualMode ? `${activeMode} mode · Profile` : `${activeMode ?? 'Account'} · Profile`
+
+  const sub = `${activeMode ?? 'Account'} · Profile`
 
   return (
     <>
@@ -245,12 +254,14 @@ export default function Navbar() {
           ...(dark ? { borderBottom: `1px solid ${NAV_DARK.line}` } : {}),
         }}
       >
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-5">
-          <Link to="/" aria-label="Home"><Logo dark={dark} /></Link>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-5">
+          <Link to="/" aria-label="Home" onClick={() => setMobileOpen(false)}><Logo dark={dark} /></Link>
 
-          <nav className="flex items-center gap-5 ml-2">
+          {/* Desktop nav — hidden on mobile */}
+          <nav className="hidden md:flex items-center gap-5 ml-2">
             <Link to="/" className={linkClass('/')}>Jobs</Link>
             <Link to="/colleges" className={linkClass('/colleges')}>Colleges</Link>
+            <Link to="/feedback" className={linkClass('/feedback')}>Feedback</Link>
             {!(isRecruiter && !isCandidate) && (
               <Link to="/referrals" className={linkClass('/referrals')}>Referrals</Link>
             )}
@@ -265,38 +276,18 @@ export default function Navbar() {
             )}
           </nav>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             {isAuthenticated ? (
               <>
-                {isDualMode && <ModeSwitcher />}
-
-                {!isDualMode && canAddRecruiter && (
-                  <button
-                    onClick={() => setAddModal('recruiter')}
-                    title="Add recruiter access to post jobs from this account"
-                    className="hidden sm:inline-flex text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
-                    style={{ border: '2px dashed var(--line)' }}
-                  >
-                    + Recruiter
-                  </button>
-                )}
-                {!isDualMode && canAddCandidate && (
-                  <button
-                    onClick={() => setAddModal('candidate')}
-                    title="Add candidate access to apply to jobs from this account"
-                    className="hidden sm:inline-flex text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
-                    style={{ border: '2px dashed var(--line)' }}
-                  >
-                    + Candidate
-                  </button>
-                )}
+                {isDualMode && <div className="hidden sm:block"><ModeSwitcher /></div>}
 
                 <Link
                   to="/profile"
-                  className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
-                  style={{ padding: '5px 12px 5px 6px', background: 'var(--surface)', border: '2px solid var(--line)', borderRadius: 99 }}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 hover:opacity-90 transition-opacity"
+                  style={{ padding: '5px 10px 5px 6px', background: 'var(--surface)', border: '2px solid var(--line)', borderRadius: 99 }}
                 >
-                  <Avatar initials={initialsOf(user?.full_name)} color="violet" size={30} />
+                  <Avatar initials={initialsOf(user?.full_name)} color="violet" size={28} />
                   <div style={{ lineHeight: 1.15 }} className="hidden sm:block">
                     <div className="text-ink" style={{ fontSize: 13, fontWeight: 800 }}>{user?.full_name}</div>
                     <div className="text-muted capitalize" style={{ fontSize: 11, fontWeight: 600 }}>{sub}</div>
@@ -305,7 +296,7 @@ export default function Navbar() {
 
                 <button
                   onClick={handleLogout}
-                  className="text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
+                  className="hidden sm:block text-xs font-bold text-muted hover:text-ink rounded-lg px-3 py-1.5 transition-colors"
                   style={{ background: 'var(--surface-2)', border: '2px solid var(--line)' }}
                 >
                   Sign out
@@ -313,12 +304,13 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Link to="/login" className="text-sm font-bold text-muted hover:text-ink transition-colors">
+                <Link to="/login" className="hidden sm:block text-sm font-bold text-muted hover:text-ink transition-colors" onClick={() => setMobileOpen(false)}>
                   Sign in
                 </Link>
                 <Link
                   to="/register"
-                  className="text-sm font-extrabold rounded-xl px-4 py-2 transition-transform active:translate-x-0.5 active:translate-y-0.5"
+                  onClick={() => setMobileOpen(false)}
+                  className="text-sm font-extrabold rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 transition-transform active:translate-x-0.5 active:translate-y-0.5"
                   style={{
                     background: 'var(--violet)',
                     color: dark ? '#08080B' : '#fff',
@@ -331,17 +323,68 @@ export default function Navbar() {
                 </Link>
               </>
             )}
+
+            {/* Hamburger — mobile only */}
+            <button
+              className="md:hidden p-1.5 rounded-lg transition-colors"
+              style={{ color: 'var(--muted)', background: mobileOpen ? 'var(--surface)' : 'transparent' }}
+              onClick={() => setMobileOpen(o => !o)}
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            >
+              {mobileOpen ? (
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              ) : (
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
+                  <path d="M3 6h18M3 12h18M3 18h18"/>
+                </svg>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Mobile nav drawer */}
+        {mobileOpen && (
+          <div
+            className="md:hidden px-4 pb-4 pt-1 flex flex-col gap-1"
+            style={{ borderTop: '1px solid var(--line)', background: dark ? 'rgba(8,8,11,.96)' : 'var(--bg)' }}
+          >
+            <Link to="/" className={mobileLinkClass('/')} onClick={() => setMobileOpen(false)}>Jobs</Link>
+            <Link to="/colleges" className={mobileLinkClass('/colleges')} onClick={() => setMobileOpen(false)}>Colleges</Link>
+            <Link to="/feedback" className={mobileLinkClass('/feedback')} onClick={() => setMobileOpen(false)}>Feedback</Link>
+            {!(isRecruiter && !isCandidate) && (
+              <Link to="/referrals" className={mobileLinkClass('/referrals')} onClick={() => setMobileOpen(false)}>Referrals</Link>
+            )}
+            {isCandidate && (
+              <Link to="/dashboard" className={mobileLinkClass('/dashboard')} onClick={() => setMobileOpen(false)}>My Applications</Link>
+            )}
+            {isRecruiter && (
+              <Link to="/recruiter" className={mobileLinkClass('/recruiter')} onClick={() => setMobileOpen(false)}>Recruiter</Link>
+            )}
+            {isRecruiter && (
+              <Link to="/recruiter/rank-candidates" className={mobileLinkClass('/recruiter/rank-candidates')} onClick={() => setMobileOpen(false)}>Rank Candidates</Link>
+            )}
+            {isDualMode && (
+              <div className="pt-2 pb-1"><ModeSwitcher /></div>
+            )}
+            {isAuthenticated ? (
+              <button
+                onClick={handleLogout}
+                className="mt-2 text-left py-2.5 px-3 rounded-lg text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
+              >
+                Sign out
+              </button>
+            ) : (
+              <Link to="/login" className="mt-1 block py-2.5 px-3 rounded-lg text-sm font-bold text-muted hover:text-ink hover:bg-surface transition-colors" onClick={() => setMobileOpen(false)}>
+                Sign in
+              </Link>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Add-capability modal */}
-      {addModal && (
-        <AddCapabilityModal
-          targetMode={addModal}
-          onClose={() => setAddModal(null)}
-        />
-      )}
     </>
   )
 }
