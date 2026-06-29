@@ -56,7 +56,19 @@ async def prepare_candidate(user_id: int) -> None:
         )
         if not ext or not ext.resume_text:
             return
-        await ingest_resume(db, None, ext.resume_text, source="platform", user_id=user_id)
+        primary_resume = (
+            db.query(models.UserResume)
+            .filter(models.UserResume.user_id == user_id, models.UserResume.is_primary == True)  # noqa: E712
+            .first()
+        )
+        file_key = primary_resume.file_key if primary_resume else None
+        filename = primary_resume.filename if primary_resume else ext.resume_filename
+        await ingest_resume(
+            db, None, ext.resume_text,
+            resume_filename=filename,
+            resume_file_key=file_key,
+            source="platform", user_id=user_id,
+        )
         logger.info("Pre-built rankable profile for candidate user=%s", user_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("prepare_candidate failed for user=%s: %s", user_id, exc)
