@@ -393,6 +393,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         settings.FRONTEND_URL,
+        "https://nideknil.in",
+        "https://www.nideknil.in",
         "http://localhost:3000",
         "http://localhost:5173",
     ],
