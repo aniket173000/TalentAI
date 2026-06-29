@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api/client'
+import BrandLogo from '../components/BrandLogo'
 import { useAuth } from '../context/AuthContext'
 import {
   CareerProfile, CareerUpgradeArea, EducationRecord,
@@ -16,20 +17,6 @@ const YEARS = Array.from({ length: 36 }, (_, i) => CURRENT_YEAR + 1 - i)
 
 function initials(name: string): string {
   return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-}
-
-function companyBadge(company: string): string {
-  const palettes = [
-    'bg-blue-100 text-blue-700',
-    'bg-violet-100 text-violet-700',
-    'bg-emerald-100 text-emerald-700',
-    'bg-amber-100 text-amber-700',
-    'bg-rose-100 text-rose-700',
-    'bg-indigo-100 text-indigo-700',
-    'bg-teal-100 text-teal-700',
-    'bg-orange-100 text-orange-700',
-  ]
-  return palettes[company.charCodeAt(0) % palettes.length]
 }
 
 function formatDateRange(we: WorkExperience): string {
@@ -1171,10 +1158,8 @@ export default function Profile() {
                 <div key={we.id}>
                   {i > 0 && <div className="border-t border-slate-100 mb-4" />}
                   <div className="flex items-start gap-3 group">
-                    {/* Company badge */}
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${companyBadge(we.company)}`}>
-                      {we.company[0].toUpperCase()}
-                    </div>
+                    {/* Company logo — falls back to a colour monogram */}
+                    <BrandLogo name={we.company} logoUrl={we.company_logo_url} size={40} radius={12} />
 
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-900 text-sm leading-tight">{we.title}</p>
@@ -1266,14 +1251,13 @@ export default function Profile() {
                   <div key={ed.id}>
                     {i > 0 && <div className="border-t border-slate-100 mb-4" />}
                     <div className="flex items-start gap-3 group">
-                      {ed.is_primary && profile.college_logo_url ? (
-                        <img src={profile.college_logo_url} alt={ed.institution_name}
-                          className="w-10 h-10 rounded-xl object-contain bg-slate-50 border border-slate-100 shrink-0" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                          <GraduationIcon />
-                        </div>
-                      )}
+                      <BrandLogo
+                        name={ed.institution_name}
+                        logoUrl={ed.logo_url || (ed.is_primary ? profile.college_logo_url : null)}
+                        size={40}
+                        radius={12}
+                        fallback={<GraduationIcon />}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-900 text-sm">{ed.institution_name}</p>

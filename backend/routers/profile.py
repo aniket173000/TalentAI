@@ -16,6 +16,11 @@ from config import settings
 from services.ai_service import generate_career_profile, get_embedding
 from services.corpus_sync import prepare_candidate
 from services.file_parser import parse_resume
+from services.logo_cache import (
+    get_company_logos,
+    pending_company_names,
+    resolve_company_logos_task,
+)
 from services.storage_service import get_presigned_url, upload_resume_file, upload_avatar, s3_enabled
 
 logger = logging.getLogger(__name__)
@@ -100,10 +105,32 @@ def _profile_response(user: models.User) -> dict:
         for rv in (user.resumes or [])
     ]
 
+    # Resolve company + college logos from the shared cache (cache-only reads —
+    # never blocks the response on the network; uncached names are filled in by a
+    # background task scheduled in GET /me).
+    db = Session.object_session(user)
+    company_logos: dict[str, str] = {}
+    college_logos: dict[str, str] = {}
+    if db is not None:
+        company_names = [we.company for we in (user.work_experiences or []) if we.company]
+        if c and c.current_company:
+            company_names.append(c.current_company)
+        company_logos = get_company_logos(db, company_names)
+
+        edu_names = [e.institution_name for e in (user.education_records or []) if e.institution_name]
+        if edu_names:
+            for col in (
+                db.query(models.College)
+                .filter(models.College.name.in_(edu_names), models.College.logo_url.isnot(None))
+                .all()
+            ):
+                college_logos[col.name] = col.logo_url
+
     work_exps = [
         {
             "id": we.id,
             "company": we.company,
+            "company_logo_url": company_logos.get(we.company),
             "title": we.title,
             "location": we.location,
             "start_month": we.start_month,
@@ -142,6 +169,9 @@ def _profile_response(user: models.User) -> dict:
         "onboarding_completed": bool(c.onboarding_completed) if c else False,
         "candidate_linkedin_url": c.candidate_linkedin_url if c else None,
         "current_company": c.current_company if c else None,
+        "current_company_logo_url": (
+            company_logos.get(c.current_company) if c and c.current_company else None
+        ),
         "resume_filename": c.resume_filename if c else None,
         "career_profile": career,
         "career_profile_updated_at": (
@@ -159,6 +189,7 @@ def _profile_response(user: models.User) -> dict:
             {
                 "id": e.id,
                 "institution_name": e.institution_name,
+                "logo_url": college_logos.get(e.institution_name),
                 "degree_type": e.degree_type,
                 "field_of_study": e.field_of_study,
                 "graduation_year": e.graduation_year,
@@ -249,9 +280,21 @@ def _add_to_vault(
 
 @router.get("/me")
 def get_my_profile(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    # Self-heal: resolve logos for any company names not yet in the shared cache
+    # (covers data created before logos existed). Runs in the background so the
+    # response is never blocked on the network.
+    names = [we.company for we in (current_user.work_experiences or []) if we.company]
+    c = current_user.candidate_ext
+    if c and c.current_company:
+        names.append(c.current_company)
+    missing = pending_company_names(db, names)
+    if missing:
+        background_tasks.add_task(resolve_company_logos_task, missing)
+
     return _profile_response(current_user)
 
 
@@ -534,6 +577,8 @@ async def update_college_info(
     ext.onboarding_completed = True
     ext.candidate_linkedin_url = (body.candidate_linkedin_url or "").strip() or None
     ext.current_company = (body.current_company or "").strip() or None
+    if ext.current_company:
+        background_tasks.add_task(resolve_company_logos_task, [ext.current_company])
     if body.phone:
         current_user.phone = body.phone.strip() or None
 
@@ -752,12 +797,14 @@ async def import_work_experience(
 @router.post("/work-experience")
 def add_work_experience(
     body: WorkExperienceCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    company = body.company.strip()
     we = models.WorkExperience(
         user_id=current_user.id,
-        company=body.company.strip(),
+        company=company,
         title=body.title.strip(),
         location=(body.location or "").strip() or None,
         start_month=body.start_month,
@@ -770,6 +817,8 @@ def add_work_experience(
     )
     db.add(we)
     db.commit()
+    if company:
+        background_tasks.add_task(resolve_company_logos_task, [company])
     db.expire(current_user)
     return _profile_response(current_user)
 
@@ -778,6 +827,7 @@ def add_work_experience(
 def update_work_experience(
     we_id: int,
     body: WorkExperienceUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -790,6 +840,7 @@ def update_work_experience(
 
     if body.company is not None:
         we.company = body.company.strip()
+        background_tasks.add_task(resolve_company_logos_task, [we.company])
     if body.title is not None:
         we.title = body.title.strip()
     if body.location is not None:

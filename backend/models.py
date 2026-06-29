@@ -23,6 +23,27 @@ class College(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class CompanyLogo(Base):
+    """
+    Shared logo cache for company names (work history, current company, recruiter
+    affiliation, etc.). Companies are free-text across the app, so this dedupes
+    logo resolution to ONE network lookup per normalised name — every surface
+    reads from here. Colleges have their own normalised `colleges` table.
+
+    `status` is "resolved" (logo found), "failed" (looked up, nothing found —
+    negative-cached so we don't hammer the network), or "pending".
+    """
+    __tablename__ = "company_logos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name_key = Column(String(255), unique=True, nullable=False, index=True)  # normalised name
+    display_name = Column(String(255), nullable=True)                        # original, for debugging
+    logo_url = Column(String(1000), nullable=True)
+    website_url = Column(String(500), nullable=True)
+    status = Column(String(20), default="resolved")
+    resolved_at = Column(DateTime, server_default=func.now())
+
+
 # ── Core identity ─────────────────────────────────────────────────────────────
 
 class User(Base):

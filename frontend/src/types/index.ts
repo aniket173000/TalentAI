@@ -154,6 +154,7 @@ export interface VaultResume {
 export interface WorkExperience {
   id: number
   company: string
+  company_logo_url: string | null
   title: string
   location: string | null
   start_month: number | null   // 1–12
@@ -168,6 +169,7 @@ export interface WorkExperience {
 export interface EducationRecord {
   id: number
   institution_name: string
+  logo_url: string | null
   degree_type: string | null
   field_of_study: string | null
   graduation_year: number | null
@@ -193,6 +195,7 @@ export interface UserProfile {
   onboarding_completed: boolean
   candidate_linkedin_url: string | null
   current_company: string | null
+  current_company_logo_url: string | null
   resume_filename: string | null
   career_profile: CareerProfile | null
   career_profile_updated_at: string | null
