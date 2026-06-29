@@ -1,0 +1,17 @@
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+
+  celery-worker:
+    build: ./backend
+    restart: unless-stopped
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - api
