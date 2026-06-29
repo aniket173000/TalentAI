@@ -180,7 +180,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const loginWithLinkedIn = (accountType: ActiveMode | 'login') => {
-    window.location.href = `/api/auth/linkedin/authorize?account_type=${accountType}`
+    const base = (import.meta as any).env?.VITE_API_URL ?? ''
+    window.location.href = `${base}/api/auth/linkedin/authorize?account_type=${accountType}`
   }
 
   const completeLinkedInLogin = async (token: string, accountType: ActiveMode) => {
@@ -192,7 +193,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const loginWithGoogle = (accountType: ActiveMode | 'login') => {
-    window.location.href = `/api/auth/google/authorize?account_type=${accountType}`
+    const base = (import.meta as any).env?.VITE_API_URL ?? ''
+    window.location.href = `${base}/api/auth/google/authorize?account_type=${accountType}`
   }
 
   // Identical post-OAuth handling to LinkedIn (store token, fetch user, set mode)
