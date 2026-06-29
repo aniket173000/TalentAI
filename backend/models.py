@@ -60,6 +60,11 @@ class User(Base):
     totp_secret = Column(String(255), nullable=True)
     totp_enabled = Column(Boolean, default=False)
 
+    # ── Subscription / billing ────────────────────────────────────────────────
+    plan = Column(String(20), default="free", nullable=False)
+    plan_expires_at = Column(DateTime, nullable=True)
+    razorpay_payment_id = Column(String(255), nullable=True)
+
     # ── Capability extensions (one-to-one, optional) ──────────────────────────
     candidate_ext = relationship(
         "CandidateExtension", back_populates="user", uselist=False,

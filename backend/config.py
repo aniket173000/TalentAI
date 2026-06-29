@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     # Local model name when SEMANTIC_EMBEDDER=sentence_transformer
     SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
 
+    # ── Razorpay payments ─────────────────────────────────────────────────────
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+
     # ── AWS S3 (resume file storage) ─────────────────────────────────────────
     # Leave blank to run without S3 — text-only fallback will be used.
     AWS_ACCESS_KEY_ID: str = ""
