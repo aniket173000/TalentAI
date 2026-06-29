@@ -642,6 +642,7 @@ async def apply_to_job(
     resolved_email = (candidate_email or current_user.email or "").strip()
 
     # 2. Resolve resume ────────────────────────────────────────────────────────
+    resume_file_key: str | None = None
     if resume_id is not None:
         # Use a specific vault resume chosen by the candidate
         vault_entry = db.query(models.UserResume).filter(
@@ -652,6 +653,8 @@ async def apply_to_job(
             raise HTTPException(status_code=404, detail="Selected resume not found in your vault.")
         resume_text = vault_entry.resume_text
         resume_filename = vault_entry.filename
+        # Vault entry already has an S3 key — reuse it directly
+        resume_file_key = vault_entry.file_key
     elif resume_file and resume_file.filename:
         content = await resume_file.read()
         resume_text = parse_resume(content, resume_file.filename)
@@ -685,26 +688,25 @@ async def apply_to_job(
             )
         resume_text = _cext_apply.resume_text
         resume_filename = _cext_apply.resume_filename or "resume"
+        # Use the S3 key from the primary vault entry if available
+        _primary_vault = (
+            db.query(models.UserResume)
+            .filter(models.UserResume.user_id == current_user.id, models.UserResume.is_primary == True)  # noqa: E712
+            .first()
+        )
+        resume_file_key = _primary_vault.file_key if _primary_vault else None
 
     # Override with AI-tailored text if the frontend sent one
     if tailored_resume_text and len(tailored_resume_text.strip()) > 50:
         resume_text = tailored_resume_text
 
-    # 2b. Upload original file to S3 (best-effort, non-blocking) ──────────────
-    _raw_bytes_for_s3: bytes | None = None
-    _s3_filename: str | None = None
-    if resume_file and resume_file.filename and resume_id is None:
-        # content was already read above; re-use it from the local variable
-        _raw_bytes_for_s3 = content          # type: ignore[name-defined]
-        _s3_filename = resume_file.filename
-    # vault resumes: file was already uploaded when originally added to vault
-
-    resume_file_key: str | None = None
-    if _raw_bytes_for_s3 and _s3_filename:
+    # 2b. Upload original file to S3 — only for fresh files sent with this request.
+    # Vault and profile resumes already have a file_key set in the block above.
+    if resume_file_key is None and resume_file and resume_file.filename and resume_id is None:
         import asyncio
         loop = asyncio.get_event_loop()
         resume_file_key = await loop.run_in_executor(
-            None, upload_resume_file, _raw_bytes_for_s3, _s3_filename, current_user.id
+            None, upload_resume_file, content, resume_file.filename, current_user.id  # type: ignore[name-defined]
         )
 
     # 3. Duplicate-application guard ───────────────────────────────────────────
