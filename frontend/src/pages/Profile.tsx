@@ -3,7 +3,7 @@ import api from '../api/client'
 import BrandLogo from '../components/BrandLogo'
 import { useAuth } from '../context/AuthContext'
 import {
-  CareerProfile, CareerUpgradeArea, EducationRecord,
+  CareerProfile, EducationRecord,
   UserProfile, VaultResume, WorkExperience,
 } from '../types'
 
@@ -63,37 +63,19 @@ function totalYearsOfExperience(wes: WorkExperience[]): number {
 }
 
 // Split a work-experience description into clean bullet lines. Strips leading
-// bullet markers (•, -, *, ·) and blank lines. Falls back to sentence-splitting
-// when the text is one long blob so it still renders as tidy bullets.
+// bullet markers and blank lines. Falls back to sentence-splitting when the
+// text is one long blob so it still renders as tidy bullets.
 function descriptionBullets(text: string): string[] {
   const lines = text
     .split(/\r?\n/)
     .map(l => l.replace(/^\s*[•\-*·]\s*/, '').trim())
     .filter(Boolean)
   if (lines.length > 1) return lines
-  // Single line: break on sentence boundaries so a paragraph still bullets nicely.
   const sentences = (lines[0] ?? text)
     .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
     .map(s => s.trim())
     .filter(Boolean)
   return sentences
-}
-
-function WEDescription({ text }: { text: string }) {
-  const bullets = descriptionBullets(text)
-  if (bullets.length <= 1) {
-    return <p className="text-sm text-slate-600 mt-2 leading-relaxed">{bullets[0] ?? text}</p>
-  }
-  return (
-    <ul className="mt-2 space-y-1">
-      {bullets.map((b, i) => (
-        <li key={i} className="flex gap-2 text-sm text-slate-600 leading-relaxed">
-          <span className="text-accent-ink mt-0.5 shrink-0">•</span>
-          <span>{b}</span>
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 // ── Work experience form state ────────────────────────────────────────────────
@@ -140,23 +122,39 @@ function formToPayload(f: WEForm) {
   }
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Mockup layout primitives (sky / soft-SaaS look) ──────────────────────────
 
-function SectionCard({
-  title, action, children,
+const BTN_PRIMARY_SM =
+  'text-xs font-bold text-sky-700 bg-sky-100 border border-sky-200 rounded-lg px-3.5 py-2 hover:bg-sky-200 transition disabled:opacity-40 disabled:cursor-not-allowed'
+const BTN_GHOST_SM =
+  'text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed'
+
+// White panel card matching the mockup. `id` enables sidebar anchor scrolling;
+// scroll-mt clears the sticky navbar when jumped to.
+function Panel({
+  id, title, action, children, className,
 }: {
-  title: string
+  id?: string
+  title?: string
   action?: React.ReactNode
   children: React.ReactNode
+  className?: string
 }) {
   return (
-    <div className="bg-surface rounded-2xl border-2 border-ink shadow-card">
-      <div className="flex items-center justify-between px-6 py-4 border-b-2 border-ink">
-        <h2 className="font-display font-extrabold text-ink text-lg tracking-tight">{title}</h2>
-        {action && <div className="flex items-center gap-2">{action}</div>}
-      </div>
-      <div className="px-6 py-5">{children}</div>
-    </div>
+    <section
+      id={id}
+      className={`scroll-mt-24 bg-white border border-slate-200 rounded-2xl p-6 ${className ?? ''}`}
+    >
+      {(title || action) && (
+        <div className="flex items-center justify-between gap-3 mb-4">
+          {title && (
+            <h2 className="font-display text-lg font-extrabold text-ink tracking-tight">{title}</h2>
+          )}
+          {action && <div className="flex items-center gap-2">{action}</div>}
+        </div>
+      )}
+      {children}
+    </section>
   )
 }
 
@@ -167,7 +165,7 @@ function MonthYearSelect({
   onMonthChange: (v: string) => void; onYearChange: (v: string) => void
   disabled?: boolean
 }) {
-  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-accent transition bg-white'
+  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition bg-white'
   return (
     <div className="flex gap-2">
       <select value={monthVal} onChange={e => onMonthChange(e.target.value)} disabled={disabled} className={sel}>
@@ -193,7 +191,7 @@ function WEFormPanel({
   error: string | null
   isEdit: boolean
 }) {
-  const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-accent transition'
+  const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition'
   const set = (k: keyof WEForm, v: string | boolean) => onChange({ ...form, [k]: v })
   const canSave = form.company.trim() && form.title.trim() && form.start_year && !saving
 
@@ -223,7 +221,7 @@ function WEFormPanel({
       <label className="flex items-center gap-2.5 cursor-pointer select-none">
         <input type="checkbox" checked={form.is_current}
           onChange={e => set('is_current', e.target.checked)}
-          className="h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
+          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
         <span className="text-sm text-slate-700 font-medium">I currently work here</span>
       </label>
 
@@ -257,7 +255,7 @@ function WEFormPanel({
           Cancel
         </button>
         <button onClick={onSave} disabled={!canSave}
-          className="flex-1 bg-accent hover:opacity-90 text-white font-semibold rounded-lg py-2.5 text-sm transition disabled:opacity-50">
+          className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg py-2.5 text-sm transition disabled:opacity-50">
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add position'}
         </button>
       </div>
@@ -309,12 +307,12 @@ function EduFormPanel({
           <div className="flex items-center gap-3 h-10">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" checked={isGraduated} onChange={() => setIsGraduated(true)}
-                className="text-accent-ink" />
+                className="text-sky-600" />
               <span className="text-sm text-slate-700">Graduated</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" checked={!isGraduated} onChange={() => setIsGraduated(false)}
-                className="text-accent-ink" />
+                className="text-sky-600" />
               <span className="text-sm text-slate-700">Current student</span>
             </label>
           </div>
@@ -323,7 +321,7 @@ function EduFormPanel({
       {showPrimaryToggle && (
         <label className="flex items-center gap-2.5 cursor-pointer select-none">
           <input type="checkbox" checked={isPrimary} onChange={e => setIsPrimary(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
+            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
           <span className="text-sm text-slate-700 font-medium">Show this as my primary credential</span>
         </label>
       )}
@@ -334,7 +332,7 @@ function EduFormPanel({
           Cancel
         </button>
         <button onClick={onSave} disabled={saving || !institution.trim()}
-          className="flex-1 bg-accent hover:opacity-90 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
+          className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add education'}
         </button>
       </div>
@@ -367,10 +365,10 @@ function ImportModal({
             <p className="text-sm text-slate-500 text-center py-6">No work experience found in your resume.</p>
           ) : entries.map((entry, i) => (
             <label key={i} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition ${
-              entry.selected ? 'border-accent bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
+              entry.selected ? 'border-sky-500 bg-sky-50/60' : 'border-slate-200 hover:border-slate-300'
             }`}>
               <input type="checkbox" checked={entry.selected} onChange={() => onToggle(i)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 truncate">{entry.we.title}</p>
                 <p className="text-sm text-slate-500 truncate">{entry.we.company}</p>
@@ -391,7 +389,7 @@ function ImportModal({
             Cancel
           </button>
           <button onClick={onConfirm} disabled={selectedCount === 0 || saving}
-            className="flex-1 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
+            className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
             {saving ? 'Adding…' : `Add ${selectedCount || ''} ${selectedCount === 1 ? 'position' : 'positions'}`}
           </button>
         </div>
@@ -424,10 +422,10 @@ function EduImportModal({
             <p className="text-sm text-slate-500 text-center py-6">No education found in your resume.</p>
           ) : entries.map((entry, i) => (
             <label key={i} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition ${
-              entry.selected ? 'border-accent bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
+              entry.selected ? 'border-sky-500 bg-sky-50/60' : 'border-slate-200 hover:border-slate-300'
             }`}>
               <input type="checkbox" checked={entry.selected} onChange={() => onToggle(i)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-accent-ink focus:ring-brand-blue" />
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 truncate">{entry.ed.institution_name}</p>
                 {(entry.ed.degree_type || entry.ed.field_of_study) && (
@@ -450,7 +448,7 @@ function EduImportModal({
             Cancel
           </button>
           <button onClick={onConfirm} disabled={selectedCount === 0 || saving}
-            className="flex-1 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
+            className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition">
             {saving ? 'Adding…' : `Add ${selectedCount || ''} ${selectedCount === 1 ? 'college' : 'colleges'}`}
           </button>
         </div>
@@ -459,98 +457,79 @@ function EduImportModal({
   )
 }
 
-// ── Career insights sub-components (read-only) ────────────────────────────────
-
-function UpgradeAreaCard({ area, index }: { area: CareerUpgradeArea; index: number }) {
-  const [open, setOpen] = useState(index === 0)
-  return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3.5 bg-white hover:bg-slate-50 transition-colors text-left">
-        <div className="flex items-center gap-3">
-          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center shrink-0">
-            {index + 1}
-          </span>
-          <span className="font-semibold text-slate-800 text-sm">{area.area}</span>
-        </div>
-        <span className="text-slate-400 text-xs ml-2 shrink-0">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 pt-3 bg-slate-50 border-t border-slate-100 space-y-2.5">
-          <p className="text-xs text-slate-500 italic leading-relaxed">{area.why}</p>
-          <ul className="space-y-1.5">
-            {area.sub_skills.map((skill, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                  {i + 1}
-                </span>
-                {skill}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}
+// ── Career insights (read-only, sky styling matching the mockup) ──────────────
 
 function CareerInsightsDisplay({ profile }: { profile: CareerProfile }) {
   return (
     <div className="space-y-5">
-      <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-5 flex items-center gap-5">
+      {/* Current → next level */}
+      <div className="flex items-center gap-5 border border-slate-200 border-l-[3px] border-l-sky-600 rounded-xl px-5 py-4 bg-[#fafdff]">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200 mb-1">Current level</p>
-          <p className="font-bold text-lg leading-tight truncate">{profile.detected_level_label}</p>
+          <p className="text-[10.5px] font-bold tracking-[0.06em] text-slate-400">CURRENT LEVEL</p>
+          <p className="mt-1.5 font-display font-extrabold text-base text-ink leading-tight">{profile.detected_level_label}</p>
           {profile.detected_role && (
-            <p className="text-sm text-indigo-200 mt-0.5 truncate">{profile.detected_role}</p>
+            <p className="text-sm text-slate-500 mt-0.5 truncate">{profile.detected_role}</p>
           )}
         </div>
-        <div className="text-xl font-bold text-white/40 shrink-0">→</div>
+        <div className="text-xl text-slate-300 shrink-0">→</div>
         <div className="flex-1 min-w-0 text-right">
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200 mb-1">Next level</p>
-          <p className="font-bold text-lg leading-tight truncate">{profile.next_level_label}</p>
-          <p className="text-sm text-indigo-200 mt-0.5">Your target</p>
+          <p className="text-[10.5px] font-bold tracking-[0.06em] text-sky-700">NEXT LEVEL · YOUR TARGET</p>
+          <p className="mt-1.5 font-display font-extrabold text-base text-ink leading-tight">{profile.next_level_label}</p>
         </div>
       </div>
 
-      {profile.summary && (
-        <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 rounded-xl border border-slate-100 p-4">
-          {profile.summary}
-        </p>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="bg-white rounded-xl border border-emerald-100 p-4">
-          <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-3">Strengths</p>
-          <ul className="space-y-2">
+      {/* Strengths + gaps */}
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="border border-slate-200 rounded-xl p-[18px]">
+          <p className="text-[11px] font-extrabold tracking-[0.05em] text-emerald-700 mb-3">STRENGTHS</p>
+          <div className="flex flex-col gap-2.5">
             {profile.strengths.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                {s}
-              </li>
+              <div key={i} className="flex gap-2.5">
+                <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-[13.5px] leading-[1.55] text-slate-700">{s}</span>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
-        <div className="bg-white rounded-xl border border-red-100 p-4">
-          <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-3">Gaps to address</p>
-          <ul className="space-y-2">
+        <div className="border border-slate-200 rounded-xl p-[18px]">
+          <p className="text-[11px] font-extrabold tracking-[0.05em] text-amber-700 mb-3">GAPS TO ADDRESS</p>
+          <div className="flex flex-col gap-2.5">
             {profile.weaknesses.map((w, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                {w}
-              </li>
+              <div key={i} className="flex gap-2.5">
+                <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="text-[13.5px] leading-[1.55] text-slate-700">{w}</span>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       </div>
 
+      {/* Skills to reach next level */}
       <div>
-        <p className="text-sm font-bold text-slate-800 mb-3">
+        <h3 className="font-display font-extrabold text-[14.5px] text-ink mt-1 mb-3">
           Skills to reach {profile.next_level_label}
-        </p>
-        <div className="space-y-2">
+        </h3>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {profile.upgrade_path.map((area, i) => (
-            <UpgradeAreaCard key={i} area={area} index={i} />
+            <div key={i} className="border border-slate-200 rounded-xl p-[18px]">
+              <div className="flex items-center gap-2.5">
+                <span className="w-[26px] h-[26px] shrink-0 rounded-full bg-sky-100 text-sky-700 font-extrabold text-xs grid place-items-center">
+                  {i + 1}
+                </span>
+                <span className="font-bold text-sm leading-tight text-ink">{area.area}</span>
+              </div>
+              {area.why && (
+                <p className="mt-3 text-[12.5px] leading-[1.5] italic text-slate-400">{area.why}</p>
+              )}
+              <div className="flex flex-col gap-1.5 mt-3">
+                {area.sub_skills.map((it, j) => (
+                  <div key={j} className="flex gap-2 items-start">
+                    <span className="text-sky-400 font-extrabold leading-[1.5]">·</span>
+                    <span className="text-[12.5px] leading-[1.45] font-semibold text-slate-600">{it}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -562,6 +541,7 @@ function CareerInsightsDisplay({ profile }: { profile: CareerProfile }) {
 
 export default function Profile() {
   const { user: authUser } = useAuth()
+  void authUser
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const resumeInputRef = useRef<HTMLInputElement>(null)
 
@@ -611,7 +591,9 @@ export default function Profile() {
   // Career analysis
   const [analysing, setAnalysing] = useState(false)
   const [analyseMsg, setAnalyseMsg] = useState<string | null>(null)
-  const [insightsOpen, setInsightsOpen] = useState(false)
+
+  // Sidebar scroll-spy — which section is currently in view
+  const [activeSection, setActiveSection] = useState('about')
 
   useEffect(() => {
     api.get<UserProfile>('/profile/me')
@@ -625,6 +607,30 @@ export default function Profile() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // Highlight the sidebar link for the section nearest the top of the viewport.
+  useEffect(() => {
+    if (!profile) return
+    const ids = ['about', 'experience', 'education', 'resume', 'insights']
+    const els = ids
+      .map(id => document.getElementById(id))
+      .filter((el): el is HTMLElement => el != null)
+    if (!els.length) return
+    const obs = new IntersectionObserver(
+      entries => {
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]) setActiveSection(visible[0].target.id)
+      },
+      { rootMargin: '-110px 0px -55% 0px', threshold: 0 },
+    )
+    els.forEach(el => obs.observe(el))
+    return () => obs.disconnect()
+  }, [profile])
+
+  const scrollToSection = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   // ── Hero handlers ──────────────────────────────────────────────────────────
 
@@ -888,7 +894,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-accent/30 border-t-brand-blue rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin" />
       </div>
     )
   }
@@ -908,8 +914,30 @@ export default function Profile() {
   const yoe = profile.is_candidate ? totalYearsOfExperience(profile.work_experiences) : 0
   const yoeLabel = yoe >= 1 ? `${yoe % 1 === 0 ? yoe : yoe.toFixed(1)} yr${yoe >= 2 ? 's' : ''} exp` : null
 
+  const role = profile.headline || career?.detected_role || (profile.is_recruiter ? 'Recruiter' : 'Candidate')
+  const joined = profile.created_at
+    ? `Joined ${new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+    : null
+  const analysedDate = profile.career_profile_updated_at
+    ? new Date(profile.career_profile_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+
+  const navItems = [
+    { id: 'about', label: 'About' },
+    { id: 'experience', label: 'Experience' },
+    ...(profile.is_candidate
+      ? [
+          { id: 'education', label: 'Education' },
+          { id: 'resume', label: 'Resume' },
+          { id: 'insights', label: 'Career Insights' },
+        ]
+      : []),
+  ]
+
+  const chip = 'text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1.5 whitespace-nowrap'
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-5">
+    <div className="bg-slate-100 min-h-screen">
 
       {/* Hidden inputs */}
       <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
@@ -917,7 +945,7 @@ export default function Profile() {
       <input ref={resumeInputRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden"
         onChange={e => handleResumeFile(e.target.files?.[0] ?? null)} />
 
-      {/* Import modal */}
+      {/* Import modals */}
       {importEntries && (
         <ImportModal
           entries={importEntries}
@@ -929,8 +957,6 @@ export default function Profile() {
           saving={importSaving}
         />
       )}
-
-      {/* Education import modal */}
       {eduImportEntries && (
         <EduImportModal
           entries={eduImportEntries}
@@ -943,131 +969,66 @@ export default function Profile() {
         />
       )}
 
-      {/* ── 1. Hero card ───────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        {/* Cover */}
-        <div className="h-28 bg-gradient-to-br from-brand-blue via-indigo-500 to-purple-600 border-b-2 border-ink" />
+      <div className="max-w-[1340px] mx-auto bg-white border-x border-slate-200 min-h-screen">
 
-        {/* Identity row */}
-        <div className="px-6 pb-6">
-          <div className="-mt-10 mb-5 flex items-end justify-between">
-            {/* Avatar */}
-            <div className="relative group">
-              <div className="w-20 h-20 rounded-full bg-white border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-2xl font-extrabold text-accent-ink">{initials(profile.full_name)}</span>
-                )}
-              </div>
-              <button
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarUploading}
-                title="Change photo"
-                className="absolute inset-0 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center disabled:cursor-wait"
-              >
-                {avatarUploading ? (
-                  <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <CameraIcon />
-                )}
-              </button>
-            </div>
+        {/* Cover banner */}
+        <div className="h-[140px] bg-gradient-to-br from-[#d6ecfa] to-[#eef6fc] border-b border-slate-100" />
 
-            {/* Edit / done */}
-            {!heroEditing ? (
-              <button
-                onClick={() => { setHeroEditing(true); setHeroError(null) }}
-                className="text-sm font-semibold text-slate-500 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-xl px-4 py-1.5 transition-colors"
-              >
-                Edit profile
-              </button>
-            ) : null}
-          </div>
-
-          {!heroEditing ? (
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-xl font-extrabold text-slate-900">{profile.full_name}</h1>
-                  {profile.linkedin_verified && (
-                    <span title="LinkedIn verified"
-                      className="text-[#0A66C2] text-xs font-bold border border-[#0A66C2]/30 rounded px-1.5 py-0.5 shrink-0">
-                      in
-                    </span>
-                  )}
-                </div>
-                {(profile.headline || career?.detected_role) && (
-                  <p className="text-slate-500 text-sm mt-0.5">{profile.headline || career?.detected_role}</p>
-                )}
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {profile.is_candidate && (
-                    <span className="text-xs font-semibold bg-blue-50 text-accent-ink border border-blue-100 rounded-full px-2.5 py-1">
-                      Candidate
-                    </span>
-                  )}
-                  {profile.is_recruiter && (
-                    <span className="text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100 rounded-full px-2.5 py-1">
-                      Recruiter
-                    </span>
-                  )}
-                  {career?.detected_level_label && (
-                    <span className="text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full px-2.5 py-1">
-                      {career.detected_level_label}
-                    </span>
-                  )}
-                  {yoeLabel && (
-                    <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-2.5 py-1">
-                      {yoeLabel}
-                    </span>
-                  )}
-                  {primaryEd?.institution_name && (
-                    <span className="text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200 rounded-full px-2.5 py-1">
-                      🎓 {primaryEd.institution_name}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-600">
-                <div className="flex items-center gap-2">
-                  <MailIcon />
-                  <span className="truncate">{profile.email}</span>
-                </div>
-                {profile.phone && (
-                  <div className="flex items-center gap-2">
-                    <PhoneIcon />
-                    <span>{profile.phone}</span>
-                  </div>
-                )}
-                {profile.is_recruiter && profile.company && (
-                  <div className="flex items-center gap-2">
-                    <BuildingIcon />
-                    <span>{profile.company}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <CalendarIcon />
-                  <span>Joined {profile.created_at
-                    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                    : '—'}
-                  </span>
-                </div>
-              </div>
-
-              {career?.summary && (
-                <p className="text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
-                  {career.summary}
-                </p>
+        {/* Hero identity row */}
+        <div className="px-5 sm:px-10 pb-5 -mt-[46px] flex items-end gap-5">
+          {/* Avatar */}
+          <div className="relative group shrink-0">
+            <div className="w-[104px] h-[104px] rounded-[26px] border-4 border-white bg-gradient-to-br from-[#2c6fa6] to-[#4aa3d8] text-white grid place-items-center overflow-hidden shadow-[0_8px_20px_-10px_rgba(16,24,40,0.35)]">
+              {profile.avatar_url ? (
+                <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-display text-3xl font-extrabold">{initials(profile.full_name)}</span>
               )}
             </div>
-          ) : (
-            /* Hero edit form */
-            <div className="space-y-4">
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              title="Change photo"
+              className="absolute inset-0 rounded-[26px] bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center disabled:cursor-wait"
+            >
+              {avatarUploading
+                ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                : <CameraIcon />}
+            </button>
+          </div>
+
+          {/* Name + role */}
+          <div className="flex-1 min-w-0 pb-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-display text-2xl font-extrabold text-ink leading-tight">{profile.full_name}</h1>
+              {profile.linkedin_verified && (
+                <span title="LinkedIn verified"
+                  className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 shrink-0">
+                  in
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm font-semibold text-slate-500">{role}</p>
+          </div>
+
+          {/* Edit profile */}
+          {!heroEditing && (
+            <button
+              onClick={() => { setHeroEditing(true); setHeroError(null) }}
+              className="self-center shrink-0 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl px-5 py-2.5 transition"
+            >
+              Edit profile
+            </button>
+          )}
+        </div>
+
+        {/* Hero edit form OR tags + contact strip */}
+        {heroEditing ? (
+          <div className="px-5 sm:px-10 pb-6 border-b border-slate-100">
+            <div className="space-y-4 max-w-3xl">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Full Name">
-                  <input value={editName} onChange={e => setEditName(e.target.value)}
-                    className={INP} />
+                  <input value={editName} onChange={e => setEditName(e.target.value)} className={INP} />
                 </Field>
                 <Field label="Phone">
                   <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
@@ -1076,8 +1037,7 @@ export default function Profile() {
               </div>
               <Field label="Headline">
                 <input value={editHeadline} onChange={e => setEditHeadline(e.target.value)}
-                  placeholder="Software Engineer · Open to opportunities" maxLength={120}
-                  className={INP} />
+                  placeholder="Software Engineer · Open to opportunities" maxLength={120} className={INP} />
               </Field>
               {profile.is_recruiter && (
                 <Field label="Company">
@@ -1097,379 +1057,464 @@ export default function Profile() {
                     setEditCompany(profile.company ?? '')
                   }}
                   disabled={heroSaving}
-                  className="flex-1 border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition disabled:opacity-40"
+                  className="border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 px-6 text-sm hover:bg-slate-50 transition disabled:opacity-40"
                 >
                   Cancel
                 </button>
                 <button onClick={handleHeroSave} disabled={heroSaving || !editName.trim()}
-                  className="flex-1 bg-accent hover:opacity-90 text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-50">
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl py-2.5 px-6 text-sm transition disabled:opacity-50">
                   {heroSaving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── 2. Work Experience ─────────────────────────────────────────────── */}
-      <SectionCard
-        title="Work Experience"
-        action={
-          weEditing === null ? (
-            <>
-              <button
-                onClick={handleImport}
-                disabled={importing || !profile.is_candidate || !profile.resume_filename}
-                title={!profile.resume_filename ? 'Upload a resume first' : undefined}
-                className="text-xs font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {importing ? 'Importing…' : 'Import from resume'}
-              </button>
-              <button onClick={startAddWE}
-                className="text-xs font-semibold text-white bg-accent hover:opacity-90 rounded-lg px-3 py-1.5 transition-colors">
-                + Add
-              </button>
-            </>
-          ) : null
-        }
-      >
-        {weEditing === 'new' && (
-          <div className="mb-4">
-            <WEFormPanel form={weForm} onChange={setWeForm} onSave={handleWESave}
-              onCancel={() => setWeEditing(null)} saving={weSaving} error={weError} isEdit={false} />
-          </div>
-        )}
-
-        {profile.work_experiences.length === 0 && weEditing !== 'new' ? (
-          <div className="text-center py-8">
-            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-              <BriefcaseIcon />
-            </div>
-            <p className="text-sm font-medium text-slate-700">No work experience yet</p>
-            <p className="text-xs text-slate-400 mt-0.5">Add positions manually or import from your resume.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {profile.work_experiences.map((we, i) => (
-              weEditing === we.id ? (
-                <WEFormPanel key={we.id} form={weForm} onChange={setWeForm} onSave={handleWESave}
-                  onCancel={() => setWeEditing(null)} saving={weSaving} error={weError} isEdit={true} />
-              ) : (
-                <div key={we.id}>
-                  {i > 0 && <div className="border-t border-slate-100 mb-4" />}
-                  <div className="flex items-start gap-3 group">
-                    {/* Company logo — falls back to a colour monogram */}
-                    <BrandLogo name={we.company} logoUrl={we.company_logo_url} size={40} radius={12} />
-
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900 text-sm leading-tight">{we.title}</p>
-                      <p className="text-sm text-slate-500 mt-0.5">{we.company}{we.location ? ` · ${we.location}` : ''}</p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {formatDateRange(we)} · {calcDuration(we)}
-                      </p>
-                      {we.description && <WEDescription text={we.description} />}
-                    </div>
-
-                    {/* Actions (show on hover) */}
-                    <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => startEditWE(we)}
-                        className="text-xs font-semibold text-slate-400 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-lg px-2.5 py-1 transition-colors">
-                        Edit
-                      </button>
-                      <button onClick={() => handleWEDelete(we.id)}
-                        className="text-xs font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-lg px-2.5 py-1 transition-colors">
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            ))}
+          <div className="px-5 sm:px-10 pb-5 border-b border-slate-100 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex flex-wrap gap-2">
+              {profile.is_candidate && <span className={chip}>Candidate</span>}
+              {profile.is_recruiter && <span className={chip}>Recruiter</span>}
+              {career?.detected_level_label && <span className={chip}>{career.detected_level_label}</span>}
+              {yoeLabel && <span className={chip}>{yoeLabel}</span>}
+              {profile.is_recruiter && profile.company && <span className={chip}>{profile.company}</span>}
+              {primaryEd?.institution_name && <span className={chip}>{primaryEd.institution_name}</span>}
+            </div>
+            <div className="flex-1 min-w-0" />
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] font-medium text-slate-600">
+              <span className="truncate"><span className="text-slate-400">✉</span> {profile.email}</span>
+              {profile.phone && <span><span className="text-slate-400">☎</span> {profile.phone}</span>}
+              {joined && <span><span className="text-slate-400">📅</span> {joined}</span>}
+            </div>
           </div>
         )}
-      </SectionCard>
 
-      {/* ── 3. Education (candidates only — supports multiple colleges) ────── */}
-      {profile.is_candidate && (
-        <SectionCard
-          title="Education"
-          action={
-            eduEditing === null ? (
-              <>
+        {/* Body — sidebar + main */}
+        <div className="flex items-start bg-[#f6fafd]">
+
+          {/* Sidebar nav */}
+          <aside className="hidden lg:flex w-[210px] shrink-0 sticky top-20 flex-col gap-1 p-6">
+            {navItems.map(it => {
+              const active = activeSection === it.id
+              return (
                 <button
-                  onClick={handleEduImport}
-                  disabled={eduImporting || !profile.resume_filename}
-                  title={!profile.resume_filename ? 'Upload a resume first' : undefined}
-                  className="text-xs font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  key={it.id}
+                  onClick={() => scrollToSection(it.id)}
+                  className={
+                    active
+                      ? 'text-left text-sm font-bold text-ink bg-sky-50 border-l-[3px] border-sky-600 rounded-lg px-3.5 py-2.5 transition'
+                      : 'text-left text-sm font-semibold text-slate-500 hover:bg-sky-50/60 border-l-[3px] border-transparent rounded-lg px-3.5 py-2.5 transition'
+                  }
                 >
-                  {eduImporting ? 'Importing…' : 'Import from resume'}
+                  {it.label}
                 </button>
-                <button onClick={() => startEditEdu()}
-                  className="text-xs font-semibold text-white bg-accent hover:opacity-90 rounded-lg px-3 py-1.5 transition-colors">
-                  + Add
-                </button>
-              </>
-            ) : null
-          }
-        >
-          {eduEditing === 'new' && (
-            <div className="mb-4">
-              <EduFormPanel
-                institution={editInstitution} degree={editDegree} field={editField}
-                gradYear={editGradYear} isGraduated={editIsGraduated} isPrimary={editIsPrimary}
-                showPrimaryToggle={(profile.education_records?.length ?? 0) > 0}
-                setInstitution={setEditInstitution} setDegree={setEditDegree} setField={setEditField}
-                setGradYear={setEditGradYear} setIsGraduated={setEditIsGraduated} setIsPrimary={setEditIsPrimary}
-                onSave={handleEduSave} onCancel={() => setEduEditing(null)}
-                saving={eduSaving} error={eduError} isEdit={false}
-              />
-            </div>
-          )}
+              )
+            })}
+          </aside>
 
-          {(profile.education_records?.length ?? 0) === 0 && eduEditing !== 'new' ? (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                <GraduationIcon className="w-5 h-5 text-slate-400" />
-              </div>
-              <p className="text-sm font-medium text-slate-700">No education added yet</p>
-              <p className="text-xs text-slate-400 mt-0.5">Add your colleges — bachelors, masters, and more.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {profile.education_records.map((ed, i) => (
-                eduEditing === ed.id ? (
-                  <EduFormPanel key={ed.id}
-                    institution={editInstitution} degree={editDegree} field={editField}
-                    gradYear={editGradYear} isGraduated={editIsGraduated} isPrimary={editIsPrimary}
-                    showPrimaryToggle={!ed.is_primary}
-                    setInstitution={setEditInstitution} setDegree={setEditDegree} setField={setEditField}
-                    setGradYear={setEditGradYear} setIsGraduated={setEditIsGraduated} setIsPrimary={setEditIsPrimary}
-                    onSave={handleEduSave} onCancel={() => setEduEditing(null)}
-                    saving={eduSaving} error={eduError} isEdit={true}
-                  />
-                ) : (
-                  <div key={ed.id}>
-                    {i > 0 && <div className="border-t border-slate-100 mb-4" />}
-                    <div className="flex items-start gap-3 group">
-                      <BrandLogo
-                        name={ed.institution_name}
-                        logoUrl={ed.logo_url || (ed.is_primary ? profile.college_logo_url : null)}
-                        size={40}
-                        radius={12}
-                        fallback={<GraduationIcon />}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-slate-900 text-sm">{ed.institution_name}</p>
-                          {ed.is_primary && (
-                            <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-accent-ink border border-blue-100 rounded px-1.5 py-0.5">
-                              Primary
-                            </span>
-                          )}
-                        </div>
-                        {(ed.degree_type || ed.field_of_study) && (
-                          <p className="text-sm text-slate-500 mt-0.5">
-                            {[ed.degree_type, ed.field_of_study].filter(Boolean).join(' · ')}
-                          </p>
-                        )}
-                        <p className="text-xs text-slate-400 mt-1">
-                          {ed.graduation_year
-                            ? `${ed.is_graduated ? 'Graduated' : 'Expected'} ${ed.graduation_year}`
-                            : ed.is_graduated ? 'Graduated' : 'Current student'}
-                        </p>
-                      </div>
-                      <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => startEditEdu(ed)}
-                          className="text-xs font-semibold text-slate-400 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-lg px-2.5 py-1 transition-colors">
-                          Edit
-                        </button>
-                        <button onClick={() => handleEduDelete(ed.id)}
-                          className="text-xs font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-lg px-2.5 py-1 transition-colors">
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      )}
+          {/* Main content */}
+          <main className="flex-1 min-w-0 p-5 sm:p-7 flex flex-col gap-5">
 
-      {/* ── 4. Resume (candidates only) ───────────────────────────────────── */}
-      {profile.is_candidate && (
-        <SectionCard
-          title="Resume"
-          action={
-            hasResume ? (
-              <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
-                className="text-xs font-semibold text-slate-500 hover:text-accent-ink border border-slate-200 hover:border-accent rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40">
-                {uploadingResume ? 'Uploading…' : 'Replace'}
-              </button>
-            ) : null
-          }
-        >
-          {!hasResume ? (
-            <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
-              className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-accent hover:bg-blue-50/30 transition-colors p-8 text-center group">
-              {uploadingResume ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-6 h-6 border-2 border-slate-300 border-t-brand-blue rounded-full animate-spin mx-auto" />
-                  <p className="text-sm text-slate-500">Uploading…</p>
-                </div>
+            {/* About */}
+            <Panel id="about" title="About">
+              {career?.summary ? (
+                <p className="text-[14.5px] leading-[1.75] font-medium text-slate-600">{career.summary}</p>
+              ) : profile.is_candidate ? (
+                <p className="text-sm leading-relaxed text-slate-400">
+                  Upload a resume and run Career Insights to generate a professional summary of your experience.
+                </p>
               ) : (
-                <>
-                  <p className="text-3xl mb-2 group-hover:scale-110 transition-transform">📄</p>
-                  <p className="font-semibold text-slate-700 group-hover:text-accent-ink text-sm transition-colors">
-                    Upload your resume
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT · Click to browse</p>
-                  <p className="text-xs text-indigo-500 mt-1.5 font-medium">Enables Career Insights and Magic Match</p>
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="space-y-4">
-              {/* Active resume */}
-              <div className="flex items-center gap-3 bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
-                <span className="text-xl shrink-0">📄</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{profile.resume_filename}</p>
-                  {isAnalysed && profile.career_profile_updated_at ? (
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Analysed {new Date(profile.career_profile_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-amber-600 font-medium mt-0.5">Not yet analysed</p>
-                  )}
-                </div>
-                {isAnalysed && !analysing && (
-                  <button onClick={handleAnalyse}
-                    className="shrink-0 text-xs font-semibold text-slate-400 hover:text-indigo-600 transition-colors">
-                    ↻ Re-analyse
-                  </button>
-                )}
-              </div>
-
-              {/* Analyse CTA */}
-              {!isAnalysed && !analysing && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">Resume ready for analysis</p>
-                    <p className="text-xs text-amber-600 mt-0.5">Get your strengths, gaps, and career upgrade plan</p>
-                  </div>
-                  <button onClick={handleAnalyse}
-                    className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg px-4 py-2 text-xs transition-colors">
-                    ✨ Analyse
-                  </button>
-                </div>
-              )}
-
-              {analysing && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex items-center gap-3">
-                  <div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin shrink-0" />
-                  <p className="text-sm text-indigo-700 font-medium">{analyseMsg ?? 'Analysing…'}</p>
-                </div>
-              )}
-
-              {!analysing && analyseMsg && (
-                <p className="text-xs text-red-500">{analyseMsg}</p>
-              )}
-
-              {/* Resume vault */}
-              {profile.resumes.length > 1 && (
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Vault — {profile.resumes.length}/3</p>
-                  {profile.resumes.map((r: VaultResume) => (
-                    <div key={r.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
-                      r.is_primary ? 'border-accent/30 bg-blue-50/40' : 'border-slate-200'
-                    }`}>
-                      <span className="text-base shrink-0">📄</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-xs font-medium text-slate-800 truncate">{r.filename}</p>
-                          {r.is_primary && (
-                            <span className="text-[10px] font-bold bg-brand-blue text-white rounded-full px-1.5 py-0.5 shrink-0">Active</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {new Date(r.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
-                      </div>
-                      <div className="flex gap-1.5 shrink-0">
-                        {!r.is_primary && (
-                          <button disabled={vaultActionId === r.id}
-                            onClick={async () => {
-                              setVaultActionId(r.id)
-                              try { const res = await api.post<UserProfile>(`/profile/resumes/${r.id}/set-active`); setProfile(res.data) } catch {}
-                              setVaultActionId(null)
-                            }}
-                            className="text-[11px] font-semibold text-accent-ink hover:text-blue-700 border border-accent/30 hover:border-accent rounded-md px-2 py-1 transition-colors disabled:opacity-40">
-                            {vaultActionId === r.id ? '…' : 'Set active'}
-                          </button>
-                        )}
-                        <button disabled={vaultActionId === r.id}
-                          onClick={async () => {
-                            if (!confirm(`Delete "${r.filename}"?`)) return
-                            setVaultActionId(r.id)
-                            try { const res = await api.delete<UserProfile>(`/profile/resumes/${r.id}`); setProfile(res.data) } catch {}
-                            setVaultActionId(null)
-                          }}
-                          className="text-[11px] font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-md px-2 py-1 transition-colors disabled:opacity-40">
-                          Del
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {profile.resumes.length < 3 && (
-                    <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
-                      className="w-full rounded-lg border border-dashed border-slate-200 hover:border-accent text-xs text-slate-400 hover:text-accent-ink font-medium py-2.5 transition-colors">
-                      + Add another version
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {resumeError && <p className="text-xs text-red-500">{resumeError}</p>}
-            </div>
-          )}
-        </SectionCard>
-      )}
-
-      {/* ── 5. Career Insights (candidates, collapsible) ───────────────────── */}
-      {profile.is_candidate && isAnalysed && profile.career_profile && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <button
-            onClick={() => setInsightsOpen(o => !o)}
-            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors text-left"
-          >
-            <div>
-              <h2 className="font-bold text-slate-900 text-base">Career Insights</h2>
-              {profile.career_profile_updated_at && (
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Updated {new Date(profile.career_profile_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <p className="text-sm leading-relaxed text-slate-400">
+                  {profile.headline || 'No summary yet.'}
                 </p>
               )}
-            </div>
-            <span className="text-slate-400 text-sm">{insightsOpen ? '▲' : '▼'}</span>
-          </button>
-          {insightsOpen && (
-            <div className="px-6 pb-6 border-t border-slate-100">
-              <div className="pt-5">
-                <CareerInsightsDisplay profile={profile.career_profile} />
+            </Panel>
+
+            {/* Work Experience */}
+            <Panel
+              id="experience"
+              title="Work Experience"
+              action={
+                weEditing === null ? (
+                  <>
+                    <button
+                      onClick={handleImport}
+                      disabled={importing || !profile.is_candidate || !profile.resume_filename}
+                      title={!profile.resume_filename ? 'Upload a resume first' : undefined}
+                      className={BTN_GHOST_SM}
+                    >
+                      {importing ? 'Importing…' : 'Import from resume'}
+                    </button>
+                    <button onClick={startAddWE} className={BTN_PRIMARY_SM}>+ Add</button>
+                  </>
+                ) : null
+              }
+            >
+              {weEditing === 'new' && (
+                <div className="mb-4">
+                  <WEFormPanel form={weForm} onChange={setWeForm} onSave={handleWESave}
+                    onCancel={() => setWeEditing(null)} saving={weSaving} error={weError} isEdit={false} />
+                </div>
+              )}
+
+              {profile.work_experiences.length === 0 && weEditing !== 'new' ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                    <BriefcaseIcon />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">No work experience yet</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Add positions manually or import from your resume.</p>
+                </div>
+              ) : (
+                <div>
+                  {profile.work_experiences.map((we, i) => (
+                    weEditing === we.id ? (
+                      <div key={we.id} className="py-4 border-t border-slate-100 first:border-t-0 first:pt-0">
+                        <WEFormPanel form={weForm} onChange={setWeForm} onSave={handleWESave}
+                          onCancel={() => setWeEditing(null)} saving={weSaving} error={weError} isEdit={true} />
+                      </div>
+                    ) : (
+                      <div key={we.id} className="flex gap-4 py-[18px] border-t border-slate-100 first:border-t-0 first:pt-0 group">
+                        {/* Logo + timeline connector */}
+                        <div className="flex flex-col items-center shrink-0">
+                          <BrandLogo name={we.company} logoUrl={we.company_logo_url} size={44} radius={12} />
+                          {i < profile.work_experiences.length - 1 && (
+                            <div className="w-px flex-1 bg-slate-200 mt-2" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-[15.5px] leading-tight text-ink">{we.title}</h3>
+                            {we.is_current && (
+                              <span className="text-[10.5px] font-bold tracking-[0.04em] text-sky-700 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5">
+                                CURRENT
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[13.5px] font-semibold text-slate-600">
+                            {we.company}{we.location ? ` · ${we.location}` : ''}
+                          </div>
+                          <div className="mt-0.5 text-[12.5px] font-medium text-slate-400">
+                            {formatDateRange(we)} · {calcDuration(we)}
+                          </div>
+                          {we.description && (
+                            <div className="mt-3 flex flex-col gap-2.5">
+                              {descriptionBullets(we.description).map((b, j) => (
+                                <div key={j} className="flex gap-2.5">
+                                  <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-sky-300 shrink-0" />
+                                  <p className="text-[13.5px] leading-[1.6] text-slate-600">{b}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions (show on hover) */}
+                        <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEditWE(we)}
+                            className="text-xs font-semibold text-slate-400 hover:text-sky-700 border border-slate-200 hover:border-sky-300 rounded-lg px-2.5 py-1 transition-colors">
+                            Edit
+                          </button>
+                          <button onClick={() => handleWEDelete(we.id)}
+                            className="text-xs font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-lg px-2.5 py-1 transition-colors">
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              )}
+            </Panel>
+
+            {/* Education + Resume (candidates only) */}
+            {profile.is_candidate && (
+              <div className="grid lg:grid-cols-2 gap-5 items-start">
+
+                {/* Education */}
+                <Panel
+                  id="education"
+                  title="Education"
+                  action={
+                    eduEditing === null ? (
+                      <>
+                        <button
+                          onClick={handleEduImport}
+                          disabled={eduImporting || !profile.resume_filename}
+                          title={!profile.resume_filename ? 'Upload a resume first' : undefined}
+                          className={BTN_GHOST_SM}
+                        >
+                          {eduImporting ? 'Importing…' : 'Import'}
+                        </button>
+                        <button onClick={() => startEditEdu()} className={BTN_PRIMARY_SM}>+ Add</button>
+                      </>
+                    ) : null
+                  }
+                >
+                  {eduEditing === 'new' && (
+                    <div className="mb-4">
+                      <EduFormPanel
+                        institution={editInstitution} degree={editDegree} field={editField}
+                        gradYear={editGradYear} isGraduated={editIsGraduated} isPrimary={editIsPrimary}
+                        showPrimaryToggle={(profile.education_records?.length ?? 0) > 0}
+                        setInstitution={setEditInstitution} setDegree={setEditDegree} setField={setEditField}
+                        setGradYear={setEditGradYear} setIsGraduated={setEditIsGraduated} setIsPrimary={setEditIsPrimary}
+                        onSave={handleEduSave} onCancel={() => setEduEditing(null)}
+                        saving={eduSaving} error={eduError} isEdit={false}
+                      />
+                    </div>
+                  )}
+
+                  {(profile.education_records?.length ?? 0) === 0 && eduEditing !== 'new' ? (
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                        <GraduationIcon className="w-5 h-5 text-slate-400" />
+                      </div>
+                      <p className="text-sm font-medium text-slate-700">No education added yet</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Add your colleges — bachelors, masters, and more.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {profile.education_records.map((ed, i) => (
+                        eduEditing === ed.id ? (
+                          <EduFormPanel key={ed.id}
+                            institution={editInstitution} degree={editDegree} field={editField}
+                            gradYear={editGradYear} isGraduated={editIsGraduated} isPrimary={editIsPrimary}
+                            showPrimaryToggle={!ed.is_primary}
+                            setInstitution={setEditInstitution} setDegree={setEditDegree} setField={setEditField}
+                            setGradYear={setEditGradYear} setIsGraduated={setEditIsGraduated} setIsPrimary={setEditIsPrimary}
+                            onSave={handleEduSave} onCancel={() => setEduEditing(null)}
+                            saving={eduSaving} error={eduError} isEdit={true}
+                          />
+                        ) : (
+                          <div key={ed.id}>
+                            {i > 0 && <div className="border-t border-slate-100 mb-4" />}
+                            <div className="flex items-start gap-3 group">
+                              <BrandLogo
+                                name={ed.institution_name}
+                                logoUrl={ed.logo_url || (ed.is_primary ? profile.college_logo_url : null)}
+                                size={44}
+                                radius={12}
+                                fallback={<GraduationIcon />}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-bold text-[14.5px] text-ink">{ed.institution_name}</p>
+                                  {ed.is_primary && (
+                                    <span className="text-[9.5px] font-bold uppercase tracking-[0.05em] text-sky-700 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5">
+                                      Primary
+                                    </span>
+                                  )}
+                                </div>
+                                {(ed.degree_type || ed.field_of_study) && (
+                                  <p className="text-sm text-slate-500 mt-0.5">
+                                    {[ed.degree_type, ed.field_of_study].filter(Boolean).join(' · ')}
+                                  </p>
+                                )}
+                                <p className="text-xs text-slate-400 mt-1">
+                                  {ed.graduation_year
+                                    ? `${ed.is_graduated ? 'Graduated' : 'Expected'} ${ed.graduation_year}`
+                                    : ed.is_graduated ? 'Graduated' : 'Current student'}
+                                </p>
+                              </div>
+                              <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => startEditEdu(ed)}
+                                  className="text-xs font-semibold text-slate-400 hover:text-sky-700 border border-slate-200 hover:border-sky-300 rounded-lg px-2.5 py-1 transition-colors">
+                                  Edit
+                                </button>
+                                <button onClick={() => handleEduDelete(ed.id)}
+                                  className="text-xs font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-lg px-2.5 py-1 transition-colors">
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </Panel>
+
+                {/* Resume */}
+                <Panel
+                  id="resume"
+                  title="Resume"
+                  action={
+                    hasResume ? (
+                      <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
+                        className={BTN_GHOST_SM}>
+                        {uploadingResume ? 'Uploading…' : 'Replace'}
+                      </button>
+                    ) : null
+                  }
+                >
+                  {!hasResume ? (
+                    <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
+                      className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-sky-400 hover:bg-sky-50/40 transition-colors p-8 text-center group">
+                      {uploadingResume ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-6 h-6 border-2 border-slate-300 border-t-sky-600 rounded-full animate-spin mx-auto" />
+                          <p className="text-sm text-slate-500">Uploading…</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-3xl mb-2 group-hover:scale-110 transition-transform">📄</p>
+                          <p className="font-semibold text-slate-700 group-hover:text-sky-700 text-sm transition-colors">
+                            Upload your resume
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT · Click to browse</p>
+                          <p className="text-xs text-sky-600 mt-1.5 font-medium">Enables Career Insights and Magic Match</p>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Active resume */}
+                      <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 shrink-0 rounded-lg bg-slate-100 grid place-items-center text-[11px] font-bold text-slate-500">PDF</div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-800 truncate">{profile.resume_filename}</p>
+                            {isAnalysed && analysedDate ? (
+                              <p className="text-xs text-slate-400 mt-0.5">Analysed {analysedDate}</p>
+                            ) : (
+                              <p className="text-xs text-amber-600 font-medium mt-0.5">Not yet analysed</p>
+                            )}
+                          </div>
+                        </div>
+                        {isAnalysed && !analysing && (
+                          <button onClick={handleAnalyse}
+                            className="shrink-0 text-[12.5px] font-bold text-sky-700 hover:text-sky-800 transition-colors">
+                            ↻ Re-analyse
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Analyse CTA */}
+                      {!isAnalysed && !analysing && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800">Resume ready for analysis</p>
+                            <p className="text-xs text-amber-600 mt-0.5">Get your strengths, gaps, and career upgrade plan</p>
+                          </div>
+                          <button onClick={handleAnalyse}
+                            className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg px-4 py-2 text-xs transition-colors">
+                            ✨ Analyse
+                          </button>
+                        </div>
+                      )}
+
+                      {analysing && (
+                        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex items-center gap-3">
+                          <div className="w-4 h-4 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin shrink-0" />
+                          <p className="text-sm text-sky-700 font-medium">{analyseMsg ?? 'Analysing…'}</p>
+                        </div>
+                      )}
+
+                      {!analysing && analyseMsg && (
+                        <p className="text-xs text-red-500">{analyseMsg}</p>
+                      )}
+
+                      {/* Resume vault */}
+                      {profile.resumes.length > 1 && (
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Vault — {profile.resumes.length}/3</p>
+                          {profile.resumes.map((r: VaultResume) => (
+                            <div key={r.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
+                              r.is_primary ? 'border-sky-200 bg-sky-50/50' : 'border-slate-200'
+                            }`}>
+                              <span className="text-base shrink-0">📄</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-xs font-medium text-slate-800 truncate">{r.filename}</p>
+                                  {r.is_primary && (
+                                    <span className="text-[10px] font-bold bg-sky-600 text-white rounded-full px-1.5 py-0.5 shrink-0">Active</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  {new Date(r.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </p>
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                {!r.is_primary && (
+                                  <button disabled={vaultActionId === r.id}
+                                    onClick={async () => {
+                                      setVaultActionId(r.id)
+                                      try { const res = await api.post<UserProfile>(`/profile/resumes/${r.id}/set-active`); setProfile(res.data) } catch {}
+                                      setVaultActionId(null)
+                                    }}
+                                    className="text-[11px] font-semibold text-sky-700 hover:text-sky-800 border border-sky-200 hover:border-sky-400 rounded-md px-2 py-1 transition-colors disabled:opacity-40">
+                                    {vaultActionId === r.id ? '…' : 'Set active'}
+                                  </button>
+                                )}
+                                <button disabled={vaultActionId === r.id}
+                                  onClick={async () => {
+                                    if (!confirm(`Delete "${r.filename}"?`)) return
+                                    setVaultActionId(r.id)
+                                    try { const res = await api.delete<UserProfile>(`/profile/resumes/${r.id}`); setProfile(res.data) } catch {}
+                                    setVaultActionId(null)
+                                  }}
+                                  className="text-[11px] font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-md px-2 py-1 transition-colors disabled:opacity-40">
+                                  Del
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          {profile.resumes.length < 3 && (
+                            <button onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}
+                              className="w-full rounded-lg border border-dashed border-slate-200 hover:border-sky-400 text-xs text-slate-400 hover:text-sky-700 font-medium py-2.5 transition-colors">
+                              + Add another version
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {resumeError && <p className="text-xs text-red-500">{resumeError}</p>}
+                    </div>
+                  )}
+                </Panel>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Career Insights (candidates only) */}
+            {profile.is_candidate && (
+              <Panel
+                id="insights"
+                title="Career Insights"
+                action={analysedDate && isAnalysed
+                  ? <span className="text-xs font-medium text-slate-400">Updated {analysedDate}</span>
+                  : null}
+              >
+                {isAnalysed && career ? (
+                  <CareerInsightsDisplay profile={career} />
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm font-semibold text-slate-700">No insights yet</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      Upload your resume and run analysis to see your strengths, gaps, and a path to the next level.
+                    </p>
+                    {hasResume && !analysing && (
+                      <button onClick={handleAnalyse}
+                        className="mt-4 inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg px-4 py-2 text-xs transition-colors">
+                        ✨ Analyse my resume
+                      </button>
+                    )}
+                    {analysing && (
+                      <p className="mt-4 text-sm text-sky-700 font-medium">{analyseMsg ?? 'Analysing…'}</p>
+                    )}
+                  </div>
+                )}
+              </Panel>
+            )}
+          </main>
         </div>
-      )}
+      </div>
     </div>
   )
 }
 
 // ── Tiny helpers ──────────────────────────────────────────────────────────────
 
-const INP = 'w-full border-2 border-hairline rounded-xl px-3.5 py-2.5 text-sm bg-surface text-ink focus:outline-none focus:border-accent transition'
+const INP = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white text-ink focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -1485,38 +1530,6 @@ function CameraIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  )
-}
-
-function MailIcon() {
-  return (
-    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-    </svg>
-  )
-}
-
-function PhoneIcon() {
-  return (
-    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-    </svg>
-  )
-}
-
-function BuildingIcon() {
-  return (
-    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-    </svg>
-  )
-}
-
-function CalendarIcon() {
-  return (
-    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
     </svg>
   )
 }
