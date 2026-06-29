@@ -1,9 +1,8 @@
 import axios from 'axios'
 
-// Vite proxy routes /api → http://localhost:8000
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 90_000, // 90s — AI screening can take a moment
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
+  timeout: 90_000,
 })
 
 // Attach the single JWT to every request
