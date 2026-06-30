@@ -23,6 +23,24 @@ class College(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class CollegeAlias(Base):
+    """
+    Cache mapping any free-text college spelling a user enters to the canonical
+    college name it resolves to. Lets "Indian Institute of Information Technology
+    Nagpur" and "IIIT Nagpur" both land on the same college page.
+
+    `alias_key` is the normalised (lowercased, punctuation-stripped) form of the
+    raw input, so trivial variations share one row. `canonical_name` is the
+    resolved display name used as `UserEducation.institution_name`.
+    """
+    __tablename__ = "college_aliases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alias_key = Column(String(500), unique=True, nullable=False, index=True)
+    canonical_name = Column(String(500), nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class CompanyLogo(Base):
     """
     Shared logo cache for company names (work history, current company, recruiter

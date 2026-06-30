@@ -12,6 +12,9 @@ import {
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 36 }, (_, i) => CURRENT_YEAR + 1 - i)
+// Graduated → current year and earlier; Studying → current year and ahead
+const PAST_YEARS   = Array.from({ length: CURRENT_YEAR - 1999 }, (_, i) => CURRENT_YEAR - i)
+const FUTURE_YEARS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR + i)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -300,18 +303,18 @@ function EduFormPanel({
         <Field label="Graduation Year">
           <select value={gradYear} onChange={e => setGradYear(e.target.value)} className={INP}>
             <option value="">Select year</option>
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            {(isGraduated ? PAST_YEARS : FUTURE_YEARS).map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </Field>
         <Field label="Status">
           <div className="flex items-center gap-3 h-10">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={isGraduated} onChange={() => setIsGraduated(true)}
+              <input type="radio" checked={isGraduated} onChange={() => { setIsGraduated(true); setGradYear('') }}
                 className="text-sky-600" />
               <span className="text-sm text-slate-700">Graduated</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={!isGraduated} onChange={() => setIsGraduated(false)}
+              <input type="radio" checked={!isGraduated} onChange={() => { setIsGraduated(false); setGradYear('') }}
                 className="text-sky-600" />
               <span className="text-sm text-slate-700">Current student</span>
             </label>

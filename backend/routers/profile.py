@@ -571,7 +571,8 @@ async def update_college_info(
         raise HTTPException(status_code=403, detail="Only candidates can set college info.")
 
     ext = current_user.candidate_ext
-    college_name = body.college_name.strip()
+    from services.college_resolver import canonicalize_college_name
+    college_name = await canonicalize_college_name(db, body.college_name)
 
     # Update candidate extension
     ext.onboarding_completed = True
@@ -989,7 +990,7 @@ def _resolve_college_id(db: Session, institution_name: str) -> Optional[int]:
 
 
 @router.post("/education")
-def add_education(
+async def add_education(
     body: EducationCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -998,9 +999,10 @@ def add_education(
     """Add an education record (e.g. a second degree). Supports multiple colleges."""
     if not current_user.is_candidate:
         raise HTTPException(status_code=403, detail="Only candidates can add education.")
-    name = body.institution_name.strip()
-    if not name:
+    if not body.institution_name.strip():
         raise HTTPException(status_code=422, detail="Institution name is required.")
+    from services.college_resolver import canonicalize_college_name
+    name = await canonicalize_college_name(db, body.institution_name)
 
     has_primary = db.query(models.UserEducation).filter(
         models.UserEducation.user_id == current_user.id,
@@ -1037,7 +1039,7 @@ def add_education(
 
 
 @router.patch("/education/{ed_id}")
-def update_education(
+async def update_education(
     ed_id: int,
     body: EducationUpdate,
     db: Session = Depends(get_db),
@@ -1050,8 +1052,9 @@ def update_education(
     if not ed:
         raise HTTPException(status_code=404, detail="Education record not found.")
 
-    if body.institution_name is not None:
-        ed.institution_name = body.institution_name.strip() or ed.institution_name
+    if body.institution_name is not None and body.institution_name.strip():
+        from services.college_resolver import canonicalize_college_name
+        ed.institution_name = await canonicalize_college_name(db, body.institution_name)
         ed.college_id = _resolve_college_id(db, ed.institution_name)
     if body.degree_type is not None:
         ed.degree_type = body.degree_type
