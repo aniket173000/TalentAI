@@ -13,6 +13,8 @@ Notes:
   * Broker + result backend are Redis (see docker-compose.yml).
   * Enable dispatch by setting USE_CELERY=true in the API process's env.
 """
+import ssl
+
 from celery import Celery
 from celery.signals import worker_ready
 
@@ -24,6 +26,14 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=["services.tasks"],
 )
+
+# Managed Redis (Upstash/ElastiCache) speaks TLS via rediss://. Celery refuses a
+# rediss URL unless ssl_cert_reqs is set, so configure it here rather than
+# depending on the query param being present in every environment's URL.
+if settings.CELERY_BROKER_URL.startswith("rediss://"):
+    celery_app.conf.broker_use_ssl = {"ssl_cert_reqs": ssl.CERT_NONE}
+if settings.CELERY_RESULT_BACKEND.startswith("rediss://"):
+    celery_app.conf.redis_backend_use_ssl = {"ssl_cert_reqs": ssl.CERT_NONE}
 
 celery_app.conf.update(
     task_serializer="json",
