@@ -37,6 +37,7 @@ class ProfileUpdate(BaseModel):
     phone: Optional[str] = None
     headline: Optional[str] = None
     portfolio_link: Optional[str] = None
+    current_company_logo_url: Optional[str] = None
 
 
 class RecruiterProfileUpdate(BaseModel):
@@ -46,6 +47,7 @@ class RecruiterProfileUpdate(BaseModel):
 
 class WorkExperienceCreate(BaseModel):
     company: str
+    company_logo_url: Optional[str] = None
     title: str
     location: Optional[str] = None
     start_month: Optional[int] = None   # 1–12
@@ -59,6 +61,7 @@ class WorkExperienceCreate(BaseModel):
 
 class WorkExperienceUpdate(BaseModel):
     company: Optional[str] = None
+    company_logo_url: Optional[str] = None
     title: Optional[str] = None
     location: Optional[str] = None
     start_month: Optional[int] = None
@@ -131,7 +134,8 @@ def _profile_response(user: models.User) -> dict:
         {
             "id": we.id,
             "company": we.company,
-            "company_logo_url": company_logos.get(we.company),
+            # User-picked override wins; otherwise fall back to the shared cache.
+            "company_logo_url": we.company_logo_url or company_logos.get(we.company),
             "title": we.title,
             "location": we.location,
             "start_month": we.start_month,
@@ -172,7 +176,8 @@ def _profile_response(user: models.User) -> dict:
         "portfolio_link": c.portfolio_link if c else None,
         "current_company": c.current_company if c else None,
         "current_company_logo_url": (
-            company_logos.get(c.current_company) if c and c.current_company else None
+            (c.current_company_logo_url or company_logos.get(c.current_company))
+            if c and c.current_company else None
         ),
         "resume_filename": c.resume_filename if c else None,
         "career_profile": career,
@@ -321,8 +326,34 @@ def update_my_profile(
     if body.portfolio_link is not None and current_user.candidate_ext:
         current_user.candidate_ext.portfolio_link = body.portfolio_link.strip() or None
 
+    if body.current_company_logo_url is not None and current_user.candidate_ext:
+        # Empty string clears the override → falls back to the shared cache.
+        current_user.candidate_ext.current_company_logo_url = (
+            body.current_company_logo_url.strip() or None
+        )
+
     db.commit()
     return _profile_response(current_user)
+
+
+@router.get("/logo-candidates")
+def logo_candidates(
+    name: str,
+    kind: str = "company",
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Return a small list of brand-logo candidates for `name` so the user can pick
+    the correct one when the auto-resolved logo is wrong. Read-only; does not
+    persist anything — the chosen `logo_url` is saved via the profile / work-
+    experience PATCH endpoints.
+    """
+    from services.company_logo import resolve_logo_candidates
+
+    name = (name or "").strip()
+    if not name:
+        return {"candidates": []}
+    return {"candidates": resolve_logo_candidates(name, kind=kind)}
 
 
 @router.patch("/recruiter")
@@ -811,6 +842,7 @@ def add_work_experience(
     we = models.WorkExperience(
         user_id=current_user.id,
         company=company,
+        company_logo_url=(body.company_logo_url or "").strip() or None,
         title=body.title.strip(),
         location=(body.location or "").strip() or None,
         start_month=body.start_month,
@@ -847,6 +879,9 @@ def update_work_experience(
     if body.company is not None:
         we.company = body.company.strip()
         background_tasks.add_task(resolve_company_logos_task, [we.company])
+    if body.company_logo_url is not None:
+        # Empty string clears the override → falls back to the shared cache.
+        we.company_logo_url = body.company_logo_url.strip() or None
     if body.title is not None:
         we.title = body.title.strip()
     if body.location is not None:

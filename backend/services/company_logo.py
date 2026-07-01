@@ -243,6 +243,66 @@ def _resolve_university_by_name(name: str) -> dict | None:
     return {"logo_url": logo, "website_url": website}
 
 
+def _logo_url_for_domain(domain: str) -> str:
+    """Best keyless logo URL for a domain: Brandfetch CDN when keyed, else Google S2."""
+    cid = _brandfetch_client_id()
+    if cid:
+        return _BRANDFETCH_CDN.format(domain, cid)
+    return _S2_FAVICON.format(domain)
+
+
+def resolve_logo_candidates(name: str, kind: str = "company", limit: int = 6) -> list[dict]:
+    """
+    Return up to `limit` distinct brand candidates for a NAME, each with a logo the
+    user can pick from: [{"name", "domain", "logo_url", "website_url"}].
+
+    Powers the "pick the right logo" UI when the auto-resolved logo is wrong.
+    Keyless via Clearbit autocomplete, upgraded to Brandfetch search when a client
+    id is configured. Fast (no per-candidate HEAD checks — the frontend has an
+    onError fallback). Best-effort and network-tolerant — never raises.
+    """
+    name = (name or "").strip()
+    if not name:
+        return []
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def _add(disp: str, domain: str) -> None:
+        domain = re.sub(r"^www\.", "", (domain or "").strip().lower())
+        if not domain or domain in seen:
+            return
+        seen.add(domain)
+        out.append({
+            "name": (disp or domain).strip(),
+            "domain": domain,
+            "logo_url": _logo_url_for_domain(domain),
+            "website_url": _domain_to_site(domain),
+        })
+
+    try:
+        # Brandfetch search first when keyed — brand-accurate, ranked results.
+        cid = _brandfetch_client_id()
+        if cid:
+            data = _get_json(_BRANDFETCH_SEARCH.format(quote(name), cid))
+            if isinstance(data, list):
+                for d in data:
+                    _add(d.get("name") or "", d.get("domain") or "")
+                    if len(out) >= limit:
+                        return out
+        # Keyless Clearbit autocomplete — works without any key.
+        data = _get_json(_CLEARBIT_SUGGEST.format(quote(name)))
+        if isinstance(data, list):
+            for d in data:
+                _add(d.get("name") or "", d.get("domain") or "")
+                if len(out) >= limit:
+                    break
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("resolve_logo_candidates failed for %r: %s", name, exc)
+
+    return out[:limit]
+
+
 def resolve_brand_by_name(name: str, kind: str = "company") -> dict:
     """
     Resolve a logo + official website from just a NAME (no URL needed) — the

@@ -165,6 +165,7 @@ class CandidateExtension(Base):
     candidate_linkedin_url = Column(String(500), nullable=True)
     portfolio_link = Column(String(500), nullable=True)     # personal portfolio / website URL
     current_company = Column(String(255), nullable=True)    # alumni: current employer
+    current_company_logo_url = Column(String(1000), nullable=True)  # user-picked override; falls back to shared cache
 
     # Active profile resume (fast-access copy; full vault lives in user_resumes)
     resume_text = Column(Text, nullable=True)
@@ -711,6 +712,7 @@ class WorkExperience(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     company = Column(String(255), nullable=False)
+    company_logo_url = Column(String(1000), nullable=True)  # user-picked override; falls back to shared cache
     title = Column(String(255), nullable=False)
     location = Column(String(255), nullable=True)
 

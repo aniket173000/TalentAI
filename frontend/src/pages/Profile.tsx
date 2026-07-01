@@ -84,14 +84,14 @@ function descriptionBullets(text: string): string[] {
 // ── Work experience form state ────────────────────────────────────────────────
 
 interface WEForm {
-  company: string; title: string; location: string
+  company: string; company_logo_url: string | null; title: string; location: string
   start_month: string; start_year: string
   end_month: string; end_year: string
   is_current: boolean; description: string
 }
 
 const blankWEForm: WEForm = {
-  company: '', title: '', location: '',
+  company: '', company_logo_url: null, title: '', location: '',
   start_month: '', start_year: '',
   end_month: '', end_year: '',
   is_current: false, description: '',
@@ -100,6 +100,7 @@ const blankWEForm: WEForm = {
 function weToForm(we: WorkExperience): WEForm {
   return {
     company: we.company,
+    company_logo_url: we.company_logo_url ?? null,
     title: we.title,
     location: we.location ?? '',
     start_month: we.start_month ? String(we.start_month) : '',
@@ -114,6 +115,7 @@ function weToForm(we: WorkExperience): WEForm {
 function formToPayload(f: WEForm) {
   return {
     company: f.company.trim(),
+    company_logo_url: f.company_logo_url,
     title: f.title.trim(),
     location: f.location.trim() || null,
     start_month: f.start_month ? parseInt(f.start_month) : null,
@@ -123,6 +125,96 @@ function formToPayload(f: WEForm) {
     is_current: f.is_current,
     description: f.description.trim() || null,
   }
+}
+
+// A brand-logo candidate returned by GET /profile/logo-candidates.
+interface LogoCandidate { name: string; domain: string; logo_url: string; website_url: string }
+
+// ── Logo picker ───────────────────────────────────────────────────────────────
+// Lets the user correct a wrong auto-resolved company logo: shows the current
+// logo, fetches brand candidates on demand, and lets them tap the right one,
+// paste a URL, or reset to the automatic (shared-cache) logo.
+function LogoPicker({ name, value, onChange }: {
+  name: string
+  value: string | null
+  onChange: (url: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [candidates, setCandidates] = useState<LogoCandidate[]>([])
+  const [manual, setManual] = useState('')
+
+  const load = async () => {
+    if (!name.trim()) return
+    setOpen(true)
+    setLoading(true)
+    try {
+      const r = await api.get<{ candidates: LogoCandidate[] }>('/profile/logo-candidates', {
+        params: { name: name.trim() },
+      })
+      setCandidates(r.data.candidates || [])
+    } catch {
+      setCandidates([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 mb-1">Company logo</label>
+      <div className="flex items-center gap-3 flex-wrap">
+        <BrandLogo name={name || '?'} logoUrl={value} size={44} radius={12} />
+        <button type="button" onClick={() => (open ? setOpen(false) : load())}
+          disabled={!name.trim()}
+          className="text-xs font-bold text-sky-700 bg-sky-100 border border-sky-200 rounded-lg px-3 py-2 hover:bg-sky-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          {open ? 'Close' : 'Wrong logo? Pick another'}
+        </button>
+        {value && (
+          <button type="button" onClick={() => onChange(null)}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700">
+            Reset to auto
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+          {loading ? (
+            <p className="text-xs text-slate-400 py-2">Finding logos…</p>
+          ) : candidates.length === 0 ? (
+            <p className="text-xs text-slate-400 py-2">No matches found — paste a logo URL below.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {candidates.map(c => {
+                const selected = value === c.logo_url
+                return (
+                  <button type="button" key={c.domain}
+                    onClick={() => { onChange(c.logo_url); setOpen(false) }}
+                    title={`${c.name} · ${c.domain}`}
+                    className={`rounded-lg border p-1.5 transition ${selected
+                      ? 'border-sky-500 ring-2 ring-sky-500/30'
+                      : 'border-slate-200 hover:border-sky-300'}`}>
+                    <BrandLogo name={c.name} logoUrl={c.logo_url} size={40} radius={8} />
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <div className="mt-3 flex gap-2">
+            <input value={manual} onChange={e => setManual(e.target.value)}
+              placeholder="…or paste a logo image URL" type="url"
+              className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500" />
+            <button type="button" disabled={!manual.trim()}
+              onClick={() => { onChange(manual.trim()); setManual(''); setOpen(false) }}
+              className="text-xs font-bold text-sky-700 bg-sky-100 border border-sky-200 rounded-lg px-3 disabled:opacity-40 disabled:cursor-not-allowed">
+              Use
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Mockup layout primitives (sky / soft-SaaS look) ──────────────────────────
@@ -214,6 +306,14 @@ function WEFormPanel({
             placeholder="Google" className={inp} />
         </div>
       </div>
+
+      {form.company.trim() && (
+        <LogoPicker
+          name={form.company}
+          value={form.company_logo_url}
+          onChange={url => onChange({ ...form, company_logo_url: url })}
+        />
+      )}
 
       <div>
         <label className="block text-xs font-semibold text-slate-500 mb-1">Location</label>
