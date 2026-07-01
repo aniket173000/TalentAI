@@ -36,6 +36,7 @@ class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     headline: Optional[str] = None
+    portfolio_link: Optional[str] = None
 
 
 class RecruiterProfileUpdate(BaseModel):
@@ -168,6 +169,7 @@ def _profile_response(user: models.User) -> dict:
         # Candidate fields
         "onboarding_completed": bool(c.onboarding_completed) if c else False,
         "candidate_linkedin_url": c.candidate_linkedin_url if c else None,
+        "portfolio_link": c.portfolio_link if c else None,
         "current_company": c.current_company if c else None,
         "current_company_logo_url": (
             company_logos.get(c.current_company) if c and c.current_company else None
@@ -315,6 +317,9 @@ def update_my_profile(
 
     if body.headline is not None:
         current_user.headline = body.headline.strip() or None
+
+    if body.portfolio_link is not None and current_user.candidate_ext:
+        current_user.candidate_ext.portfolio_link = body.portfolio_link.strip() or None
 
     db.commit()
     return _profile_response(current_user)

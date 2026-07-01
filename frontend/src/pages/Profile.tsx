@@ -556,6 +556,7 @@ export default function Profile() {
   const [editName, setEditName] = useState('')
   const [editHeadline, setEditHeadline] = useState('')
   const [editPhone, setEditPhone] = useState('')
+  const [editPortfolioLink, setEditPortfolioLink] = useState('')
   const [editCompany, setEditCompany] = useState('')
   const [heroSaving, setHeroSaving] = useState(false)
   const [heroError, setHeroError] = useState<string | null>(null)
@@ -605,6 +606,7 @@ export default function Profile() {
         setEditName(r.data.full_name)
         setEditHeadline(r.data.headline ?? '')
         setEditPhone(r.data.phone ?? '')
+        setEditPortfolioLink(r.data.portfolio_link ?? '')
         setEditCompany(r.data.company ?? '')
       })
       .catch(() => {})
@@ -645,6 +647,7 @@ export default function Profile() {
         full_name: editName.trim() || undefined,
         phone: editPhone.trim() || null,
         headline: editHeadline.trim() || null,
+        portfolio_link: editPortfolioLink.trim() || null,
       })
       if (profile?.is_recruiter && editCompany.trim() !== (profile.company ?? '')) {
         await api.patch('/profile/recruiter', { company: editCompany.trim() || null })
@@ -1042,6 +1045,12 @@ export default function Profile() {
                 <input value={editHeadline} onChange={e => setEditHeadline(e.target.value)}
                   placeholder="Software Engineer · Open to opportunities" maxLength={120} className={INP} />
               </Field>
+              {profile.is_candidate && (
+                <Field label="Portfolio Link">
+                  <input value={editPortfolioLink} onChange={e => setEditPortfolioLink(e.target.value)}
+                    placeholder="https://yourportfolio.com" type="url" maxLength={500} className={INP} />
+                </Field>
+              )}
               {profile.is_recruiter && (
                 <Field label="Company">
                   <input value={editCompany} onChange={e => setEditCompany(e.target.value)}
@@ -1057,6 +1066,7 @@ export default function Profile() {
                     setEditName(profile.full_name)
                     setEditHeadline(profile.headline ?? '')
                     setEditPhone(profile.phone ?? '')
+                    setEditPortfolioLink(profile.portfolio_link ?? '')
                     setEditCompany(profile.company ?? '')
                   }}
                   disabled={heroSaving}
@@ -1085,6 +1095,12 @@ export default function Profile() {
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] font-medium text-slate-600">
               <span className="truncate"><span className="text-slate-400">✉</span> {profile.email}</span>
               {profile.phone && <span><span className="text-slate-400">☎</span> {profile.phone}</span>}
+              {profile.portfolio_link && (
+                <a href={profile.portfolio_link} target="_blank" rel="noopener noreferrer"
+                  className="text-sky-600 hover:text-sky-700 hover:underline truncate">
+                  <span className="text-slate-400">🔗</span> Portfolio
+                </a>
+              )}
               {joined && <span><span className="text-slate-400">📅</span> {joined}</span>}
             </div>
           </div>

@@ -163,6 +163,7 @@ class CandidateExtension(Base):
     # Onboarding
     onboarding_completed = Column(Boolean, default=False)
     candidate_linkedin_url = Column(String(500), nullable=True)
+    portfolio_link = Column(String(500), nullable=True)     # personal portfolio / website URL
     current_company = Column(String(255), nullable=True)    # alumni: current employer
 
     # Active profile resume (fast-access copy; full vault lives in user_resumes)

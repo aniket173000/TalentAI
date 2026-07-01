@@ -140,6 +140,7 @@ _MIGRATIONS = [
     # Candidate public profile fields
     "ALTER TABLE users ADD COLUMN candidate_linkedin_url VARCHAR(500)",
     "ALTER TABLE users ADD COLUMN current_company VARCHAR(255)",
+    "ALTER TABLE candidate_extensions ADD COLUMN portfolio_link VARCHAR(500)",
     # College directory table (one row per college, populated by first candidate + AI)
     "CREATE TABLE IF NOT EXISTS colleges (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(500) NOT NULL UNIQUE, short_name VARCHAR(20), logo_url VARCHAR(1000), website_url VARCHAR(500), ai_info TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
     "CREATE INDEX IF NOT EXISTS ix_colleges_name ON colleges (name)",
@@ -163,6 +164,7 @@ _MIGRATIONS = [
         user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
         onboarding_completed BOOLEAN DEFAULT 0,
         candidate_linkedin_url VARCHAR(500),
+        portfolio_link VARCHAR(500),
         current_company VARCHAR(255),
         resume_text TEXT,
         resume_filename VARCHAR(255),

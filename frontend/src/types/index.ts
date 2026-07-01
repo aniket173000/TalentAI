@@ -194,6 +194,7 @@ export interface UserProfile {
   // Candidate-specific
   onboarding_completed: boolean
   candidate_linkedin_url: string | null
+  portfolio_link: string | null
   current_company: string | null
   current_company_logo_url: string | null
   resume_filename: string | null
