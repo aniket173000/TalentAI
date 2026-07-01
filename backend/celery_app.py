@@ -6,10 +6,10 @@ Run a worker (from the backend/ directory):
     celery -A celery_app.celery_app worker --loglevel=info --pool=solo
 
 Notes:
-  * --pool=solo (or --pool=threads) is recommended on macOS / when the
-    cross-encoder (torch) is loaded, to avoid fork-safety deadlocks with the
-    default prefork pool. In Linux production, prefork with a tuned concurrency
-    is fine, or run a dedicated queue for the CPU-heavy rerank stage.
+  * --pool=solo (or --pool=threads) is recommended on macOS to avoid fork-safety
+    deadlocks with the default prefork pool. In Linux production, prefork with a
+    tuned concurrency is fine. The rerank stage now calls the hosted Cohere API
+    (no local torch), so the worker stays lightweight.
   * Broker + result backend are Redis (see docker-compose.yml).
   * Enable dispatch by setting USE_CELERY=true in the API process's env.
 """
@@ -42,13 +42,13 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=600,          # hard cap: a funnel run must finish in 10 min
     task_soft_time_limit=540,
-    worker_max_tasks_per_child=20,  # recycle workers to bound memory (torch)
+    worker_max_tasks_per_child=20,  # recycle workers periodically to bound memory
 )
 
 
 @worker_ready.connect
 def _warm_worker(**_kwargs):
-    # Load the cross-encoder when the worker comes up, so the first task it
-    # processes doesn't pay the model-load cost.
+    # Verify the reranker client is ready when the worker comes up (cheap; the
+    # hosted API has no model to preload) so config problems surface early.
     from services.reranker import warm
     warm()

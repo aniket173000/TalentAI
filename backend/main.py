@@ -469,9 +469,9 @@ app.include_router(admin_router.router)
 
 @app.on_event("startup")
 def _warm_reranker():
-    # Warm the cross-encoder so the first rank skips the ~25s model load.
-    # In Celery mode the funnel runs in the worker (which warms its own copy),
-    # so the API process skips this to avoid loading torch it won't use.
+    # Verify the reranker client is ready (cheap — the hosted Cohere API has no
+    # model to preload). In Celery mode the funnel runs in the worker, which
+    # does its own readiness check, so the API process skips it.
     if settings.USE_CELERY:
         return
     import threading

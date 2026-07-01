@@ -65,6 +65,15 @@ export default function JobDetail() {
           {job.is_fresher_friendly && <Tag icon="spark" tone="match">Fresher-friendly</Tag>}
           {job.is_campus_hiring && <Tag icon="users" tone="longshot">Campus</Tag>}
         </div>
+        {job.recruiter_name && (
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+            <Icon name="users" size={15} stroke={2.2} style={{ color: 'var(--muted)' }} />
+            <span style={{ fontSize: 13.5, color: 'var(--muted)', fontWeight: 600 }}>
+              Posted by <span style={{ color: 'var(--ink)', fontWeight: 700 }}>{job.recruiter_name}</span>
+            </span>
+            {job.recruiter_is_third_party && <Tag icon="bag" tone="longshot">Third-party recruiter</Tag>}
+          </div>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {stat('Spots left', <span style={{ color: spotsLeft === 0 ? 'var(--red-ink)' : 'var(--green-ink)' }}>{spotsLeft} / {job.max_count}</span>)}
           {stat('Min. match', `${job.min_match_score}%`)}

@@ -1,14 +1,16 @@
 """
-Stage 2 of the funnel: cross-encoder reranking (top 500 -> top 50).
+Stage 2 of the funnel: reranking (top 500 -> top 50) via the Cohere Rerank API.
 
 A bi-encoder (the embedding retrieval in stage 1) is fast but coarse — it scores
-query and document independently. A cross-encoder reads the (JD, candidate) pair
+query and document independently. A reranker reads the (JD, candidate) pair
 jointly and produces a far more accurate relevance score, but is too expensive to
 run over the whole corpus. So we run it ONLY on the ~500 candidates retrieval
 already surfaced, then keep the top ~50 for LLM evaluation.
 
-Model: BAAI/bge-reranker-base (local, CPU-friendly). Loaded lazily on first use
-(~400MB download on first call) and cached for the process lifetime.
+Model: Cohere `rerank-v3.5` (hosted, configurable via settings.RERANK_MODEL).
+Using the hosted API means no local model (torch / sentence-transformers) is
+loaded, so the service runs on small, memory-constrained hosts. Relevance
+scores come back in 0..1 already.
 """
 import json
 import logging
@@ -17,29 +19,33 @@ from functools import lru_cache
 from sqlalchemy.orm import Session
 
 import models
+from config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "BAAI/bge-reranker-base"
-
 
 @lru_cache(maxsize=1)
-def _model():
-    from sentence_transformers import CrossEncoder
-    logger.info("Loading cross-encoder %s (first call downloads the model)…", MODEL_NAME)
-    return CrossEncoder(MODEL_NAME)
+def _client():
+    import cohere
+    if not settings.COHERE_API_KEY:
+        raise RuntimeError(
+            "COHERE_API_KEY is not set — the rerank stage needs it. "
+            "Add it to backend/.env (get a key at https://dashboard.cohere.com)."
+        )
+    return cohere.ClientV2(api_key=settings.COHERE_API_KEY)
 
 
 def warm() -> None:
     """
-    Eagerly load (and lightly exercise) the cross-encoder so the FIRST rank
-    doesn't pay the ~25s model-load cost. Called at API/worker startup.
+    Best-effort readiness check. The hosted reranker has no model to load, so we
+    only verify the client can be constructed (i.e. the API key is present).
+    Kept so the existing API-startup / worker-ready hooks stay valid.
     """
     try:
-        _model().predict([["warmup query", "warmup passage"]])
-        logger.info("Cross-encoder %s warmed and ready.", MODEL_NAME)
+        _client()
+        logger.info("Cohere reranker (%s) ready.", settings.RERANK_MODEL)
     except Exception as exc:  # noqa: BLE001 — warm-up is best-effort
-        logger.warning("Reranker warm-up failed (will load lazily): %s", exc)
+        logger.warning("Reranker not ready (will surface at rank time): %s", exc)
 
 
 def _jd_query(job: models.Job) -> str:
@@ -134,14 +140,23 @@ def rerank_candidates(
     }
 
     query = _jd_query(job)
-    pairs = [[query, text_by_id.get(r["id"], "")] for r in retrieved]
+    documents = [text_by_id.get(r["id"], "") for r in retrieved]
 
-    # bge-reranker via CrossEncoder.predict already returns 0..1 relevance
-    # probabilities — do NOT apply another activation.
-    scores = _model().predict(pairs)
+    # Cohere rerank returns results sorted by relevance, each carrying the input
+    # `index` and a 0..1 relevance_score. Ask for all of them (top_n=len) and do
+    # our own truncation so the scores dict is populated for every candidate.
+    resp = _client().rerank(
+        model=settings.RERANK_MODEL,
+        query=query,
+        documents=documents,
+        top_n=len(documents),
+    )
 
-    for r, score in zip(retrieved, scores):
-        r["scores"]["rerank"] = round(max(0.0, min(1.0, float(score))), 4)
+    for r in retrieved:
+        r["scores"]["rerank"] = 0.0
+    for result in resp.results:
+        score = round(max(0.0, min(1.0, float(result.relevance_score))), 4)
+        retrieved[result.index]["scores"]["rerank"] = score
 
     reranked = sorted(retrieved, key=lambda r: r["scores"]["rerank"], reverse=True)
     return reranked[:top_n]

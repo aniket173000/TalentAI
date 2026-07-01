@@ -64,6 +64,8 @@ export interface Job {
   is_fresher_friendly: boolean
   is_campus_hiring: boolean
   campus_college_name: string | null
+  recruiter_name: string | null
+  recruiter_is_third_party: boolean
   total_applicants: number
   active_applications: number
   pool_count: number

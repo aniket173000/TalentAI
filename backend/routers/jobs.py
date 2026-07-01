@@ -97,6 +97,12 @@ def _enrich(job: models.Job, db: Session) -> schemas.JobResponse:
     resp.pool_count = pool
     resp.avg_score = avg
 
+    # Recruiter who posted the job + whether they are a third-party (agency) recruiter
+    if job.recruiter:
+        resp.recruiter_name = job.recruiter.full_name
+        ext = job.recruiter.recruiter_ext
+        resp.recruiter_is_third_party = bool(ext and ext.is_third_party)
+
     if job.criteria:
         resp.eligibility_criteria = schemas.EligibilityCriteriaResponse(
             min_years_experience=job.criteria.min_years_experience,

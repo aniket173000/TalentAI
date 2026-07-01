@@ -200,6 +200,9 @@ class JobResponse(BaseModel):
     is_fresher_friendly: bool = False
     is_campus_hiring: bool = False
     campus_college_name: Optional[str] = None
+    # Recruiter who posted the job — set by router
+    recruiter_name: Optional[str] = None
+    recruiter_is_third_party: bool = False
     # Computed in router
     total_applicants: int = 0
     active_applications: int = 0   # accepted count (backwards compat)

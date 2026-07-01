@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     AI_MODEL: str = "gpt-4o"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # ── Rerank stage (funnel stage 2) ────────────────────────────────────────
+    # Hosted Cohere Rerank replaces the local bge cross-encoder so no torch is
+    # loaded on memory-constrained hosts. Get a key at https://dashboard.cohere.com
+    COHERE_API_KEY: str = ""
+    RERANK_MODEL: str = "rerank-v3.5"
+
     # ── Email ─────────────────────────────────────────────────────────────────
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
