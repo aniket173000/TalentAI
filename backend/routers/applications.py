@@ -107,7 +107,7 @@ async def _rerank(db: Session, job_id: int) -> list[dict]:
 
     for pos, app in enumerate(ordered):
         app.rank = pos + 1
-    db.commit()
+    db.flush()  # caller owns the transaction and commits once at the end
 
     # Compute rank changes for existing pool members (skip new entrants with old_rank=None)
     changes = []
@@ -123,6 +123,84 @@ async def _rerank(db: Session, job_id: int) -> list[dict]:
                 "status_token": app.status_token,
             })
     return changes
+
+
+def _lock_job_for_update(db: Session, job_id: int) -> "models.Job | None":
+    """
+    Row-lock the job so concurrent applies/promotes to the same job serialize —
+    preventing pool overflow, rank corruption, and reserve-prune races. The lock is
+    held until the caller's transaction commits.
+
+    `FOR UPDATE` is a real row lock on Postgres and is silently ignored on SQLite
+    (which serializes writes anyway), so this is correct across a distributed
+    deployment and a no-op locally.
+    """
+    return (
+        db.query(models.Job)
+        .filter(models.Job.id == job_id)
+        .with_for_update()
+        .first()
+    )
+
+
+def _already_applied_detail(prior: models.Application) -> dict:
+    """409 payload for a duplicate application (one application per job opening)."""
+    status_label = {
+        "accepted": "currently in the candidate pool",
+        "rejected": "not shortlisted",
+        "displaced": "no longer in the candidate pool",
+    }.get(prior.status, "already submitted")
+    return {
+        "code": "already_applied",
+        "message": (
+            f"You have already applied to this position — your application is {status_label}. "
+            "Each candidate may submit only one application per job opening. "
+            "Use the link below to check your current application status."
+        ),
+        "previous_match_score": round(prior.match_score, 1),
+        "previous_status": prior.status,
+        "previous_candidate_status": prior.candidate_status or "received",
+        "status_token": prior.status_token,
+    }
+
+
+def _prune_reserve(db: Session, job_id: int) -> None:
+    """
+    Enforce the storage invariant for a job: only accepted candidates and the top
+    `RESERVE_POOL_SIZE` non-accepted candidates (by score) keep their full data.
+
+    Every non-accepted candidate below the reserve cutoff is tombstoned — its heavy
+    fields (resume text, embedding, and AI analysis) are nulled — leaving just a
+    lightweight row that still blocks re-application and counts toward totals.
+
+    Idempotent (already-archived rows are excluded, never re-touched or un-archived)
+    and flush-only — the caller owns the transaction and commits. Note: archiving is
+    one-way, so promoting a reserve candidate permanently shrinks the bench; the tail
+    below it was already pruned and cannot be restored.
+    """
+    reserve_size = max(0, settings.RESERVE_POOL_SIZE)
+    non_accepted = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.status != "accepted",
+            models.Application.is_archived == False,  # noqa: E712 — SQL boolean, not Python
+        )
+        .order_by(
+            models.Application.match_score.desc(),
+            models.Application.applied_at.asc(),
+        )
+        .all()
+    )
+    for app in non_accepted[reserve_size:]:
+        app.is_archived = True
+        app.resume_text = ""
+        app.resume_embedding = None
+        app.strengths = None
+        app.gaps = None
+        app.improvement_suggestions = None
+        app.project_scores = None
+    db.flush()
 
 
 async def _send_acceptance_with_explanation(
@@ -720,26 +798,8 @@ async def apply_to_job(
         .first()
     )
     if prior:
-        status_label = {
-            "accepted": "currently in the candidate pool",
-            "rejected": "not shortlisted",
-            "displaced": "no longer in the candidate pool",
-        }.get(prior.status, "already submitted")
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "already_applied",
-                "message": (
-                    f"You have already applied to this position — your application is {status_label}. "
-                    "Each candidate may submit only one application per job opening. "
-                    "Use the link below to check your current application status."
-                ),
-                "previous_match_score": round(prior.match_score, 1),
-                "previous_status": prior.status,
-                "previous_candidate_status": prior.candidate_status or "received",
-                "status_token": prior.status_token,
-            },
-        )
+        # Fast fail before the expensive AI screening; re-checked under lock below.
+        raise HTTPException(status_code=409, detail=_already_applied_detail(prior))
 
     # 4. AI screening (eligibility criteria injected into JD context) ──────────
     effective_jd = job.jd_text
@@ -806,14 +866,39 @@ async def apply_to_job(
             project_scores=json.dumps(project_scores),
         )
         db.add(app)
-        db.commit()
+        db.flush()  # single transaction; committed once per branch below
         db.refresh(app)
         return app
+
+    # Serialize concurrent applies to this job (pool overflow / rank / prune races).
+    # The row lock is held for the rest of this request's transaction, released by
+    # the single commit in whichever branch below returns. Screening (the slow AI
+    # call) already ran above, so we never hold the lock across it.
+    _lock_job_for_update(db, job_id)
+
+    # Re-check the duplicate guard under the lock to close the race where two
+    # concurrent requests from the same candidate both passed the earlier check.
+    dup = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.candidate_user_id == current_user.id,
+        )
+        .order_by(models.Application.applied_at.desc())
+        .first()
+    )
+    if dup:
+        raise HTTPException(status_code=409, detail=_already_applied_detail(dup))
 
     # 5. Below threshold → instant rejection ───────────────────────────────────
     if match_score < min_score:
         saved = _save("rejected")
-        background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
+        _prune_reserve(db, job_id)
+        saved_id, saved_token, saved_archived = saved.id, saved.status_token, bool(saved.is_archived)
+        db.commit()  # releases the job row lock
+        # Skip embedding work for candidates pruned out of the reserve pool.
+        if not saved_archived:
+            background_tasks.add_task(_store_embeddings, saved_id, resume_text, job_id)
         background_tasks.add_task(
             send_rejection_email,
             resolved_email, resolved_name, job_title, job_company,
@@ -823,7 +908,7 @@ async def apply_to_job(
         return {
             "status": "rejected",
             "candidate_status": "rejected",
-            "status_token": saved.status_token,
+            "status_token": saved_token,
             "match_score": round(match_score, 1),
             "message": (
                 f"Your resume matched {match_score:.1f}% with this role. "
@@ -851,6 +936,8 @@ async def apply_to_job(
     if len(accepted) < max_count:
         app = _save("accepted")
         rank_changes = await _rerank(db, job_id)
+        _prune_reserve(db, job_id)
+        db.commit()  # releases the job row lock
         db.refresh(app)
         total_pool = len(accepted) + 1
         background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
@@ -891,7 +978,11 @@ async def apply_to_job(
 
     if match_score <= lowest.match_score:
         saved = _save("rejected")
-        background_tasks.add_task(_store_embeddings, saved.id, resume_text, job_id)
+        _prune_reserve(db, job_id)
+        saved_id, saved_token, saved_archived = saved.id, saved.status_token, bool(saved.is_archived)
+        db.commit()  # releases the job row lock
+        if not saved_archived:
+            background_tasks.add_task(_store_embeddings, saved_id, resume_text, job_id)
         background_tasks.add_task(
             send_rejection_email,
             resolved_email, resolved_name, job_title, job_company,
@@ -901,7 +992,7 @@ async def apply_to_job(
         return {
             "status": "rejected",
             "candidate_status": "rejected",
-            "status_token": saved.status_token,
+            "status_token": saved_token,
             "match_score": round(match_score, 1),
             "message": (
                 f"The candidate pool is full. Your score ({match_score:.1f}%) "
@@ -928,6 +1019,10 @@ async def apply_to_job(
     lowest.rank = None
     app = _save("accepted")
     rank_changes = await _rerank(db, job_id)
+    # The just-displaced candidate re-enters the reserve pool (usually at the top);
+    # prune trims whatever now falls past the reserve cutoff.
+    _prune_reserve(db, job_id)
+    db.commit()  # releases the job row lock
     db.refresh(app)
     background_tasks.add_task(_store_embeddings, app.id, resume_text, job_id)
     for change in rank_changes:
@@ -1019,19 +1114,68 @@ def get_accepted_applications(job_id: int, db: Session = Depends(get_db)):
 def get_all_applications(
     job_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_recruiter),  # recruiter-only
+    current_user: models.User = Depends(require_recruiter),
 ):
-    """All applications for a job including rejected/displaced — recruiter view."""
-    apps = (
+    """
+    Recruiter view of a job's candidates, split into two visible pools:
+      • shortlisted — accepted candidates, ordered by rank
+      • reserve     — the top RESERVE_POOL_SIZE non-accepted candidates, by score
+
+    Candidates below the reserve cutoff are archived and NOT returned — only their
+    count is reported. Shape:
+        { "applications": [...], "archived_count": N, "total_applicants": M }
+    Each row carries `pool_group` ('shortlisted' | 'reserve'); reserve rows also
+    carry a 1-based `reserve_rank`.
+    """
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this job posting.")
+
+    reserve_size = max(0, settings.RESERVE_POOL_SIZE)
+
+    shortlisted = (
         db.query(models.Application)
-        .filter(models.Application.job_id == job_id)
-        .order_by(models.Application.applied_at.desc())
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.status == "accepted",
+        )
+        .order_by(models.Application.rank)
         .all()
     )
 
+    # Reserve = best non-accepted candidates that still have their data. The limit
+    # keeps the view correct even for pre-existing jobs not yet pruned.
+    reserve = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.status != "accepted",
+            models.Application.is_archived == False,  # noqa: E712 — SQL boolean
+        )
+        .order_by(
+            models.Application.match_score.desc(),
+            models.Application.applied_at.asc(),
+        )
+        .limit(reserve_size)
+        .all()
+    )
+
+    total_non_accepted = (
+        db.query(models.Application)
+        .filter(
+            models.Application.job_id == job_id,
+            models.Application.status != "accepted",
+        )
+        .count()
+    )
+    archived_count = max(0, total_non_accepted - len(reserve))
+
+    apps = shortlisted + reserve
     user_ids = [a.candidate_user_id for a in apps if a.candidate_user_id]
     phone_map: dict[int, str | None] = {}
-    candidate_id_map: dict[int, int] = {}   # user_id → corpus Candidate.id (for the clean profile page)
+    candidate_id_map: dict[int, int] = {}   # user_id → corpus Candidate.id (clean profile page)
     if user_ids:
         users = db.query(models.User.id, models.User.phone).filter(models.User.id.in_(user_ids)).all()
         phone_map = {u.id: u.phone for u in users}
@@ -1042,8 +1186,8 @@ def get_all_applications(
         )
         candidate_id_map = {c.user_id: c.id for c in corpus}
 
-    return [
-        {
+    def _serialize(a: models.Application, pool_group: str, reserve_rank: int | None) -> dict:
+        return {
             "id": a.id,
             "candidate_id": candidate_id_map.get(a.candidate_user_id) if a.candidate_user_id else None,
             "candidate_name": a.candidate_name,
@@ -1053,6 +1197,8 @@ def get_all_applications(
             "resume_filename": a.resume_filename,
             "match_score": a.match_score,
             "rank": a.rank,
+            "reserve_rank": reserve_rank,
+            "pool_group": pool_group,
             "status": a.status,
             "candidate_status": a.candidate_status or "received",
             "status_token": a.status_token,
@@ -1062,8 +1208,95 @@ def get_all_applications(
             "project_scores": json.loads(a.project_scores or "[]"),
             "applied_at": a.applied_at.isoformat() if a.applied_at else None,
         }
-        for a in apps
-    ]
+
+    applications = (
+        [_serialize(a, "shortlisted", None) for a in shortlisted]
+        + [_serialize(a, "reserve", i + 1) for i, a in enumerate(reserve)]
+    )
+    return {
+        "applications": applications,
+        "archived_count": archived_count,
+        "total_applicants": len(shortlisted) + total_non_accepted,
+    }
+
+
+# ── Recruiter: promote a reserve candidate into the shortlist ─────────────────
+
+@router.post("/{app_id}/promote")
+async def promote_application(
+    app_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_recruiter),
+):
+    """
+    Move a reserve (non-accepted) candidate into the shortlisted pool. The pool is
+    allowed to exceed max_count — the recruiter is the decision-maker. Archived
+    candidates can't be promoted (their data was pruned). Sends the acceptance +
+    any rank-change notifications, mirroring a normal acceptance.
+    """
+    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+    job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+    if not job or job.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this job posting.")
+    if app.status == "accepted":
+        raise HTTPException(status_code=409, detail="This candidate is already shortlisted.")
+    if app.is_archived:
+        raise HTTPException(
+            status_code=409,
+            detail="This candidate was archived — their data is no longer available to shortlist.",
+        )
+
+    # Serialize with concurrent applies/promotes so ranks stay consistent.
+    _lock_job_for_update(db, job.id)
+    db.refresh(app)
+    # Re-validate under the lock (another request may have changed it meanwhile).
+    if app.status == "accepted":
+        return {"id": app.id, "status": app.status, "candidate_status": app.candidate_status, "rank": app.rank}
+    if app.is_archived:
+        raise HTTPException(
+            status_code=409,
+            detail="This candidate was archived — their data is no longer available to shortlist.",
+        )
+
+    app.status = "accepted"
+    app.candidate_status = "pool_accepted"
+    app.rank = None
+    rank_changes = await _rerank(db, job.id)
+    _prune_reserve(db, job.id)
+    db.commit()  # releases the job row lock
+    db.refresh(app)
+
+    recruiter_name = current_user.full_name
+    recruiter_email = current_user.email
+    recruiter_position = (
+        current_user.recruiter_ext.company
+        if current_user.recruiter_ext and current_user.recruiter_ext.company
+        else "Recruiter"
+    )
+    for change in rank_changes:
+        background_tasks.add_task(
+            send_rank_change_email,
+            change["candidate_email"], change["candidate_name"],
+            job.title, job.company,
+            change["old_rank"], change["new_rank"],
+            _status_url(change["status_token"]),
+            recruiter_name, recruiter_email, recruiter_position,
+        )
+    background_tasks.add_task(
+        _send_acceptance_with_explanation,
+        app.id, job.id, app.candidate_email, app.candidate_name, job.title, app.match_score,
+        recruiter_name, recruiter_email, recruiter_position,
+        json.loads(app.strengths or "[]"), json.loads(app.gaps or "[]"),
+    )
+    return {
+        "id": app.id,
+        "status": app.status,
+        "candidate_status": app.candidate_status,
+        "rank": app.rank,
+    }
 
 
 # ── Recruiter: original resume file URL ──────────────────────────────────

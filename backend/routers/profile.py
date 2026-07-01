@@ -36,6 +36,7 @@ class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     headline: Optional[str] = None
+    about: Optional[str] = None
     portfolio_link: Optional[str] = None
     current_company_logo_url: Optional[str] = None
 
@@ -164,6 +165,7 @@ def _profile_response(user: models.User) -> dict:
         "email": user.email,
         "phone": user.phone,
         "headline": user.headline,
+        "about": user.about,
         "avatar_url": avatar_url,
         "is_candidate": user.is_candidate,
         "is_recruiter": user.is_recruiter,
@@ -322,6 +324,9 @@ def update_my_profile(
 
     if body.headline is not None:
         current_user.headline = body.headline.strip() or None
+
+    if body.about is not None:
+        current_user.about = body.about.strip() or None
 
     if body.portfolio_link is not None and current_user.candidate_ext:
         current_user.candidate_ext.portfolio_link = body.portfolio_link.strip() or None

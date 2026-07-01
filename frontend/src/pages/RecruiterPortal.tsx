@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { Application, CandidateStatus, Job, JobListResponse } from '../types'
+import { Application, CandidateStatus, Job, JobApplicationsResponse, JobListResponse } from '../types'
 
 type Tab = 'jobs' | 'applications'
 type SortField = 'created_at' | 'total_applicants' | 'avg_score'
@@ -101,6 +101,8 @@ export default function RecruiterPortal() {
   const [appJobs, setAppJobs] = useState<Job[]>([])
   const [selectedJob, setSelectedJob] = useState<number | null>(null)
   const [applications, setApplications] = useState<Application[]>([])
+  const [archivedCount, setArchivedCount] = useState(0)
+  const [promotingId, setPromotingId] = useState<number | null>(null)
   const [loadingApps, setLoadingApps] = useState(false)
   const [expandedApp, setExpandedApp] = useState<number | null>(null)
   const [resumeDrawer, setResumeDrawer] = useState<Application | null>(null)
@@ -160,17 +162,42 @@ export default function RecruiterPortal() {
       .catch(() => {})
   }, [tab])
 
+  const loadApplications = useCallback((jobId: number, showSpinner = true) => {
+    if (showSpinner) setLoadingApps(true)
+    return api.get<JobApplicationsResponse>(`/applications/job/${jobId}/all`)
+      .then(r => {
+        setApplications(r.data.applications)
+        setArchivedCount(r.data.archived_count)
+      })
+      .catch(() => { setApplications([]); setArchivedCount(0) })
+      .finally(() => { if (showSpinner) setLoadingApps(false) })
+  }, [])
+
   useEffect(() => {
     if (selectedJob == null) return
-    setLoadingApps(true)
-    api.get<Application[]>(`/applications/job/${selectedJob}/all`)
-      .then(r => setApplications(r.data))
-      .catch(() => setApplications([]))
-      .finally(() => setLoadingApps(false))
-  }, [selectedJob])
+    loadApplications(selectedJob)
+  }, [selectedJob, loadApplications])
 
-  const accepted = applications.filter(a => a.status === 'accepted').sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
-  const others = applications.filter(a => a.status !== 'accepted')
+  const promoteToShortlist = async (appId: number) => {
+    if (selectedJob == null) return
+    setPromotingId(appId)
+    try {
+      await api.post(`/applications/${appId}/promote`)
+      await loadApplications(selectedJob, false)  // re-fetch: reserve re-ranks + backfills
+    } catch {
+      // ignore — leave the pools as-is
+    } finally {
+      setPromotingId(null)
+    }
+  }
+
+  // Backend already splits and orders the pools; fall back to status if absent.
+  const accepted = applications
+    .filter(a => (a.pool_group ?? (a.status === 'accepted' ? 'shortlisted' : 'reserve')) === 'shortlisted')
+    .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+  const reserve = applications
+    .filter(a => (a.pool_group ?? (a.status === 'accepted' ? 'shortlisted' : 'reserve')) === 'reserve')
+    .sort((a, b) => (a.reserve_rank ?? 99) - (b.reserve_rank ?? 99))
 
   const downloadResume = (app: Application) => {
     const name = (app.resume_filename ?? 'resume').replace(/\.(pdf|docx|doc)$/i, '.txt')
@@ -570,13 +597,17 @@ export default function RecruiterPortal() {
             </div>
           )}
 
-          {!loadingApps && others.length > 0 && (
+          {!loadingApps && reserve.length > 0 && (
             <div>
-              <h3 className="font-bold text-slate-500 mb-4 text-sm uppercase tracking-wide">
-                Rejected / Displaced ({others.length})
+              <h3 className="font-bold text-slate-500 mb-1 text-sm uppercase tracking-wide">
+                Reserve Pool ({reserve.length})
               </h3>
+              <p className="text-xs text-slate-400 mb-4">
+                Your best runner-ups, ranked. Promote any of them into the shortlist if you need more candidates.
+                {archivedCount > 0 && ` ${archivedCount} lower-scoring applicant${archivedCount === 1 ? '' : 's'} archived.`}
+              </p>
               <div className="space-y-3">
-                {others.map(app => {
+                {reserve.map(app => {
                   const strengths = normalizeList(app.strengths)
                   const gaps = normalizeList(app.gaps)
                   return (
@@ -585,7 +616,9 @@ export default function RecruiterPortal() {
                         onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
                         className="w-full flex items-center gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
                       >
-                        <span className="w-8 h-8 rounded-full bg-red-50 text-red-400 text-xs font-bold flex items-center justify-center shrink-0">✕</span>
+                        <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center shrink-0">
+                          {app.reserve_rank ?? '·'}
+                        </span>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-800 text-sm">{app.candidate_name}</p>
                           <p className="text-slate-400 text-xs">{app.candidate_email}</p>
@@ -636,13 +669,13 @@ export default function RecruiterPortal() {
                             </div>
                           </div>
 
-                          {/* Rejection reason banner */}
-                          <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-start gap-2">
-                            <span className="text-red-400 text-sm mt-0.5">⚠</span>
-                            <p className="text-xs text-red-700">
+                          {/* Reserve context banner */}
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                            <span className="text-slate-400 text-sm mt-0.5">☆</span>
+                            <p className="text-xs text-slate-600">
                               {app.status === 'displaced'
-                                ? 'Displaced — a stronger candidate entered the pool after this application was accepted.'
-                                : `Score ${app.match_score.toFixed(1)}% did not meet the minimum threshold for this role.`}
+                                ? 'Was shortlisted, then displaced by a stronger candidate. Kept on reserve — promote to bring them back into the shortlist.'
+                                : `Not shortlisted (scored ${app.match_score.toFixed(1)}%), but among the top runner-ups. Promote to add them to the shortlist.`}
                             </p>
                           </div>
 
@@ -684,6 +717,14 @@ export default function RecruiterPortal() {
 
                           {/* Actions */}
                           <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              onClick={() => promoteToShortlist(app.id)}
+                              disabled={promotingId === app.id}
+                              className="flex items-center gap-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-ink px-4 py-2.5 rounded-xl transition-colors"
+                            >
+                              <span>★</span>
+                              {promotingId === app.id ? 'Promoting…' : 'Promote to shortlist'}
+                            </button>
                             {app.candidate_id && (
                               <button
                                 onClick={() => navigate(`/recruiter/candidates/${app.candidate_id}?job_id=${selectedJob}`)}

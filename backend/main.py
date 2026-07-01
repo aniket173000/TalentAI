@@ -116,6 +116,10 @@ _MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS user_resumes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), filename VARCHAR(255) NOT NULL, resume_text TEXT NOT NULL, is_primary BOOLEAN DEFAULT 0, uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
     # S3 original file keys
     "ALTER TABLE applications ADD COLUMN resume_file_key VARCHAR(500)",
+    # Reserve pool: tombstone flag for archived (pruned) applications.
+    # Boolean literal default (not 0/1) so it is valid on Postgres and SQLite alike.
+    "ALTER TABLE applications ADD COLUMN is_archived BOOLEAN DEFAULT false",
+    "UPDATE applications SET is_archived = false WHERE is_archived IS NULL",
     "ALTER TABLE user_resumes ADD COLUMN file_key VARCHAR(500)",
     # JD Parsing — structured requirements extracted by AI (E5-S1)
     "ALTER TABLE jobs ADD COLUMN jd_requirements TEXT",
@@ -140,6 +144,8 @@ _MIGRATIONS = [
     # Candidate public profile fields
     "ALTER TABLE users ADD COLUMN candidate_linkedin_url VARCHAR(500)",
     "ALTER TABLE users ADD COLUMN current_company VARCHAR(255)",
+    # User-written About text (overrides the AI-generated career summary)
+    "ALTER TABLE users ADD COLUMN about TEXT",
     "ALTER TABLE candidate_extensions ADD COLUMN portfolio_link VARCHAR(500)",
     # User-picked logo overrides (fall back to the shared CompanyLogo cache when null)
     "ALTER TABLE candidate_extensions ADD COLUMN current_company_logo_url VARCHAR(1000)",
@@ -388,6 +394,40 @@ with SessionLocal() as _s:
                 slug, n = f"{base}-{n}", n + 1
             _job.slug = slug
     _s.commit()
+
+# Data migration: prune existing rejected/displaced tails down to the reserve size,
+# reclaiming space for data created before the reserve pool existed. Idempotent —
+# already-archived rows are excluded, so re-running on each startup is a no-op.
+with SessionLocal() as _s:
+    try:
+        _reserve_size = max(0, settings.RESERVE_POOL_SIZE)
+        _job_ids = [r[0] for r in _s.query(models.Application.job_id).distinct().all()]
+        for _jid in _job_ids:
+            _tail = (
+                _s.query(models.Application)
+                .filter(
+                    models.Application.job_id == _jid,
+                    models.Application.status != "accepted",
+                    models.Application.is_archived == False,  # noqa: E712
+                )
+                .order_by(
+                    models.Application.match_score.desc(),
+                    models.Application.applied_at.asc(),
+                )
+                .offset(_reserve_size)
+                .all()
+            )
+            for _app in _tail:
+                _app.is_archived = True
+                _app.resume_text = ""
+                _app.resume_embedding = None
+                _app.strengths = None
+                _app.gaps = None
+                _app.improvement_suggestions = None
+                _app.project_scores = None
+        _s.commit()
+    except Exception:
+        _s.rollback()
 
 app = FastAPI(
     title="Nideknil",

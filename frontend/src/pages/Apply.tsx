@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { Job, UserProfile, VaultResume } from '../types'
+import { Job, UserProfile } from '../types'
 
 interface AppCheck {
   has_applied: boolean
@@ -177,19 +177,38 @@ export default function Apply() {
     )
   }
 
-  // ── Accepted state: application already in pool ───────────────────────────
-  const isAccepted = !loadingProfile && appCheck?.has_applied && appCheck.previous_status === 'accepted'
+  // ── Already applied: one application per job — show status, no reapply ────
+  // Reapplying is blocked server-side for any prior application, so we never
+  // show tailoring advice or a resubmit form. Instead we mirror the shortlisted
+  // card for every outcome and make it clear the candidate can't apply again.
+  if (!loadingProfile && appCheck?.has_applied) {
+    const status = appCheck.previous_status ?? 'received'
+    const candidateStatus = appCheck.previous_candidate_status ?? 'received'
+    const score = appCheck.previous_match_score
+    const rank = appCheck.previous_rank
+    const isAccepted = status === 'accepted'
 
-  if (isAccepted && appCheck) {
-    const candidateStatus = appCheck.previous_candidate_status ?? 'pool_accepted'
-    const statusLabel: Record<string, string> = {
+    const candidateLabels: Record<string, string> = {
       pool_accepted: 'In the candidate pool',
       interview_scheduled: 'Interview scheduled',
       hired: 'Hired',
     }
-    const label = statusLabel[candidateStatus] ?? 'Application accepted'
-    const score = appCheck.previous_match_score
-    const rank = appCheck.previous_rank
+
+    const theme = isAccepted
+      ? { bar: 'from-emerald-400 to-teal-400', border: 'border-emerald-200', iconBg: 'bg-emerald-100', emoji: '🎉', sub: 'text-emerald-600', scoreColor: 'text-emerald-600', btn: 'bg-emerald-600 hover:bg-emerald-700' }
+      : status === 'displaced'
+      ? { bar: 'from-amber-400 to-orange-400', border: 'border-amber-200', iconBg: 'bg-amber-100', emoji: '📋', sub: 'text-amber-600', scoreColor: 'text-amber-600', btn: 'bg-slate-700 hover:bg-slate-800' }
+      : { bar: 'from-slate-300 to-slate-400', border: 'border-slate-200', iconBg: 'bg-slate-100', emoji: '📋', sub: 'text-slate-500', scoreColor: 'text-slate-600', btn: 'bg-slate-700 hover:bg-slate-800' }
+
+    const subtitle = isAccepted
+      ? (candidateLabels[candidateStatus] ?? 'Application accepted')
+      : status === 'displaced'
+      ? 'No longer in the candidate pool'
+      : 'Not shortlisted'
+
+    const message = isAccepted
+      ? 'Your application is live. The recruiter will reach out if you progress. You can track real-time status updates using the link below.'
+      : 'Each candidate may submit only one application per job opening, so you can’t apply to this role again. You can review your application status any time using the link below.'
 
     return (
       <div className="max-w-xl mx-auto px-4 py-12 animate-fade-in">
@@ -204,46 +223,45 @@ export default function Apply() {
           </div>
         )}
 
-        <div className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
-          <div className="h-2 bg-gradient-to-r from-emerald-400 to-teal-400" />
+        <div className={`rounded-2xl border ${theme.border} bg-white shadow-sm overflow-hidden`}>
+          <div className={`h-2 bg-gradient-to-r ${theme.bar}`} />
           <div className="p-8">
             <div className="flex items-start gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-3xl shrink-0">
-                🎉
+              <div className={`w-14 h-14 rounded-2xl ${theme.iconBg} flex items-center justify-center text-3xl shrink-0`}>
+                {theme.emoji}
               </div>
               <div>
                 <h2 className="text-xl font-display font-extrabold text-ink leading-tight">
                   You've already applied to this role
                 </h2>
-                <p className="text-sm text-emerald-600 font-semibold mt-1">{label}</p>
+                <p className={`text-sm font-semibold mt-1 ${theme.sub}`}>{subtitle}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {score !== null && (
-                <div className="bg-slate-50 rounded-xl p-4 text-center">
-                  <p className="text-2xl font-extrabold text-emerald-600">{score}%</p>
-                  <p className="text-xs text-muted font-medium mt-0.5">Match score</p>
-                </div>
-              )}
-              {rank && (
-                <div className="bg-slate-50 rounded-xl p-4 text-center">
-                  <p className="text-2xl font-extrabold text-accent-ink">#{rank}</p>
-                  <p className="text-xs text-muted font-medium mt-0.5">Current rank</p>
-                </div>
-              )}
-            </div>
+            {(score !== null || (isAccepted && rank)) && (
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {score !== null && (
+                  <div className="bg-slate-50 rounded-xl p-4 text-center">
+                    <p className={`text-2xl font-extrabold ${theme.scoreColor}`}>{score}%</p>
+                    <p className="text-xs text-muted font-medium mt-0.5">Match score</p>
+                  </div>
+                )}
+                {isAccepted && rank && (
+                  <div className="bg-slate-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-extrabold text-accent-ink">#{rank}</p>
+                    <p className="text-xs text-muted font-medium mt-0.5">Current rank</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <p className="text-sm text-muted mb-6 leading-relaxed">
-              Your application is live. The recruiter will reach out if you progress.
-              You can track real-time status updates using the link below.
-            </p>
+            <p className="text-sm text-muted mb-6 leading-relaxed">{message}</p>
 
             <div className="flex gap-3">
               {appCheck.status_token && (
                 <Link
                   to={`/status/${appCheck.status_token}`}
-                  className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
+                  className={`flex-1 text-center ${theme.btn} text-white font-semibold rounded-xl py-3 text-sm transition-colors`}
                 >
                   Track Status →
                 </Link>
@@ -257,160 +275,6 @@ export default function Apply() {
             </div>
           </div>
         </div>
-      </div>
-    )
-  }
-
-  // ── Blocked state: same resume already applied ────────────────────────────
-  const isBlocked = !loadingProfile && appCheck?.has_applied && appCheck.same_resume
-  const usableVault = profile?.resumes.filter(r => appCheck?.usable_vault_ids.includes(r.id)) ?? []
-  const canVaultReapply = usableVault.length > 0
-
-  if (isBlocked) {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-12 animate-fade-in">
-        <Link to={`/jobs/${jobId}`} className="text-sm text-accent-ink hover:underline mb-8 block">
-          ← Back to job
-        </Link>
-
-        {job && (
-          <div className="mb-6">
-            <p className="text-muted text-sm font-medium">{job.company}</p>
-            <h1 className="text-2xl font-display font-extrabold text-ink">{job.title}</h1>
-          </div>
-        )}
-
-        {/* Hero card */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-4">
-          <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-400" />
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">
-                💡
-              </div>
-              <div>
-                <h2 className="font-display font-extrabold text-ink text-lg leading-tight">
-                  Your resume is ready — but it's the same one you used before
-                </h2>
-                {appCheck.previous_match_score !== null && (
-                  <p className="text-sm text-muted mt-1">
-                    Previous match score:{' '}
-                    <span className={`font-bold ${appCheck.previous_match_score >= 70 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {appCheck.previous_match_score}%
-                    </span>
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-600 leading-relaxed mb-5">
-              To give yourself the best shot at this role, tailor your resume to highlight the skills
-              and experience this job is looking for. A targeted resume consistently scores higher.
-            </p>
-
-            {/* Tips */}
-            <div className="bg-slate-50 rounded-xl p-4 space-y-2.5 mb-5">
-              <p className="text-xs font-bold text-muted uppercase tracking-wide mb-1">Quick wins to improve your score</p>
-              <TipRow n={1} text={`Mirror keywords from the "${job?.title}" job description in your resume.`} />
-              <TipRow n={2} text={'Add measurable results (e.g. "reduced load time by 40%") instead of responsibilities.'} />
-              <TipRow n={3} text="Move your most relevant skills and experience to the top of each section." />
-            </div>
-
-            {/* Options */}
-            {canVaultReapply ? (
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-muted uppercase tracking-wide">Apply with a different resume from your vault</p>
-                {usableVault.map(r => (
-                  <VaultResumeCard
-                    key={r.id}
-                    resume={r}
-                    selected={selectedVaultId === r.id}
-                    onSelect={() => handleVaultSelect(r.id)}
-                  />
-                ))}
-
-                {selectedVaultId && (
-                  <button
-                    onClick={handleSubmit as unknown as React.MouseEventHandler}
-                    disabled={submitting}
-                    className="w-full bg-accent hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
-                  >
-                    Apply with selected resume
-                  </button>
-                )}
-
-                <div className="relative flex items-center gap-3 my-2">
-                  <div className="flex-1 h-px bg-slate-200" />
-                  <span className="text-xs text-muted shrink-0">or</span>
-                  <div className="flex-1 h-px bg-slate-200" />
-                </div>
-              </div>
-            ) : null}
-
-            <div className="flex gap-3">
-              <Link
-                to="/profile"
-                className="flex-1 text-center bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-xl py-3 text-sm transition-all shadow-sm"
-              >
-                Update Resume in Profile
-              </Link>
-              {(profile?.resumes.length ?? 0) < 3 && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 text-center border border-slate-300 hover:border-accent text-slate-700 hover:text-accent-ink font-semibold rounded-xl py-3 text-sm transition-colors"
-                >
-                  Upload New Here
-                </button>
-              )}
-            </div>
-
-            {error && (
-              <p className="text-sm text-red-500 mt-3 text-center">{error}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Hidden upload for "Upload New Here" on blocked page */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.docx,.doc,.txt"
-          className="hidden"
-          onChange={e => {
-            handleFileChange(e.target.files?.[0])
-          }}
-        />
-
-        {/* Show inline form if user picked a new file from the blocked page */}
-        {file && (
-          <div className="bg-surface rounded-2xl border-2 border-ink shadow-card shadow-sm p-6 space-y-4 animate-fade-in">
-            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-              <span className="text-emerald-500 text-lg">✓</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-ink truncate">{file.name}</p>
-                <p className="text-xs text-muted">{(file.size / 1024).toFixed(0)} KB</p>
-              </div>
-              <button type="button" onClick={() => setFile(null)} className="text-xs text-muted hover:text-red-500">Remove</button>
-            </div>
-
-            <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${reapplyConfirmed ? 'border-accent bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-              <input type="checkbox" checked={reapplyConfirmed} onChange={e => setReapplyConfirmed(e.target.checked)} className="mt-0.5 w-4 h-4 accent-brand-blue shrink-0" />
-              <span className="text-sm text-slate-700">
-                <span className="font-semibold text-ink">I confirm this resume is tailored to this role</span> and better highlights the required skills and experience.
-              </span>
-            </label>
-
-            {error && <p className="text-sm text-red-500">{error}</p>}
-
-            <button
-              onClick={handleSubmit as unknown as React.MouseEventHandler}
-              disabled={!reapplyConfirmed || submitting}
-              className="w-full bg-accent hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-sm transition-colors"
-            >
-              Resubmit Application
-            </button>
-          </div>
-        )}
       </div>
     )
   }
@@ -681,40 +545,6 @@ export default function Apply() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function TipRow({ n, text }: { n: number; text: string }) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{n}</span>
-      <p className="text-sm text-slate-600 leading-snug">{text}</p>
-    </div>
-  )
-}
-
-function VaultResumeCard({ resume, selected, onSelect }: { resume: VaultResume; selected: boolean; onSelect: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
-        selected
-          ? 'border-accent bg-blue-50 shadow-sm'
-          : 'border-slate-200 hover:border-slate-300 bg-white'
-      }`}
-    >
-      <span className="text-lg shrink-0">📄</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-ink truncate">{resume.filename}</p>
-        <p className="text-xs text-muted">
-          Added {new Date(resume.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-        </p>
-      </div>
-      <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${selected ? 'border-accent bg-accent' : 'border-slate-300'}`}>
-        {selected && <div className="w-2 h-2 rounded-full bg-white" />}
-      </div>
-    </button>
-  )
-}
 
 function ResumeDropzone({ file, dragOver, setDragOver, onFile, fileInputRef, label, required, note }: {
   file: File | null; dragOver: boolean; setDragOver: (v: boolean) => void

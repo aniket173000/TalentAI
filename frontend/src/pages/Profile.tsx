@@ -661,6 +661,12 @@ export default function Profile() {
   const [heroSaving, setHeroSaving] = useState(false)
   const [heroError, setHeroError] = useState<string | null>(null)
 
+  // About edit
+  const [aboutEditing, setAboutEditing] = useState(false)
+  const [editAbout, setEditAbout] = useState('')
+  const [aboutSaving, setAboutSaving] = useState(false)
+  const [aboutError, setAboutError] = useState<string | null>(null)
+
   // Avatar
   const [avatarUploading, setAvatarUploading] = useState(false)
 
@@ -708,6 +714,7 @@ export default function Profile() {
         setEditPhone(r.data.phone ?? '')
         setEditPortfolioLink(r.data.portfolio_link ?? '')
         setEditCompany(r.data.company ?? '')
+        setEditAbout(r.data.about ?? '')
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -761,6 +768,22 @@ export default function Profile() {
       setHeroError('Failed to save. Please try again.')
     } finally {
       setHeroSaving(false)
+    }
+  }
+
+  const handleAboutSave = async () => {
+    setAboutSaving(true)
+    setAboutError(null)
+    try {
+      const r = await api.patch<UserProfile>('/profile/me', {
+        about: editAbout.trim() || null,
+      })
+      setProfile(r.data)
+      setAboutEditing(false)
+    } catch {
+      setAboutError('Failed to save. Please try again.')
+    } finally {
+      setAboutSaving(false)
     }
   }
 
@@ -1233,16 +1256,49 @@ export default function Profile() {
           <main className="flex-1 min-w-0 p-5 sm:p-7 flex flex-col gap-5">
 
             {/* About */}
-            <Panel id="about" title="About">
-              {career?.summary ? (
+            <Panel id="about" title="About" action={
+              !aboutEditing ? (
+                <button
+                  onClick={() => { setEditAbout(profile.about ?? career?.summary ?? ''); setAboutError(null); setAboutEditing(true) }}
+                  className={BTN_GHOST_SM}
+                >
+                  Edit
+                </button>
+              ) : null
+            }>
+              {aboutEditing ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editAbout}
+                    onChange={e => setEditAbout(e.target.value)}
+                    rows={5}
+                    maxLength={2000}
+                    placeholder="Write a short professional summary about yourself…"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition resize-none"
+                  />
+                  {aboutError && <p className="text-xs text-red-500">{aboutError}</p>}
+                  <div className="flex gap-2.5">
+                    <button onClick={() => setAboutEditing(false)} disabled={aboutSaving}
+                      className="border border-slate-200 text-slate-600 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-100 transition disabled:opacity-40">
+                      Cancel
+                    </button>
+                    <button onClick={handleAboutSave} disabled={aboutSaving}
+                      className="bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg px-4 py-2 text-sm transition disabled:opacity-50">
+                      {aboutSaving ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ) : profile.about ? (
+                <p className="text-[14.5px] leading-[1.75] font-medium text-slate-600 whitespace-pre-line">{profile.about}</p>
+              ) : career?.summary ? (
                 <p className="text-[14.5px] leading-[1.75] font-medium text-slate-600">{career.summary}</p>
               ) : profile.is_candidate ? (
                 <p className="text-sm leading-relaxed text-slate-400">
-                  Upload a resume and run Career Insights to generate a professional summary of your experience.
+                  Add a summary with Edit, or upload a resume and run Career Insights to generate one.
                 </p>
               ) : (
                 <p className="text-sm leading-relaxed text-slate-400">
-                  {profile.headline || 'No summary yet.'}
+                  {profile.headline || 'No summary yet. Click Edit to add one.'}
                 </p>
               )}
             </Panel>

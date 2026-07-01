@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     MAX_APPLICATIONS_PER_JOB: int = 10
     MIN_MATCH_SCORE: float = 80.0
+    # Reserve ("runner-up") pool: how many top non-accepted candidates keep their
+    # full data and stay visible to the recruiter. Everyone below this is archived
+    # (heavy data pruned; only a tombstone remains to block re-application).
+    RESERVE_POOL_SIZE: int = 15
 
     # ── Admin panel access ────────────────────────────────────────────────────
     # Comma-separated emails allowed into /admin. Gmail "+alias" and dots are

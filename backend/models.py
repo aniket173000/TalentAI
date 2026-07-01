@@ -86,6 +86,7 @@ class User(Base):
 
     # Identity enrichment
     headline = Column(String(255), nullable=True)        # "SWE @ Google · Ex-Meta"
+    about = Column(Text, nullable=True)                  # user-written About; overrides AI career summary
     avatar_url = Column(String(500), nullable=True)      # S3 public URL
 
     # LinkedIn OAuth
@@ -600,6 +601,10 @@ class Application(Base):
     rank = Column(Integer, nullable=True)
     status = Column(String(50), default="pending")
     candidate_status = Column(String(50), default="received")
+    # True once the row has fallen outside the shortlist + reserve pool and had its
+    # heavy fields (resume_text/embedding/analysis) pruned to save space. Only a
+    # lightweight tombstone remains — enough to block re-application. Never un-set.
+    is_archived = Column(Boolean, default=False, nullable=False)
     status_token = Column(String(64), nullable=True, unique=True)
     status_feedback = Column(Text, nullable=True)
     strengths = Column(Text, nullable=True)

@@ -118,6 +118,8 @@ export interface Application {
   resume_filename: string | null
   match_score: number
   rank: number | null
+  reserve_rank?: number | null           // 1-based position within the reserve pool
+  pool_group?: 'shortlisted' | 'reserve' // which recruiter pool this row belongs to
   status: 'accepted' | 'rejected' | 'displaced'
   candidate_status: CandidateStatus
   status_token: string | null
@@ -126,6 +128,13 @@ export interface Application {
   improvement_suggestions: string[] | string | null
   project_scores: ProjectScore[] | string | null
   applied_at: string
+}
+
+// GET /applications/job/{id}/all — shortlisted + reserve pools, archived count only
+export interface JobApplicationsResponse {
+  applications: Application[]
+  archived_count: number
+  total_applicants: number
 }
 
 export interface CareerUpgradeArea {
@@ -183,6 +192,7 @@ export interface UserProfile {
   email: string
   phone: string | null
   headline: string | null
+  about: string | null
   avatar_url: string | null
   linkedin_verified: boolean
   created_at: string | null
