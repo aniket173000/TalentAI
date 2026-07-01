@@ -164,10 +164,21 @@ export default function RecruiterPortal() {
 
   const loadApplications = useCallback((jobId: number, showSpinner = true) => {
     if (showSpinner) setLoadingApps(true)
-    return api.get<JobApplicationsResponse>(`/applications/job/${jobId}/all`)
+    // Tolerate both response shapes so the FE never breaks when the two sides are
+    // out of sync during a deploy: the new backend returns
+    //   { applications, archived_count, total_applicants }
+    // while the old one returned a bare Application[]. Grouping falls back to
+    // `status` when pool_group is absent, so old data still renders.
+    return api.get<JobApplicationsResponse | Application[]>(`/applications/job/${jobId}/all`)
       .then(r => {
-        setApplications(r.data.applications)
-        setArchivedCount(r.data.archived_count)
+        const data = r.data
+        if (Array.isArray(data)) {
+          setApplications(data)
+          setArchivedCount(0)
+        } else {
+          setApplications(data.applications ?? [])
+          setArchivedCount(data.archived_count ?? 0)
+        }
       })
       .catch(() => { setApplications([]); setArchivedCount(0) })
       .finally(() => { if (showSpinner) setLoadingApps(false) })
