@@ -23,6 +23,7 @@ from routers import scores as scores_router
 from routers import semantic as semantic_router
 from routers import product_feedback as product_feedback_router
 from routers import admin as admin_router
+from routers import assignments as assignments_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -264,6 +265,10 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS ix_pending_registrations_email ON pending_registrations (email)",
     # Existing accounts predate verification — treat them as already verified so they aren't locked out.
     "UPDATE users SET email_verified = true WHERE email_verified IS NULL OR email_verified = false",
+
+    # ── AI Fluency assignments: submit-CLI fields ─────────────────────────────
+    "ALTER TABLE assignment_submissions ADD COLUMN git_metadata TEXT",
+    "ALTER TABLE assignment_submissions ADD COLUMN submit_source VARCHAR(20) DEFAULT 'web'",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
@@ -465,6 +470,7 @@ app.include_router(colleges_router.router)
 app.include_router(referrals_router.router)
 app.include_router(product_feedback_router.router)
 app.include_router(admin_router.router)
+app.include_router(assignments_router.router)
 
 
 @app.on_event("startup")

@@ -80,6 +80,29 @@ class Settings(BaseSettings):
     # Local model name when SEMANTIC_EMBEDDER=sentence_transformer
     SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
 
+    # ── AI Fluency assignments (transcript analysis pipeline) ────────────────
+    # Provider for the judge LLM. Empty → falls back to AI_PROVIDER. Kept
+    # separate so the judge can move to "claude" later without touching the
+    # rest of the platform's AI routing.
+    FLUENCY_AI_PROVIDER: str = ""
+    # Cheap model that reads transcript chunks; stronger model that aggregates.
+    FLUENCY_CHUNK_MODEL: str = "gpt-4o-mini"
+    FLUENCY_AGGREGATE_MODEL: str = "gpt-4o"
+    # Claude equivalents, used when the judge provider is "claude".
+    FLUENCY_CHUNK_MODEL_CLAUDE: str = "claude-haiku-4-5-20251001"
+    FLUENCY_AGGREGATE_MODEL_CLAUDE: str = "claude-sonnet-4-5"
+    # Hard cap on effective tokens fed to the judge per submission — bounds
+    # cost regardless of raw transcript size (sessions are sampled if over).
+    FLUENCY_TOKEN_BUDGET: int = 400_000
+    # Max tokens per chunk request (leaves headroom in a 128K-context model).
+    FLUENCY_CHUNK_TOKENS: int = 24_000
+    # Parallel chunk-scoring calls per submission.
+    FLUENCY_CHUNK_CONCURRENCY: int = 4
+    # Upload caps for candidate transcript bundles.
+    FLUENCY_MAX_FILE_MB: int = 25
+    FLUENCY_MAX_TOTAL_MB: int = 80
+    FLUENCY_MAX_FILES: int = 40
+
     # ── Razorpay payments ─────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""

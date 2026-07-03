@@ -482,3 +482,100 @@ class CollegeDetailResponse(BaseModel):
 
 # Resolve forward references after all models are defined
 JobResponse.model_rebuild()
+
+
+# ── AI Fluency Assignments ────────────────────────────────────────────────────
+
+class AssignmentCreate(BaseModel):
+    job_id: int
+    title: str
+    brief: str
+    evaluation_focus: Optional[str] = None
+    deadline: Optional[datetime] = None
+
+    @field_validator("title", "brief")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be blank")
+        return v.strip()
+
+
+class AssignmentUpdate(BaseModel):
+    title: Optional[str] = None
+    brief: Optional[str] = None
+    evaluation_focus: Optional[str] = None
+    deadline: Optional[datetime] = None
+    status: Optional[Literal["active", "closed"]] = None
+
+
+class AssignmentResponse(BaseModel):
+    id: int
+    job_id: int
+    title: str
+    brief: str
+    evaluation_focus: Optional[str] = None
+    deadline: Optional[datetime] = None
+    required_tool: str
+    status: str
+    created_at: datetime
+    submission_counts: dict = {}
+
+    class Config:
+        from_attributes = True
+
+
+class InviteRequest(BaseModel):
+    # Invite by existing applications to the job, and/or ad-hoc by email.
+    application_ids: List[int] = []
+    emails: List[EmailStr] = []
+
+
+class SubmissionResponse(BaseModel):
+    id: int
+    assignment_id: int
+    application_id: Optional[int] = None
+    candidate_name: str
+    candidate_email: str
+    status: str
+    error: Optional[str] = None
+    session_count: Optional[int] = None
+    repo_url: Optional[str] = None
+    invited_at: datetime
+    submitted_at: Optional[datetime] = None
+    analyzed_at: Optional[datetime] = None
+    overall_score: Optional[float] = None      # populated when analyzed
+    integrity_confidence: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FluencyReportResponse(BaseModel):
+    submission_id: int
+    candidate_name: str
+    overall_score: float
+    summary: str
+    dimensions: list
+    highlights: dict
+    metrics: dict
+    integrity_flags: list
+    integrity_confidence: Optional[str] = None
+    provider: Optional[str] = None
+    chunk_model: Optional[str] = None
+    aggregate_model: Optional[str] = None
+    created_at: datetime
+
+
+class CandidateAssignmentView(BaseModel):
+    """What the candidate sees at /assignment/{token} — no recruiter internals."""
+    assignment_title: str
+    brief: str
+    deadline: Optional[datetime] = None
+    required_tool: str
+    company: str
+    job_title: str
+    candidate_name: str
+    status: str
+    submitted_at: Optional[datetime] = None
+    assignment_open: bool

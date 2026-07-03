@@ -1,0 +1,19 @@
+{
+  "name": "nideknil-submit",
+  "version": "1.0.0",
+  "description": "Submit your Claude Code session transcripts for a Nideknil take-home assignment.",
+  "bin": {
+    "nideknil-submit": "bin/cli.js"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "license": "UNLICENSED",
+  "private": false
+}

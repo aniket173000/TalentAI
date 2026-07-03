@@ -350,6 +350,12 @@ export default function RecruiterPortal() {
                               Edit
                             </button>
                             <button
+                              onClick={() => navigate(`/recruiter/jobs/${job.id}/assignments`)}
+                              className="text-xs font-semibold text-violet-600 hover:underline px-2 py-1"
+                            >
+                              Assignments
+                            </button>
+                            <button
                               onClick={() => toggleStatus(job)}
                               disabled={togglingId === job.id || job.status === 'closed'}
                               className={`text-xs font-semibold px-2 py-1 rounded transition disabled:opacity-40 ${
