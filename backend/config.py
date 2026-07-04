@@ -2,6 +2,10 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # "development" (default) | "production". Gates dev-only shortcuts like
+    # /api/auth/dev-login. Set ENVIRONMENT=production in the deployed .env.
+    ENVIRONMENT: str = "development"
+
     DATABASE_URL: str = "sqlite:///./talentai.db"
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""

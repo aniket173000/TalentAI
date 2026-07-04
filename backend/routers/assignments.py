@@ -24,7 +24,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 import models
 import schemas
@@ -44,7 +44,10 @@ router = APIRouter(prefix="/api/assignments", tags=["assignments"])
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _own_assignment(db: Session, assignment_id: int, recruiter: models.User) -> models.Assignment:
-    assignment = db.get(models.Assignment, assignment_id)
+    # Eager-load job: _send_invite_email reads assignment.job.* from inside a
+    # BackgroundTask, which runs after get_db() has already closed this
+    # session — a lazy load at that point raises DetachedInstanceError.
+    assignment = db.get(models.Assignment, assignment_id, options=[joinedload(models.Assignment.job)])
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     if assignment.recruiter_id != recruiter.id:
@@ -79,26 +82,32 @@ def _assignment_open(a: models.Assignment) -> bool:
     return True
 
 
-async def _send_invite_email(to_email: str, candidate_name: str,
-                             assignment: models.Assignment, token: str) -> None:
+async def _send_invite_email(to_email: str, candidate_name: str, assignment_title: str,
+                             job_title: str, job_company: str,
+                             deadline_at: datetime | None, token: str) -> None:
+    # Takes plain values, not the Assignment ORM object: this runs as a
+    # BackgroundTask after get_db() has already closed the request's session,
+    # and db.commit() earlier in the request expires every loaded attribute
+    # (even eager-loaded ones) — any ORM attribute access here would raise
+    # DetachedInstanceError.
     link = f"{settings.FRONTEND_URL}/assignment/{token}"
     deadline = (
-        f"\nDeadline: {assignment.deadline.strftime('%d %b %Y, %H:%M UTC')}"
-        if assignment.deadline else ""
+        f"\nDeadline: {deadline_at.strftime('%d %b %Y, %H:%M UTC')}"
+        if deadline_at else ""
     )
     body = (
         f"Hi {candidate_name},\n\n"
         f"You've been invited to complete a take-home assignment for "
-        f"{assignment.job.title} at {assignment.job.company}.\n\n"
-        f"\"{assignment.title}\"{deadline}\n\n"
+        f"{job_title} at {job_company}.\n\n"
+        f"\"{assignment_title}\"{deadline}\n\n"
         f"This assignment must be built using Claude Code, and you'll submit your "
         f"Claude Code session transcripts along with your work — we assess how "
         f"effectively you collaborate with AI, not just the final code.\n\n"
         f"Open your assignment portal to see the full brief and submit:\n{link}\n\n"
-        f"Good luck!\n{assignment.job.company} Recruiting"
+        f"Good luck!\n{job_company} Recruiting"
     )
     try:
-        await send_email(to_email, f"Take-home assignment: {assignment.job.title}", body)
+        await send_email(to_email, f"Take-home assignment: {job_title}", body)
     except Exception as exc:
         logger.warning("Invite email to %s failed: %s", to_email, exc)
 
@@ -241,11 +250,17 @@ async def invite_candidates(
         db.add(submission)
         created.append(submission)
 
+    # Read before commit — expire_on_commit invalidates these afterward, and
+    # the background task runs post-response with the session already closed.
+    assignment_title, job_title, job_company, deadline_at = (
+        assignment.title, assignment.job.title, assignment.job.company, assignment.deadline
+    )
+
     db.commit()
     for s in created:
         db.refresh(s)
         background.add_task(_send_invite_email, s.candidate_email, s.candidate_name,
-                            assignment, s.access_token)
+                            assignment_title, job_title, job_company, deadline_at, s.access_token)
 
     return [_submission_response(s) for s in created]
 
