@@ -10,7 +10,7 @@ const socialBtn = 'w-full flex items-center justify-center gap-3 rounded-xl py-3
 const socialStyle = { border: '2px solid var(--line)', background: 'var(--surface)' } as const
 
 export default function Login() {
-  const { login, loginWithLinkedIn, loginWithGoogle, user } = useAuth()
+  const { login, loginWithLinkedIn, loginWithGoogle, loginWithDev, user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const redirect = params.get('redirect')
@@ -23,6 +23,19 @@ export default function Login() {
   // If already logged in, redirect
   if (user) {
     navigate(redirect || (user.is_recruiter && !user.is_candidate ? '/recruiter' : '/'), { replace: true })
+  }
+
+  const handleDevLogin = async (accountType: ActiveMode) => {
+    setError('')
+    setLoading(true)
+    try {
+      await loginWithDev(accountType)
+      navigate(redirect || (accountType === 'recruiter' ? '/recruiter' : '/'), { replace: true })
+    } catch {
+      setError('Dev login failed.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,6 +63,19 @@ export default function Login() {
         </div>
 
         <Card padding={32}>
+          {/* Google/LinkedIn only redirect back to their production callback URL, so
+              they can't complete against a localhost backend — use dev login instead. */}
+          {(import.meta as any).env?.DEV && (
+            <div className="space-y-3 mb-3">
+              <button onClick={() => handleDevLogin('candidate')} className={socialBtn} style={socialStyle}>
+                🧪 Dev login as Candidate
+              </button>
+              <button onClick={() => handleDevLogin('recruiter')} className={socialBtn} style={socialStyle}>
+                🧪 Dev login as Recruiter
+              </button>
+            </div>
+          )}
+
           {/* Social sign-in (no role needed — you sign in as your existing account) */}
           <div className="space-y-3">
             <button onClick={() => loginWithGoogle('login')} className={socialBtn} style={socialStyle}>

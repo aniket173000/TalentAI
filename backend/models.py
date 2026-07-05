@@ -755,3 +755,135 @@ class ProductFeedback(Base):
     affected_area = Column(String(100), nullable=True)  # onboarding|job_search|application|profile|colleges|referrals|recruiter|general
 
     created_at   = Column(DateTime, server_default=func.now())
+
+
+# ── AI Fluency Assignments (take-home + transcript analysis) ─────────────────
+
+class Assignment(Base):
+    """
+    A take-home project a recruiter attaches to a Job. Candidates build it with
+    an AI coding tool (v1: Claude Code only) and submit their session
+    transcripts; the platform scores how well they used AI against a rubric.
+    """
+    __tablename__ = "assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    title = Column(String(255), nullable=False)
+    brief = Column(Text, nullable=False)               # project spec shown to the candidate
+    evaluation_focus = Column(Text, nullable=True)     # optional recruiter hint ("backend-heavy, care about API design")
+    deadline = Column(DateTime, nullable=True)
+    # Which AI tool the candidate must use. v1 supports claude_code only, but the
+    # column exists so multi-tool support is additive, not a migration.
+    required_tool = Column(String(50), default="claude_code", nullable=False)
+    status = Column(String(20), default="active", nullable=False)  # active|closed
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    job = relationship("Job", foreign_keys=[job_id])
+    recruiter = relationship("User", foreign_keys=[recruiter_id])
+    submissions = relationship("AssignmentSubmission", back_populates="assignment")
+
+
+class AssignmentSubmission(Base):
+    """
+    One candidate's participation in an assignment. Created at invite time with
+    a unique access token (the candidate opens /assignment/{token} — no login
+    required, mirroring Application.status_token). Tracks the transcript bundle
+    through the analysis pipeline.
+
+    Status machine: invited → submitted → processing → analyzed | failed
+    (failed submissions can be retried back into processing).
+    """
+    __tablename__ = "assignment_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True, index=True)
+
+    candidate_name = Column(String(255), nullable=False)
+    candidate_email = Column(String(255), nullable=False)
+    access_token = Column(String(64), unique=True, index=True, nullable=False)
+
+    status = Column(String(20), default="invited", nullable=False, index=True)
+    error = Column(Text, nullable=True)                # last pipeline failure (visible to recruiter)
+    attempts = Column(Integer, default=0, nullable=False)
+
+    # S3 keys of the scrubbed transcript files, JSON list. Raw uploads are
+    # scrubbed server-side BEFORE storage — secrets never persist.
+    transcript_file_keys = Column(Text, nullable=True)
+    transcript_bytes = Column(Integer, nullable=True)  # total stored size
+    session_count = Column(Integer, nullable=True)
+    repo_url = Column(String(500), nullable=True)      # candidate-provided repo link (optional)
+    # JSON git snapshot captured by the submit CLI (commit count, first/last commit
+    # times, recent subjects, file count). Absent for web uploads. Used for the
+    # git↔transcript integrity correlation. Never contains file contents.
+    git_metadata = Column(Text, nullable=True)
+    submit_source = Column(String(20), default="web", nullable=False)  # web | cli
+
+    invited_at = Column(DateTime, server_default=func.now())
+    submitted_at = Column(DateTime, nullable=True)
+    analyzed_at = Column(DateTime, nullable=True)
+
+    # Claude Code MCP companion (routers/mcp_candidate.py) — set when the candidate connects
+    # their own Claude Code using this row's access_token. mcp_connected_at is the FIRST
+    # successful handshake; mcp_last_seen_at is bumped on every subsequent MCP tool call.
+    # Neither implies "actively working right now" — `claude mcp list`/`get` can themselves
+    # trigger a handshake.
+    mcp_connected_at = Column(DateTime, nullable=True)
+    mcp_last_seen_at = Column(DateTime, nullable=True)
+
+    assignment = relationship("Assignment", back_populates="submissions")
+    application = relationship("Application", foreign_keys=[application_id])
+    report = relationship("FluencyReport", back_populates="submission", uselist=False)
+
+
+class FluencyReport(Base):
+    """
+    The scored output of the analysis pipeline for one submission.
+    Dimension scores / evidence / metrics are JSON text columns (same convention
+    as Job.jd_requirements) so the report schema can evolve without migrations.
+    """
+    __tablename__ = "fluency_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("assignment_submissions.id"),
+                           nullable=False, unique=True, index=True)
+
+    overall_score = Column(Float, nullable=False)       # 0-100
+    summary = Column(Text, nullable=True)               # recruiter-facing narrative
+    dimensions = Column(Text, nullable=False)           # JSON: [{key, label, score, confidence, note, evidence[]}]
+    highlights = Column(Text, nullable=True)            # JSON: {best_moment, growth_area}
+    metrics = Column(Text, nullable=True)               # JSON: deterministic transcript metrics
+    integrity_flags = Column(Text, nullable=True)       # JSON: [{code, detail, severity}]
+    integrity_confidence = Column(String(20), nullable=True)  # high|medium|low
+
+    provider = Column(String(20), nullable=True)        # which AI provider judged it
+    chunk_model = Column(String(100), nullable=True)
+    aggregate_model = Column(String(100), nullable=True)
+    input_tokens_est = Column(Integer, nullable=True)   # effective tokens fed to the judge
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    submission = relationship("AssignmentSubmission", back_populates="report")
+
+
+class RecruiterMcpApiKey(Base):
+    """
+    A long-lived, revocable bearer credential a recruiter generates from their account
+    settings to connect THEIR OWN Claude Code to the recruiter-only MCP server
+    (/mcp/recruiter). Deliberately NOT the recruiter's JWT — JWTs are short-lived
+    session tokens, the wrong shape for a static CLI bearer header.
+    """
+    __tablename__ = "recruiter_mcp_api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    key = Column(String(64), unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)  # non-null => key rejected on every auth check
+
+    recruiter = relationship("User", foreign_keys=[recruiter_id])

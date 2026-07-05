@@ -27,6 +27,10 @@ frontend/build/
 *.sqlite
 *.sqlite3
 
+# Local-disk fallback for file storage (resumes, assignment transcripts)
+# when S3 isn't configured/reachable — never real artifacts to commit.
+backend/uploads/
+
 # IDE
 .vscode/
 .idea/

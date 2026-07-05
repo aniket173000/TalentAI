@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 import models
 import schemas
+from config import settings
 from database import get_db
 from services.auth_service import create_access_token, decode_token, hash_password, verify_password
 from services.email_service import send_signup_otp_email
@@ -279,6 +280,57 @@ def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
+    user = _load_user_full(user.id, db)
+    return {
+        "access_token": create_access_token(user.id),
+        "token_type": "bearer",
+        "user": schemas.UserResponse.from_user(user),
+    }
+
+
+class DevLoginRequest(BaseModel):
+    account_type: str  # "recruiter" | "candidate"
+
+
+@router.post("/dev-login", response_model=schemas.Token)
+def dev_login(body: DevLoginRequest, db: Session = Depends(get_db)):
+    """
+    Local-only shortcut that logs in as a persistent dev user without going
+    through Google/LinkedIn. Those providers only redirect back to the
+    redirect_uri registered in their console (production), so the real OAuth
+    flow can never complete against a localhost backend. 404s outside
+    development so it's unreachable if ENVIRONMENT isn't set correctly.
+    """
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(status_code=404)
+    if body.account_type not in ("recruiter", "candidate"):
+        raise HTTPException(status_code=422, detail="account_type must be 'recruiter' or 'candidate'")
+
+    email = f"dev-{body.account_type}@localhost.test"
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        user = models.User(
+            email=email,
+            hashed_password=None,
+            full_name=f"Dev {body.account_type.capitalize()}",
+            is_active=True,
+            email_verified=True,
+        )
+        db.add(user)
+        db.flush()
+
+    if body.account_type == "recruiter":
+        if not db.query(models.RecruiterExtension).filter(
+            models.RecruiterExtension.user_id == user.id
+        ).first():
+            db.add(models.RecruiterExtension(user_id=user.id))
+    else:
+        if not db.query(models.CandidateExtension).filter(
+            models.CandidateExtension.user_id == user.id
+        ).first():
+            db.add(models.CandidateExtension(user_id=user.id))
+
+    db.commit()
     user = _load_user_full(user.id, db)
     return {
         "access_token": create_access_token(user.id),

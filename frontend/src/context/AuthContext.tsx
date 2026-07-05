@@ -20,6 +20,8 @@ interface AuthContextType {
   addCapability: (accountType: ActiveMode, opts?: AddCapabilityOptions) => Promise<void>
 
   login: (email: string, password: string) => Promise<void>
+  /** Dev-only: log in as a persistent local test user, bypassing Google/LinkedIn OAuth entirely. */
+  loginWithDev: (accountType: ActiveMode) => Promise<void>
   /** Step 1 of signup — emails an OTP. No account is created yet. */
   sendSignupOtp: (
     email: string,
@@ -146,6 +148,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveModeState(mode)
   }
 
+  const loginWithDev = async (accountType: ActiveMode) => {
+    const r = await api.post<{ access_token: string; user: AuthUser }>('/auth/dev-login', {
+      account_type: accountType,
+    })
+    localStorage.setItem('auth_token', r.data.access_token)
+    setUser(r.data.user)
+    localStorage.setItem('active_mode', accountType)
+    setActiveModeState(accountType)
+  }
+
   const sendSignupOtp = async (
     email: string,
     password: string,
@@ -224,6 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         switchMode,
         addCapability,
         login,
+        loginWithDev,
         sendSignupOtp,
         verifySignupOtp,
         resendSignupOtp,

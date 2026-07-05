@@ -149,6 +149,44 @@ def upload_avatar(content: bytes, user_id: int, filename: str) -> str | None:
         return None
 
 
+def upload_transcript_file(content: bytes, assignment_id: int,
+                           submission_id: int, filename: str) -> str | None:
+    """
+    Store one (already-scrubbed) transcript session file for an assignment
+    submission. Returns the S3 key, or None if S3 is unavailable/failed.
+    """
+    if not s3_enabled():
+        return None
+
+    safe = Path(filename).name or "session.jsonl"
+    key = f"assignments/{assignment_id}/{submission_id}/{uuid.uuid4().hex}-{safe}"
+    try:
+        _client().put_object(
+            Bucket=settings.S3_BUCKET,
+            Key=key,
+            Body=content,
+            ContentType="application/jsonl",
+            ContentDisposition=f'attachment; filename="{safe}"',
+        )
+        logger.info("Uploaded transcript to S3: %s (%d bytes)", key, len(content))
+        return key
+    except Exception as exc:
+        logger.warning("Transcript S3 upload failed (key=%s): %s", key, exc)
+        return None
+
+
+def download_file(file_key: str) -> bytes | None:
+    """Fetch an object's bytes from S3. Returns None if unavailable or missing."""
+    if not s3_enabled() or not file_key:
+        return None
+    try:
+        obj = _client().get_object(Bucket=settings.S3_BUCKET, Key=file_key)
+        return obj["Body"].read()
+    except Exception as exc:
+        logger.warning("S3 download failed (key=%s): %s", file_key, exc)
+        return None
+
+
 def check_file_exists(file_key: str) -> bool:
     """Check whether an object exists in S3 via head_object. Returns False on any error."""
     if not s3_enabled() or not file_key:

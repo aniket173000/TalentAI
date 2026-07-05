@@ -30,6 +30,10 @@ import ReferrerDashboard from './pages/ReferrerDashboard'
 import Register from './pages/Register'
 import Feedback from './pages/Feedback'
 import AdminPanel from './pages/AdminPanel'
+import JobAssignments from './pages/JobAssignments'
+import FluencyReportPage from './pages/FluencyReportPage'
+import AssignmentPortal from './pages/AssignmentPortal'
+import RecruiterMcpSettings from './pages/RecruiterMcpSettings'
 
 // Skipping hides the modal for the current browser session only.
 // On next login (new session) it reappears until the form is actually completed.
@@ -114,6 +118,7 @@ function AppShell() {
                   <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
                   <Route path="/auth/google/callback" element={<GoogleCallback />} />
                   <Route path="/status/:token" element={<ApplicationStatus />} />
+                  <Route path="/assignment/:token" element={<AssignmentPortal />} />
                   <Route path="/feedback" element={<Feedback />} />
 
                   {/* Referrals — candidate-facing discovery (recruiters blocked) */}
@@ -213,6 +218,30 @@ function AppShell() {
                     element={
                       <ProtectedRoute requires="recruiter">
                         <RankCandidates />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/jobs/:jobId/assignments"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <JobAssignments />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/submissions/:submissionId/report"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <FluencyReportPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/mcp-settings"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <RecruiterMcpSettings />
                       </ProtectedRoute>
                     }
                   />
