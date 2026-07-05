@@ -1,0 +1,37 @@
+# Never used inside the image — the Dockerfile does its own `pip install`
+# into a fresh interpreter (see Dockerfile: COPY requirements.txt . && pip
+# install ...). A local host venv here is pure dead weight for the build
+# context; on a small EC2 box it was slow/large enough to hang and cancel
+# the `docker compose build` (confirmed: backend/venv was ~1GB locally).
+venv/
+.venv/
+
+# Python bytecode cache — regenerated automatically, never needed at build time.
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Local-disk fallback for resumes/assignment transcripts — real user data,
+# never something to bake into an image (mirrors backend/.gitignore).
+uploads/
+
+# Secrets — supplied at runtime via docker-compose's env_file, not needed
+# (and must never be baked into) the image build.
+.env
+.env.local
+.env.*.local
+
+# VCS / OS / editor cruft
+.git/
+.gitignore
+.DS_Store
+.vscode/
+.idea/
+
+# Local dev databases
+*.db
+*.sqlite
+*.sqlite3
