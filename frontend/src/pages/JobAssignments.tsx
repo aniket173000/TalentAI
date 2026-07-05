@@ -42,7 +42,15 @@ export default function JobAssignments() {
     if (data.length && !selected) setSelected(data[0])
   }, [jobId, selected])
 
-  useEffect(() => { load().catch(() => setError('Could not load assignments')) }, [load])
+  useEffect(() => {
+    load().catch(() => {
+      // Falls through to the "No assignments yet" empty state below instead of
+      // getting stuck on the spinner forever — a failed load (e.g. job not
+      // found/not yours) should still let the recruiter create an assignment.
+      setError('Could not load assignments')
+      setAssignments([])
+    })
+  }, [load])
 
   const loadSubmissions = useCallback(async () => {
     if (!selected) return
