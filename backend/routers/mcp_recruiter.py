@@ -5,7 +5,7 @@ Auth: a long-lived RecruiterMcpApiKey (generated via routers/recruiter_mcp_keys.
 JWT-gated) — deliberately a SEPARATE FastMCP instance and auth model from
 routers/mcp_candidate.py. A recruiter runs:
 
-    claude mcp add --transport http nideknil-recruiter <MCP_PUBLIC_URL>/mcp/recruiter \\
+    claude mcp add --transport http nideknil-recruiter <MCP_PUBLIC_URL>/mcp-recruiter \\
         --header "Authorization: Bearer <key>"
 
 Every tool is ownership-checked via the EXISTING `_own_submission()` helper from
@@ -38,7 +38,8 @@ from services.mcp_bridge import (
 mcp = FastMCP(
     "nideknil-recruiter",
     stateless_http=True,
-    streamable_http_path="/",  # mounted at /mcp/recruiter in main.py
+    streamable_http_path="/",  # mounted at /mcp-recruiter in main.py — NOT nested under
+                                # /mcp, see main.py's mount comment for why
     transport_security=build_transport_security(),
 )
 

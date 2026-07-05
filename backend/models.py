@@ -874,7 +874,7 @@ class RecruiterMcpApiKey(Base):
     """
     A long-lived, revocable bearer credential a recruiter generates from their account
     settings to connect THEIR OWN Claude Code to the recruiter-only MCP server
-    (/mcp/recruiter). Deliberately NOT the recruiter's JWT — JWTs are short-lived
+    (/mcp-recruiter). Deliberately NOT the recruiter's JWT — JWTs are short-lived
     session tokens, the wrong shape for a static CLI bearer header.
     """
     __tablename__ = "recruiter_mcp_api_keys"

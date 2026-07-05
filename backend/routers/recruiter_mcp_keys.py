@@ -5,7 +5,7 @@ JWT-authenticated (via require_recruiter) — deliberately NOT the same auth mec
 as the MCP tool calls themselves, which use the long-lived key this endpoint issues.
 Don't conflate the two: a recruiter's JWT session token gets them access to THIS
 endpoint; the key it returns is what they put in `claude mcp add` to reach
-/mcp/recruiter afterward.
+/mcp-recruiter afterward.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def create_key(
 ):
     key = issue_recruiter_key(db, recruiter)
     connect_command = (
-        f'claude mcp add --transport http nideknil-recruiter {settings.MCP_PUBLIC_URL}/mcp/recruiter '
+        f'claude mcp add --transport http nideknil-recruiter {settings.MCP_PUBLIC_URL}/mcp-recruiter '
         f'--header "Authorization: Bearer {key.key}"'
     )
     return schemas.RecruiterMcpKeyIssueResponse(

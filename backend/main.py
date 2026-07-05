@@ -516,12 +516,16 @@ app.include_router(recruiter_mcp_keys_router.router)
 # Claude Code MCP companion servers. streamable_http_path="/" (set on each FastMCP
 # instance) is required — without it, each server's own internal route defaults to
 # "/mcp" regardless of mount prefix, which 404s once mounted here.
-# NOTE: order matters — Starlette matches Mounts in registration order, and "/mcp" is
-# a literal prefix of "/mcp/recruiter". Mounting the more specific path FIRST is
-# required, or every /mcp/recruiter/* request gets swallowed by the /mcp mount first
-# (stripped to "/recruiter", which 404s inside the candidate server) and never reaches
-# the recruiter server at all.
-app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
+# NOTE: the recruiter server is deliberately mounted at "/mcp-recruiter", NOT
+# "/mcp/recruiter". It used to be nested under "/mcp" with the more-specific mount
+# registered first (the standard Starlette fix for overlapping prefixes) — that was
+# NOT sufficient in practice: confirmed in production that bare POST/GET to
+# "/mcp/recruiter" still 404'd (Starlette's Mount redirect-slash handling treats an
+# exact hit on a mount whose path is itself a prefix of ANOTHER registered mount
+# differently than a truly standalone path — reproduced with identical FastMCP config
+# on both servers). Using a non-overlapping path sidesteps the ambiguity entirely
+# instead of relying on registration order.
+app.mount("/mcp-recruiter", recruiter_mcp.streamable_http_app())
 app.mount("/mcp", candidate_mcp.streamable_http_app())
 
 
