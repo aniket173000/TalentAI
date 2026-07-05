@@ -28,8 +28,12 @@ def create_key(
     recruiter: models.User = Depends(require_recruiter),
 ):
     key = issue_recruiter_key(db, recruiter)
+    # Trailing slash required — see the matching comment in routers/assignments.py:
+    # a bare mount path 307-redirects to the trailing-slash form, and that redirect's
+    # Location header comes back as http:// (not https://) behind this reverse proxy,
+    # breaking real MCP clients. Hitting the exact path avoids the redirect entirely.
     connect_command = (
-        f'claude mcp add --transport http nideknil-recruiter {settings.MCP_PUBLIC_URL}/mcp-recruiter '
+        f'claude mcp add --transport http nideknil-recruiter {settings.MCP_PUBLIC_URL}/mcp-recruiter/ '
         f'--header "Authorization: Bearer {key.key}"'
     )
     return schemas.RecruiterMcpKeyIssueResponse(

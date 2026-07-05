@@ -91,8 +91,13 @@ async def _send_invite_email(to_email: str, candidate_name: str, assignment_titl
     # (even eager-loaded ones) — any ORM attribute access here would raise
     # DetachedInstanceError.
     link = f"{settings.FRONTEND_URL}/assignment/{token}"
+    # Trailing slash on /mcp/ is required — a bare "/mcp" 307-redirects to "/mcp/", and that
+    # redirect's Location header comes back as http:// (the app behind the reverse proxy
+    # doesn't see X-Forwarded-Proto), which breaks real MCP clients that don't follow it or
+    # get sent to an unreachable http:// URL. Hitting the exact trailing-slash path directly
+    # avoids the redirect entirely. Confirmed via a real "Failed to connect" in production.
     mcp_command = (
-        f'claude mcp add --transport http nideknil-assignment {settings.MCP_PUBLIC_URL}/mcp '
+        f'claude mcp add --transport http nideknil-assignment {settings.MCP_PUBLIC_URL}/mcp/ '
         f'--header "Authorization: Bearer {token}"'
     )
     deadline = (

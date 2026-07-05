@@ -4,7 +4,7 @@ Claude Code MCP companion for an invited candidate's take-home Assignment.
 Auth: the SAME `AssignmentSubmission.access_token` already emailed at invite time
 (routers/assignments.py's `_send_invite_email`) — no new token model. A candidate runs:
 
-    claude mcp add --transport http nideknil-assignment <MCP_PUBLIC_URL>/mcp \\
+    claude mcp add --transport http nideknil-assignment <MCP_PUBLIC_URL>/mcp/ \\
         --header "Authorization: Bearer <access_token>"
 
 Tools are read-only orientation only — brief + how-to-submit. Transcript file bytes are

@@ -86,7 +86,7 @@ later asks "what's my AI fluency report" and gets their own score/strengths/gaps
 
 **User Journey (Engineer)**:
 1. Gets the invite email, runs:
-   `claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp-pulse --header "Authorization: Bearer <mcp_key>"`
+   `claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp-pulse/ --header "Authorization: Bearer <mcp_key>"`
 2. Works normally in Claude Code for the month — zero product-visible change to their day-to-day.
 3. At month end, asks Claude Code "how do I submit for Pulse" → `get_submission_instructions` tool →
    returns `npx nideknil-submit <mcp_key> --kind org` (plus a portal URL fallback).
@@ -444,6 +444,18 @@ frontend/src/
 # (see mcp_candidate.py line 32) — otherwise its internal route defaults to "/mcp" regardless of the
 # mount prefix chosen in main.py, and it 404s once mounted at a non-root prefix.
 
+# CRITICAL (second real production incident, distinct from the mount-path one above): every
+# generated `claude mcp add ...` command / connect_command string MUST use a TRAILING SLASH on the
+# mount URL (e.g. "<MCP_PUBLIC_URL>/mcp-pulse/", not "/mcp-pulse"). A bare path with no trailing
+# slash 307-redirects to the trailing-slash form, and — behind this app's reverse proxy — that
+# redirect's Location header comes back as plain "http://", not "https://" (the app isn't told the
+# original request was HTTPS). Real MCP clients either don't follow the redirect or get sent to a
+# broken http:// URL, and the connection fails outright ("claude mcp get" reports "Failed to
+# connect"). Confirmed empirically on the candidate (/mcp) and recruiter (/mcp-recruiter) servers —
+# hitting the exact trailing-slash path directly returns a clean 200 with no redirect at all. Apply
+# the same trailing slash to every command string this feature generates (invite email, MCP tool
+# responses, any UI that displays a connect command).
+
 # CRITICAL (genuine PRD correction): CHUNK_SYSTEM/AGGREGATE_SYSTEM in services/fluency/prompts.py are
 # HARDCODED constants (imported directly into judge.py's concrete ABC methods, not passed as
 # parameters) that describe "a candidate['s]... take-home project" and address "a recruiter." Reusing
@@ -683,7 +695,7 @@ Task 7: CREATE backend/routers/orgs.py
     org_bridge.issue_org_seat(...), then send an invite email (MIRROR the email-sending call pattern of
     routers/assignments.py's _send_invite_email — new function, e.g. _send_seat_invite_email, in this
     file or services/email_service.py, containing:
-    "claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp-pulse --header "
+    "claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp-pulse/ --header "
     "\"Authorization: Bearer <mcp_key>\"" plus a one-line explanation of monthly submission cadence)
   - IMPLEMENT: GET /api/orgs/{org_id}/seats (Depends(get_current_user)) -> _own_org check, list seats with
     their LATEST OrgFluencyReport.overall_score (a live query — join OrgSeat -> OrgSubmission ->
@@ -867,7 +879,7 @@ curl -s -X POST http://localhost:8000/api/orgs/<org_id>/seats -H "Authorization:
 # Grab the mcp_key from the DB or the console-printed email fallback (services/email_service.py)
 
 # Engineer MCP connect:
-claude mcp add --transport http nideknil-pulse http://localhost:8000/mcp-pulse \
+claude mcp add --transport http nideknil-pulse http://localhost:8000/mcp-pulse/ \
   --header "Authorization: Bearer <mcp_key>"
 # In a real Claude Code session: "what's my org's cadence" -> get_org_brief
 # "how do I submit" -> get_submission_instructions -> should return an npx command with --kind org
@@ -892,7 +904,7 @@ node bin/cli.js <existing_assignment_access_token>   # no --kind flag at all
 
 # Mount-path check (the specific bug class flagged in Known Gotchas — test BOTH GET and POST, and
 # test against the real deployed host before calling this done, not just localhost):
-curl -s -X POST http://localhost:8000/mcp-pulse   # should behave like /mcp, NOT 404
+curl -s -X POST http://localhost:8000/mcp-pulse/   # trailing slash — avoids the redirect-scheme bug
 curl -s -X POST http://localhost:8000/mcp-recruiter
 curl -s -X POST http://localhost:8000/mcp
 ```
