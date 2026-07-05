@@ -38,7 +38,8 @@ team-level rollup (visible to the Org Admin).
   (`services/org_bridge.py`, `services/fluency/org_pipeline.py`), 1 new storage helper
   (`services/storage_service.upload_org_transcript_file` + `services/fluency/store.store_org_transcript`),
   1 new Celery task (`run_org_fluency_analysis_task`), 2 new routers (`routers/orgs.py`,
-  `routers/mcp_org_seat.py`), a third mounted MCP server (`/mcp/pulse`).
+  `routers/mcp_org_seat.py`), a third mounted MCP server at `/mcp-pulse` (NOT nested as `/mcp/pulse` —
+  see Known Gotchas, corrected after a real production incident on the sibling `/mcp/recruiter` path).
 - A small, backward-compatible addition to `tools/nideknil-submit/bin/cli.js` (`--kind org|assignment`
   flag, default `assignment` — zero behavior change for existing callers).
 - Two new frontend pages: `PulseDashboard.tsx` (Org Admin: create org, invite/revoke seats, team report)
@@ -85,7 +86,7 @@ later asks "what's my AI fluency report" and gets their own score/strengths/gaps
 
 **User Journey (Engineer)**:
 1. Gets the invite email, runs:
-   `claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp/pulse --header "Authorization: Bearer <mcp_key>"`
+   `claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp-pulse --header "Authorization: Bearer <mcp_key>"`
 2. Works normally in Claude Code for the month — zero product-visible change to their day-to-day.
 3. At month end, asks Claude Code "how do I submit for Pulse" → `get_submission_instructions` tool →
    returns `npx nideknil-submit <mcp_key> --kind org` (plus a portal URL fallback).
@@ -133,8 +134,8 @@ private signal on their own AI usage without a manager watching over their shoul
   admin gets 403/empty when querying the first org's `org_id`.
 - [ ] No transcript file bytes are ever passed as an MCP tool-call argument (same hard constraint as the
   existing candidate/recruiter MCP servers) — file transfer stays exclusively on the HTTP upload path.
-- [ ] `/mcp/pulse` does not get swallowed by the existing `/mcp` mount (Starlette prefix-matching gotcha —
-  see Known Gotchas) and does not break the existing `/mcp` or `/mcp/recruiter` mounts.
+- [ ] `/mcp-pulse` (a non-nested path, deliberately not `/mcp/pulse` — see Known Gotchas) responds correctly
+  and does not interfere with the existing `/mcp` or `/mcp-recruiter` mounts.
 
 ### What's deliberately NOT in MVP (do not build these — they are v1/v1.1/v2 per the PRD)
 
@@ -278,23 +279,26 @@ exist and work today (not a prior draft) — a fresh implementer needs no other 
     ```
     ADD a third `await stack.enter_async_context(org_seat_mcp.session_manager.run())` line inside the SAME
     `AsyncExitStack` block.
-  critical (mount order, lines ~515-525 — READ THE EXISTING COMMENT IN FULL, it already explains the
-    exact bug class to avoid):
+  critical (mount PATH, lines ~515-528 — READ THE EXISTING COMMENT IN FULL, it documents a real production
+    incident, not a theoretical concern):
     ```python
-    # NOTE: order matters — Starlette matches Mounts in registration order, and "/mcp" is
-    # a literal prefix of "/mcp/recruiter". Mounting the more specific path FIRST is
-    # required, or every /mcp/recruiter/* request gets swallowed by the /mcp mount first...
-    app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
+    # NOTE: the recruiter server is deliberately mounted at "/mcp-recruiter", NOT "/mcp/recruiter".
+    # It used to be nested under "/mcp" with the more-specific mount registered first (the standard
+    # Starlette fix for overlapping prefixes) — that was NOT sufficient in practice: confirmed in
+    # production that bare POST/GET to "/mcp/recruiter" still 404'd despite correct registration order,
+    # with identical FastMCP config on both servers. Using a non-overlapping path removes the ambiguity
+    # instead of relying on mount order.
+    app.mount("/mcp-recruiter", recruiter_mcp.streamable_http_app())
     app.mount("/mcp", candidate_mcp.streamable_http_app())
     ```
-    `/mcp/pulse` is ALSO more specific than `/mcp` and must ALSO be mounted before it:
+    The new org-seat server MUST follow the same lesson — mount it at `/mcp-pulse`, NOT `/mcp/pulse`:
     ```python
-    app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
-    app.mount("/mcp/pulse", org_seat_mcp.streamable_http_app())   # NEW — must precede "/mcp" below
+    app.mount("/mcp-recruiter", recruiter_mcp.streamable_http_app())
+    app.mount("/mcp-pulse", org_seat_mcp.streamable_http_app())   # NEW — non-nested, see main.py comment
     app.mount("/mcp", candidate_mcp.streamable_http_app())
     ```
-    (Relative order between `/mcp/recruiter` and `/mcp/pulse` does not matter — neither is a prefix of the
-    other — only that both precede the bare `/mcp` mount.)
+    Do NOT "fix" this by reordering mounts if it 404s — reordering was already tried on the recruiter
+    server and did not work. The fix is a non-overlapping path, not registration order.
   pattern (router registration order, lines 497-514): `app.include_router(...)` calls are a flat ordered
     list ending with `assignments_router.router` then `recruiter_mcp_keys_router.router` — ADD
     `app.include_router(orgs_router.router)` after the last existing entry, following the same style.
@@ -394,7 +398,7 @@ docs/
 ```bash
 backend/
   models.py                          # MODIFY: + Organization, OrgSeat, OrgSubmission, OrgFluencyReport
-  main.py                            # MODIFY: + lifespan 3rd context; + mount "/mcp/pulse" (order!);
+  main.py                            # MODIFY: + lifespan 3rd context; + mount "/mcp-pulse" (non-nested!);
                                       # + app.include_router(orgs_router.router)
   requirements.txt                    # NO CHANGE — mcp==1.28.1 already pinned, reused as-is
   routers/
@@ -427,11 +431,14 @@ frontend/src/
 ### Known Gotchas of our codebase & Library Quirks
 
 ```python
-# CRITICAL (mount order, confirmed real bug class in this exact codebase — see main.py's existing
-# comment): "/mcp" is a literal string-prefix of "/mcp/pulse" the same way it's a prefix of
-# "/mcp/recruiter". BOTH more-specific mounts ("/mcp/recruiter" and the NEW "/mcp/pulse") must be
-# registered BEFORE `app.mount("/mcp", candidate_mcp.streamable_http_app())`, or every /mcp/pulse/*
-# request gets swallowed and 404s inside the candidate server. Verify by curling both mounts after wiring.
+# CRITICAL (mount PATH, confirmed via a real production incident on the sibling recruiter server —
+# see main.py's existing comment): do NOT nest the new server under "/mcp" (i.e. do NOT use
+# "/mcp/pulse"). "/mcp/recruiter" was originally nested this way with the more-specific mount
+# registered first — the standard Starlette fix for overlapping prefixes — and it STILL 404'd in
+# production on bare POST/GET despite correct registration order and identical FastMCP config on
+# both servers. Mount the new server at "/mcp-pulse" (non-overlapping with "/mcp") instead. Verify
+# with curl (both GET and POST) against the real deployed host, not just localhost — the bug did not
+# reproduce as a routing-table-obviously-wrong issue on static inspection, only empirically.
 
 # CRITICAL: every FastMCP instance mounted this way needs `streamable_http_path="/"` set explicitly
 # (see mcp_candidate.py line 32) — otherwise its internal route defaults to "/mcp" regardless of the
@@ -676,7 +683,7 @@ Task 7: CREATE backend/routers/orgs.py
     org_bridge.issue_org_seat(...), then send an invite email (MIRROR the email-sending call pattern of
     routers/assignments.py's _send_invite_email — new function, e.g. _send_seat_invite_email, in this
     file or services/email_service.py, containing:
-    "claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp/pulse --header "
+    "claude mcp add --transport http nideknil-pulse <MCP_PUBLIC_URL>/mcp-pulse --header "
     "\"Authorization: Bearer <mcp_key>\"" plus a one-line explanation of monthly submission cadence)
   - IMPLEMENT: GET /api/orgs/{org_id}/seats (Depends(get_current_user)) -> _own_org check, list seats with
     their LATEST OrgFluencyReport.overall_score (a live query — join OrgSeat -> OrgSubmission ->
@@ -742,10 +749,10 @@ Task 10: MODIFY backend/main.py
   - MODIFY lifespan (lines ~467-473): add
     `await stack.enter_async_context(org_seat_mcp.session_manager.run())` inside the existing
     AsyncExitStack block
-  - MODIFY mount block (lines ~519-525): insert `app.mount("/mcp/pulse",
-    org_seat_mcp.streamable_http_app())` BEFORE `app.mount("/mcp", candidate_mcp.streamable_http_app())`
-    — placement relative to the existing "/mcp/recruiter" mount does not matter, only that BOTH specific
-    mounts precede the bare "/mcp" one (Known Gotchas)
+  - MODIFY mount block (lines ~519-528): add `app.mount("/mcp-pulse", org_seat_mcp.streamable_http_app())`
+    — a non-nested path, NOT `/mcp/pulse` (Known Gotchas: nesting under `/mcp` already broke the sibling
+    recruiter server in production even with correct mount ordering). Placement relative to the other
+    mounts doesn't matter since `/mcp-pulse` doesn't share a prefix with any of them.
   - ADD: `app.include_router(orgs_router.router)` after the existing last include_router call
   - PRESERVE: every other existing router/mount registration completely unchanged
   - VERIFY: no `_MIGRATIONS` entry needed (Task 1 note) — only confirm create_all() picks up the 4 new
@@ -794,9 +801,10 @@ async def _analyze_org(submission, seat, org) -> dict:
     final = await judge.aggregate(chunk_results, metrics, flags, context_brief, None)
     # ... same _normalize_dimensions/_clamp_score/persist shape as pipeline._analyze ...
 
-# Pattern: mount order fix in main.py (the ONE line that must not be gotten wrong)
-app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
-app.mount("/mcp/pulse", org_seat_mcp.streamable_http_app())   # NEW — before the bare "/mcp" mount
+# Pattern: mount PATH fix in main.py (the ONE line that must not be gotten wrong — this is a path
+# choice, not a registration-order trick; reordering was already tried on /mcp-recruiter and failed)
+app.mount("/mcp-recruiter", recruiter_mcp.streamable_http_app())
+app.mount("/mcp-pulse", org_seat_mcp.streamable_http_app())   # NEW — non-nested, not "/mcp/pulse"
 app.mount("/mcp", candidate_mcp.streamable_http_app())
 
 # Pattern: CLI --kind flag (tools/nideknil-submit/bin/cli.js), minimal diff
@@ -819,7 +827,7 @@ CONFIG:
 
 ROUTES:
   - app.include_router(orgs_router.router)  — /api/orgs/*
-  - app.mount("/mcp/pulse", org_seat_mcp.streamable_http_app())  — BEFORE app.mount("/mcp", ...)
+  - app.mount("/mcp-pulse", org_seat_mcp.streamable_http_app())  — non-nested path, not "/mcp/pulse"
 
 EMAIL:
   - new invite email (org_bridge/routers/orgs.py) containing the claude mcp add --transport http
@@ -859,7 +867,7 @@ curl -s -X POST http://localhost:8000/api/orgs/<org_id>/seats -H "Authorization:
 # Grab the mcp_key from the DB or the console-printed email fallback (services/email_service.py)
 
 # Engineer MCP connect:
-claude mcp add --transport http nideknil-pulse http://localhost:8000/mcp/pulse \
+claude mcp add --transport http nideknil-pulse http://localhost:8000/mcp-pulse \
   --header "Authorization: Bearer <mcp_key>"
 # In a real Claude Code session: "what's my org's cadence" -> get_org_brief
 # "how do I submit" -> get_submission_instructions -> should return an npx command with --kind org
@@ -882,10 +890,11 @@ node bin/cli.js <existing_assignment_access_token>   # no --kind flag at all
 # Confirm a SECOND org's admin JWT gets 404 on GET /api/orgs/<first_org_id>/seats
 # Confirm a SECOND seat's mcp_key cannot get_my_report for the FIRST seat's data
 
-# Mount-order check (the specific bug class flagged in Known Gotchas):
-curl -s http://localhost:8000/mcp/pulse   # should reach the pulse server, NOT 404 inside candidate_mcp
-curl -s http://localhost:8000/mcp/recruiter
-curl -s http://localhost:8000/mcp
+# Mount-path check (the specific bug class flagged in Known Gotchas — test BOTH GET and POST, and
+# test against the real deployed host before calling this done, not just localhost):
+curl -s -X POST http://localhost:8000/mcp-pulse   # should behave like /mcp, NOT 404
+curl -s -X POST http://localhost:8000/mcp-recruiter
+curl -s -X POST http://localhost:8000/mcp
 ```
 
 ### Level 4: Creative & Domain-Specific Validation
@@ -905,7 +914,7 @@ curl -s http://localhost:8000/mcp
 
 ### Technical Validation
 
-- [ ] Backend starts cleanly with the THIRD mounted MCP app; `/mcp`, `/mcp/recruiter`, `/mcp/pulse` all
+- [ ] Backend starts cleanly with the THIRD mounted MCP app; `/mcp`, `/mcp-recruiter`, `/mcp-pulse` all
   resolve to their own server (no prefix-swallowing)
 - [ ] All 4 new tables exist after a fresh `create_all()` run, with zero new `_MIGRATIONS` entries added
 - [ ] `npx nideknil-submit <token>` (no flag) is byte-for-byte unchanged vs. before this PRP
@@ -948,6 +957,7 @@ curl -s http://localhost:8000/mcp
   only `get_my_report` (MCP, seat-authenticated) and the seat portal (token-authenticated) may return that.
 - ❌ Don't assume the `nideknil-submit` CLI needs zero changes — verified false for this feature; the
   `--kind` flag (Task 9) is required, defaulted for full backward compatibility.
-- ❌ Don't get the `/mcp` vs `/mcp/pulse` mount order wrong — the more specific path must be registered first.
+- ❌ Don't mount the new server as `/mcp/pulse` (nested under `/mcp`) — this exact shape already broke in
+  production for `/mcp/recruiter`, even with correct mount-registration order. Use `/mcp-pulse`.
 - ❌ Don't silently ship the CHUNK_SYSTEM/AGGREGATE_SYSTEM wording mismatch without documenting it — it's
   an accepted MVP tradeoff, not an oversight, and should be visible in the PR description.
