@@ -26,7 +26,14 @@ export default function RecruiterMcpSettings() {
     setKeys(res.data)
   }, [])
 
-  useEffect(() => { load().catch(() => setError('Could not load keys')) }, [load])
+  useEffect(() => {
+    load().catch(() => {
+      // Same fix as JobAssignments.tsx: fall through to the empty state
+      // instead of getting stuck on the spinner forever when the fetch fails.
+      setError('Could not load keys')
+      setKeys([])
+    })
+  }, [load])
 
   const generate = async () => {
     setBusy(true); setError('')
