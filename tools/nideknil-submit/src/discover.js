@@ -61,6 +61,16 @@ export function sessionFiles(project) {
     .sort((a, b) => a.mtime - b.mtime);
 }
 
+// Keep only sessions last modified within [since, until] (either bound
+// optional, both inclusive, values in ms since epoch).
+export function filterSessionsByDate(files, since, until) {
+  return files.filter((f) => {
+    if (since != null && f.mtime < since) return false;
+    if (until != null && f.mtime > until) return false;
+    return true;
+  });
+}
+
 // Bounded git snapshot from the current repo. No file contents — only history
 // shape, used server-side for the git↔transcript integrity correlation.
 export function captureGit(cwd) {

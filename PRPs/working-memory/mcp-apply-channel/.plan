@@ -1,0 +1,638 @@
+name: "Claude Code MCP for Take-Home Assignments — Candidate Delivery Companion + Recruiter Interview Copilot"
+description: |
+
+---
+
+## REVISION NOTE (read first)
+
+This PRP was substantially rearchitected mid-planning. The original version built a standalone,
+self-service "apply with no resume via MCP" channel with its own tokens/models, deliberately kept
+parallel to the existing `Assignment`/`AssignmentSubmission` take-home flow. **That channel has been
+dropped entirely** at the user's explicit direction. The new design does the opposite of the original
+constraint: it **merges** MCP directly into the existing take-home Assignment flow you've already
+shipped, and adds a second, separate MCP server for recruiters. If you're picking this PRP up cold,
+ignore any earlier draft — this version is authoritative.
+
+## Goal
+
+**Feature Goal**: Give the *existing* take-home Assignment flow (candidate applies normally → gets
+ranked/shortlisted → recruiter invites them to a take-home via the existing "Send Assignment" button)
+an MCP companion on both ends: (1) the invited candidate can connect their own Claude Code, using the
+SAME `access_token` already emailed to them, to fetch the brief and submission instructions
+conversationally instead of only via the web portal link; (2) the recruiter can connect their OWN
+Claude Code to a separate, authenticated MCP server and ask natural-language questions about a
+specific candidate's submitted report + resume — usable live, in the interview.
+
+**Deliverable**:
+- Backend: 1 new model (`RecruiterMcpApiKey`), 2 new nullable columns on the EXISTING
+  `AssignmentSubmission` table (`mcp_connected_at`, `mcp_last_seen_at`), 2 new FastMCP servers mounted
+  inside the existing FastAPI app (`routers/mcp_candidate.py`, `routers/mcp_recruiter.py`), 1 new router
+  for recruiter key issuance/revocation (`routers/recruiter_mcp_keys.py`).
+- A small addition to the existing invite email (`_send_invite_email` in `routers/assignments.py`) so it
+  includes a `claude mcp add ...` command alongside the existing portal link.
+- A small addition to the existing recruiter submissions view (`JobAssignments.tsx`) showing an
+  "connected via Claude Code" hint per candidate.
+- New frontend surface: a recruiter settings page to generate/revoke a `RecruiterMcpApiKey`.
+- **Zero changes** to `tools/nideknil-submit/` — it already POSTs to
+  `/api/assignments/portal/{token}/submit`, which is exactly the right endpoint once the candidate's
+  MCP connection uses the real `AssignmentSubmission.access_token`.
+- Branch `feature/mcp-apply-channel` (already created) holds this work.
+
+**Success Definition**: A recruiter invites a shortlisted candidate to a take-home exactly as they do
+today. The candidate, instead of (or in addition to) clicking the portal link, runs the `claude mcp add`
+command from their invite email, asks Claude Code "what's the brief for this assignment / how do I
+submit", gets accurate answers sourced from the real `Assignment`/`AssignmentSubmission` row, and still
+submits their transcript through the existing, unmodified web-upload or `nideknil-submit` CLI path.
+Separately, a recruiter connects their own Claude Code once (via a generated API key), and can ask
+"summarize how this candidate collaborated with AI" or "what should I ask them in the interview" for any
+submission on a job they own — answered from the real `FluencyReport` + `Application` data, never
+another recruiter's candidates.
+
+## User Persona
+
+**Target User (candidate)**: Someone already invited to a take-home assignment (i.e. already
+resume-screened, ranked, and shortlisted through the normal apply flow) who'd rather stay in their
+terminal than tab over to a web page to read the brief or remember the submit command.
+
+**Target User (recruiter)**: A recruiter who already uses the existing take-home reports, who now wants
+to prep for a specific interview by asking questions in natural language instead of re-reading a report
+page and a resume side by side.
+
+**Use Case (candidate)**: Candidate gets the invite email, runs the one-line `claude mcp add` command
+from it, then instead of opening the portal link just asks Claude Code: "what's the assignment brief",
+"what's the deadline", "how do I submit when I'm done".
+
+**Use Case (recruiter)**: Recruiter has an interview with a candidate in 10 minutes. They ask their own
+connected Claude Code: "get the report for submission 482", then "what should I probe on based on how
+they used Claude while building it".
+
+**User Journey (candidate)**:
+1. Recruiter clicks the EXISTING "Send Assignment"/invite action on a shortlisted candidate — nothing
+   changes here. `AssignmentSubmission.access_token` is generated exactly as it is today
+   (`routers/assignments.py:248`).
+2. The invite email (`_send_invite_email`, `routers/assignments.py:85-113`) now ALSO includes:
+   `claude mcp add --transport http nideknil-assignment https://nideknil.in/mcp --header "Authorization: Bearer <access_token>"`
+   right next to the existing portal link — same token, two ways in.
+3. Candidate runs that command; Claude Code's `initialize` handshake hits `/mcp`; the server looks up
+   the token against `AssignmentSubmission.access_token` and sets `mcp_connected_at`/`mcp_last_seen_at`.
+4. Candidate asks Claude Code things like "what's the brief" → `get_assignment_brief` tool (wraps the
+   EXISTING `candidate_view()` logic, `routers/assignments.py:344-364`) → "how do I submit" →
+   `get_submission_instructions` tool, which returns the exact `npx nideknil-submit <access_token>`
+   command (no new token, no CLI changes — it already targets the right endpoint).
+5. Candidate builds the assignment, then submits through the UNCHANGED web portal or CLI — the actual
+   file transfer never goes through an MCP tool call (see Known Gotchas for why).
+6. Recruiter, on the existing `JobAssignments.tsx` submissions list, now also sees a small
+   "🟢 connected via Claude Code, active 3m ago" hint per row, before/alongside the existing status.
+
+**User Journey (recruiter)**:
+1. From account settings, recruiter generates a `RecruiterMcpApiKey` (long-lived, revocable, shown once)
+   and copies `claude mcp add --transport http nideknil-recruiter https://nideknil.in/mcp/recruiter --header "Authorization: Bearer <key>"`.
+2. Connects once; persists across sessions.
+3. Asks "list my submissions for job 12" → `list_submissions` → "get the report for submission 482" →
+   `get_candidate_report` (merges the EXISTING `FluencyReport` fields with the candidate's `Application`
+   resume/profile data) → "what should I ask them in the interview" → `generate_interview_questions` or
+   a free-form `ask_about_candidate`.
+4. Ownership is enforced throughout — a recruiter can only ever query submissions on jobs they own.
+
+**Pain Points Addressed**: Candidates currently have to context-switch to a browser tab to read a brief
+or recall a submit command they were only ever emailed once. Recruiters currently have to manually
+re-read a report page and a resume side by side to prep for each interview; this collapses that into a
+conversation they can have from their own terminal, right before walking into the room.
+
+## Why
+
+- This is a **quality-of-life layer on top of infrastructure you've already shipped** (the July 2026
+  take-home Assignment/transcript-scoring feature), not a new acquisition channel — much lower risk than
+  the earlier draft, and it reuses the EXISTING `Assignment.brief` as the "what to build" context, which
+  fully resolves the "what is actually being judged" gap the earlier resume-less design had.
+- The recruiter-side interview copilot is a genuinely new capability with no prior art in this codebase —
+  it's the most product-differentiated piece here and worth getting right.
+- Explicit product decision: the earlier standalone "self-serve apply with no resume, no email" channel
+  is DROPPED — MCP now only ever activates for candidates a recruiter has already invited.
+
+## What
+
+Two small MCP servers layered onto existing, working infrastructure — no new candidate-acquisition
+surface, no new scoring logic, no new file-upload path.
+
+### Success Criteria
+
+- [ ] The existing "Send Assignment" recruiter action, `AssignmentSubmission.access_token` generation,
+  and the existing web-upload/CLI submission paths are **completely unmodified** in behavior — only the
+  invite email's *content* changes (one more line/command), nothing about the underlying flow.
+- [ ] A candidate can `claude mcp add` using their invite token and successfully call
+  `get_assignment_brief` / `get_submission_instructions`, each correctly scoped to THEIR OWN
+  `AssignmentSubmission` row (never another candidate's).
+- [ ] `mcp_connected_at`/`mcp_last_seen_at` update on real MCP activity and are visible on the recruiter's
+  existing `JobAssignments.tsx` submissions list.
+- [ ] A recruiter can generate/revoke a `RecruiterMcpApiKey`, connect a distinct `/mcp/recruiter`
+  endpoint, and successfully call `list_submissions`, `get_candidate_report`, `ask_about_candidate`, and
+  `generate_interview_questions` — each strictly scoped to jobs that recruiter owns.
+- [ ] No transcript file content is ever passed as an MCP tool-call argument — file transfer stays on the
+  existing HTTP upload paths, full stop (see Known Gotchas).
+- [ ] `tools/nideknil-submit/` requires zero code changes.
+
+## All Needed Context
+
+### Context Completeness Check
+
+_Validated against "if someone knew nothing about this codebase, would they have everything needed to
+implement this successfully?" — yes: this version reuses far more existing code than the original draft,
+and every reused function is cited with file:line. The one open technical risk (mcp SDK API churn) is
+still flagged as a mandatory Task 0 verification step, unchanged from before._
+
+### Documentation & References
+
+```yaml
+# ── MCP protocol & Python SDK (unchanged from prior research — still accurate/still cited here) ──────
+- url: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+  why: Streamable HTTP is the current remote transport (single /mcp endpoint, POST/GET/DELETE, Mcp-Session-Id header). Replaces the deprecated HTTP+SSE transport.
+
+- url: https://github.com/modelcontextprotocol/python-sdk/blob/main/src/mcp/server/context.py
+  why: Context object shape (ctx.headers) for reading the incoming Authorization header inside a tool.
+  critical: STALENESS RISK — this SDK has had multiple Context refactors (see python-sdk issue #1684). An older pinned version may instead need `from mcp.server.fastmcp.dependencies import get_http_headers`. Run `pip show mcp` and inspect the installed package before writing the auth dependency.
+
+- url: https://github.com/rb58853/simple-mcp-server
+  why: Worked example of mounting a FastMCP `streamable_http_app()` inside an existing FastAPI app.
+  critical: The mounted sub-app's lifespan does NOT auto-propagate — you must call `mcp.session_manager.run()` inside the PARENT app's own `lifespan`, or every request 500s with `RuntimeError: Task group is not initialized`. Confirmed via python-sdk issues #713, #1367, #1484.
+
+- url: https://gofastmcp.com/deployment/http
+  why: `stateless_http=True` — recommended given this backend is single-process (no --workers flag) but now serves potentially many concurrent candidates+recruiters without needing cross-call session state.
+
+- url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
+  why: A session ID must never be treated as authentication — the bearer token (access_token or RecruiterMcpApiKey) is the only real auth signal on either server.
+
+# ── Claude Code CLI (unchanged from prior research) ────────────────────────────────────────────────────
+- url: https://code.claude.com/docs/en/mcp
+  why: Exact `claude mcp add --transport http <name> <url> --header "Authorization: Bearer <token>"` syntax; SSE is deprecated, HTTP is current.
+  critical: STALENESS RISK — re-verify with `claude mcp add --help` at implementation time; flag names have changed release over release.
+
+- url: https://github.com/anthropics/claude-code/issues/7404
+  why: `claude mcp list`/`claude mcp get` can themselves trigger a live `initialize` — don't over-read a bare handshake as "the candidate is actively working."
+
+# ── Internal: the EXISTING flow this now plugs into — READ THIS FILE IN FULL ──────────────────────────
+- file: backend/routers/assignments.py
+  why: This is now the CENTER of the feature, not something to avoid. Key pieces to reuse directly:
+    `_by_token(db, token)` (line 333) — token→submission lookup, reuse as-is for candidate MCP auth.
+    `_own_submission(db, submission_id, recruiter)` (line 58) — ownership check, reuse as-is for recruiter MCP auth (catch its HTTPException and translate to a tool-appropriate error string, since MCP tools aren't FastAPI endpoints).
+    `candidate_view(token, db)` (line 344) — exact shape to return from `get_assignment_brief`.
+    `_assignment_open(a)` (line 75) — reuse to tell the candidate if the assignment is still accepting submissions.
+    `_send_invite_email(...)` (line 85) — MODIFY this to append the `claude mcp add` command to the email body.
+  gotcha: Do NOT duplicate any of this logic in the new MCP routers — import and call the real functions. The earlier draft of this PRP avoided importing from this file on purpose (parallel-system constraint); that constraint is explicitly LIFTED now.
+
+- file: backend/models.py
+  why: `AssignmentSubmission` class — find its exact current column list before adding `mcp_connected_at`/`mcp_last_seen_at`; note it already has `application_id` (nullable FK to `applications.id`) — this is how the recruiter tools reach the candidate's resume/profile data.
+  pattern: New tables need nothing beyond the ORM class (`Base.metadata.create_all` at main.py:40 auto-creates them). Altering an EXISTING table (`assignment_submissions`) needs a raw-SQL entry in the `_MIGRATIONS` list (main.py:68-279) — find an existing `DateTime`/`TIMESTAMP` column addition in that list to copy the exact SQL type used (don't guess between `TIMESTAMP` and `TIMESTAMP WITHOUT TIME ZONE` — match whatever convention is already there).
+
+- file: backend/services/fluency/pipeline.py, transcript_parser.py, scrubber.py, store.py
+  why: UNCHANGED — the existing `execute_fluency_analysis`/`dispatch_fluency_analysis` pipeline, already wired to `AssignmentSubmission`/`FluencyReport`, needs zero modification. The MCP layer never touches scoring; it only reads the results afterward (`get_candidate_report`) or points the candidate at the existing submit paths.
+
+- file: backend/models.py — `FluencyReport` class (~line 844 area, per earlier research) and `Application` class (~line 588)
+  why: `get_candidate_report`/`ask_about_candidate` need to join `AssignmentSubmission` → `FluencyReport` (existing FK) and `AssignmentSubmission.application_id` → `Application` (existing nullable FK) to merge score/dimensions/summary with resume_text/candidate profile in one response.
+
+- file: tools/nideknil-submit/bin/cli.js
+  why: Confirm (don't just assume) that its hardcoded target `${apiBase}/api/assignments/portal/${token}/submit` (line ~171) is unchanged and still correct — it should need ZERO modification in this version of the plan, since the token flowing through MCP now IS the real `AssignmentSubmission.access_token` this CLI already expects.
+
+# ── Internal: patterns to copy for the NEW pieces (RecruiterMcpApiKey, MCP routers) ────────────────────
+- file: backend/routers/auth.py
+  why: `require_recruiter` dependency — reuse for the JWT-authenticated key-issuance endpoint (`POST /api/recruiter/mcp-keys`). The MCP tool calls themselves are NOT JWT-authenticated (they use the long-lived key instead) — don't conflate the two auth mechanisms.
+
+- file: frontend/src/pages/JobAssignments.tsx
+  why: Lines ~26-50 — the existing conditional `setTimeout`-recursion polling pattern for this exact submissions list. Add the `mcp_connected_at`/`mcp_last_seen_at` display here, reusing the SAME polling call (no new endpoint needed if these fields are already included in the existing submissions response — verify `schemas.SubmissionResponse` and add the fields there if missing).
+```
+
+### Current Codebase tree (relevant subset)
+
+```bash
+backend/
+  main.py                    # app = FastAPI(...); 14x app.include_router(...); _MIGRATIONS raw-SQL list; create_all() at line 40
+  models.py                  # Application (588), Assignment/AssignmentSubmission/FluencyReport (~800+)
+  routers/
+    auth.py                  # require_recruiter, OAuth2PasswordBearer
+    assignments.py           # THE flow this feature plugs into — _by_token, _own_submission, candidate_view, _send_invite_email
+  services/fluency/           # UNCHANGED — pipeline.py, transcript_parser.py, scrubber.py, store.py, judge.py, etc.
+  requirements.txt            # no `mcp` dependency yet
+tools/nideknil-submit/         # UNCHANGED — already targets the right endpoint
+frontend/src/pages/
+  AssignmentPortal.tsx        # /assignment/:token — candidate's existing web view, unchanged
+  JobAssignments.tsx           # recruiter's existing submissions list — HAS the polling pattern to extend
+docker-compose.prod.yml         # single `api` service (port 8000, no --workers) + `celery-worker`
+```
+
+### Desired Codebase tree with files to be added and responsibility of file
+
+```bash
+backend/
+  models.py                          # MODIFY: + RecruiterMcpApiKey class; + AssignmentSubmission.mcp_connected_at/mcp_last_seen_at columns
+  main.py                            # MODIFY: + 2 migration entries; + lifespan wiring for BOTH mcp servers; + mounts; + router registrations
+  requirements.txt                   # MODIFY: + mcp>=<pinned version> (verify per Task 0)
+  routers/
+    mcp_candidate.py                  # NEW: FastMCP #1 — get_assignment_brief, get_submission_instructions; auth = AssignmentSubmission.access_token
+    mcp_recruiter.py                   # NEW: FastMCP #2 — list_submissions, get_candidate_report, ask_about_candidate, generate_interview_questions; auth = RecruiterMcpApiKey
+    recruiter_mcp_keys.py               # NEW: POST/DELETE /api/recruiter/mcp-keys — JWT-authenticated via require_recruiter
+    assignments.py                      # MODIFY: _send_invite_email() gains one more line (the claude mcp add command)
+  services/
+    mcp_bridge.py                       # NEW: mark_mcp_connected(), issue_recruiter_key(), revoke_recruiter_key(), get_merged_candidate_context()
+  schemas.py                            # MODIFY: SubmissionResponse gains mcp_connected_at/mcp_last_seen_at fields
+frontend/src/
+  pages/JobAssignments.tsx              # MODIFY: render the new connected-via-Claude-Code hint per row
+  pages/RecruiterMcpSettings.tsx         # NEW: generate/revoke RecruiterMcpApiKey UI
+  App.tsx                                # MODIFY: register the new settings route
+```
+
+### Known Gotchas of our codebase & Library Quirks
+
+```python
+# CRITICAL (the central design decision of this version): NEVER pass transcript file content as an
+# MCP tool-call argument. A candidate's Claude Code session would have to read the entire .jsonl file
+# into ITS OWN context before it could pass it as a string argument — for multi-MB transcripts with
+# ~35% base64 image content (per this codebase's own measured fluency-pipeline stats), that burns the
+# candidate's token budget just to submit a file, may get truncated, and duplicates what the existing
+# nideknil-submit CLI already does correctly (reads the file and POSTs raw bytes directly, never
+# touching any LLM's context window). MCP in this design is ONLY for: reading the brief, checking
+# status, and getting the submit command — the actual bytes always travel over the existing HTTP upload
+# paths (web portal or CLI), unchanged.
+
+# CRITICAL: mcp Python SDK API surface has churned across releases (Context location,
+# streamable_http_app() naming). BEFORE writing routers/mcp_candidate.py / mcp_recruiter.py, run
+# `pip show mcp` and inspect the installed package's actual mcp/server/context.py (or its absence) —
+# do not assume `from mcp.server.context import Context` works without checking. This is Task 0.
+
+# CRITICAL: mounting streamable_http_app() inside the existing FastAPI app WITHOUT wiring
+# `mcp.session_manager.run()` into the parent app's own `lifespan` causes every MCP request to 500 with
+# "RuntimeError: Task group is not initialized". main.py currently has no lifespan defined — you're
+# ADDING one, not modifying an existing one. With TWO mcp servers, use `contextlib.AsyncExitStack` to
+# enter both session managers inside that one lifespan.
+
+# GOTCHA: this version DELIBERATELY reuses code from routers/assignments.py (_by_token, _own_submission,
+# candidate_view, _assignment_open) — the earlier draft of this PRP explicitly avoided that. That
+# constraint no longer applies; import and call these functions directly rather than re-implementing
+# them. Do NOT, however, change their existing behavior/signatures — the take-home flow's existing
+# callers (the web portal routes) must keep working exactly as they do today.
+
+# GOTCHA: claude mcp list / claude mcp get can themselves trigger a live `initialize` against your
+# server — a candidate idly checking their MCP config can look identical to a real connection. Treat
+# mcp_connected_at/mcp_last_seen_at as "has touched the MCP server," not "is actively working right now."
+
+# GOTCHA: single Uvicorn process today, no --workers flag — persist connection status to the DB
+# (mcp_connected_at/mcp_last_seen_at columns), never an in-memory flag, consistent with every other
+# stateful feature in this codebase.
+
+# GOTCHA: no Alembic in this repo. The NEW RecruiterMcpApiKey table needs nothing beyond the ORM class
+# (auto-created via Base.metadata.create_all at main.py:40). Only the ALTER on the EXISTING
+# assignment_submissions table needs a raw-SQL entry in the _MIGRATIONS list — match the exact
+# TIMESTAMP/DateTime SQL type convention already used elsewhere in that list, don't guess.
+
+# GOTCHA: no test suite exists anywhere in this repo (zero test_*.py files). Validation below is
+# manual/integration-based, matching how the rest of this codebase has actually been verified.
+
+# GOTCHA: rate-limiting risk is now much lower than the earlier draft (tokens are recruiter-invited, not
+# self-issued by anonymous strangers) — still add a light per-token/per-key call-rate guard on both MCP
+# servers as a hygiene measure, but this is no longer launch-blocking the way open self-service issuance
+# was.
+```
+
+## Implementation Blueprint
+
+### Data models and structure
+
+```python
+# backend/models.py
+
+class RecruiterMcpApiKey(Base):
+    """A long-lived, revocable bearer credential a recruiter generates from their account settings
+    to connect THEIR OWN Claude Code to the recruiter-only MCP server (/mcp/recruiter). Deliberately
+    NOT the recruiter's JWT — JWTs are short-lived session tokens, wrong shape for a static CLI
+    bearer header."""
+    __tablename__ = "recruiter_mcp_api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    key = Column(String(64), unique=True, index=True, nullable=False)  # secrets.token_urlsafe(32)
+    created_at = Column(DateTime, server_default=func.now())
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)  # non-null => key rejected on every auth check
+
+    recruiter = relationship("User", foreign_keys=[recruiter_id])
+
+
+# On the EXISTING AssignmentSubmission class, add TWO columns:
+#   mcp_connected_at = Column(DateTime, nullable=True)   # first successful MCP handshake
+#   mcp_last_seen_at = Column(DateTime, nullable=True)   # bumped on every subsequent MCP tool call
+# _MIGRATIONS entries in main.py (match the existing TIMESTAMP type convention exactly — verify first):
+#   "ALTER TABLE assignment_submissions ADD COLUMN mcp_connected_at TIMESTAMP"
+#   "ALTER TABLE assignment_submissions ADD COLUMN mcp_last_seen_at TIMESTAMP"
+```
+
+### Implementation Tasks (ordered by dependencies)
+
+```yaml
+Task 0: VERIFY mcp SDK API shape against the actually-installed/pinned version
+  - RUN: pip show mcp (or deliberately pick+pin a version if not yet installed)
+  - INSPECT: the installed package's mcp/server/context.py (or fastmcp/dependencies.py) to confirm
+    whether `Context.headers` or `get_http_headers()` is the real API for THIS version
+  - INSPECT: FastMCP's exact method for getting a mountable ASGI app (streamable_http_app() or current
+    equivalent)
+  - OUTPUT: record the confirmed shape before writing Task 5/7 — do not guess from research citations alone
+
+Task 1: MODIFY backend/requirements.txt
+  - ADD: pinned `mcp` package version confirmed in Task 0
+
+Task 2: MODIFY backend/models.py
+  - IMPLEMENT: RecruiterMcpApiKey class (see Data models above)
+  - IMPLEMENT: AssignmentSubmission.mcp_connected_at / mcp_last_seen_at (nullable DateTime columns)
+  - FOLLOW pattern: existing Column/relationship style throughout models.py
+
+Task 3: MODIFY backend/main.py — migration entries
+  - FIRST: find an existing DateTime column addition in the _MIGRATIONS list (main.py:68-279) and copy
+    its exact SQL type string
+  - ADD: the two ALTER TABLE assignment_submissions statements for mcp_connected_at/mcp_last_seen_at
+  - VERIFY: RecruiterMcpApiKey needs no migration entry — picked up by Base.metadata.create_all (line 40)
+
+Task 4: CREATE backend/services/mcp_bridge.py
+  - IMPLEMENT: mark_mcp_connected(db, submission) -> sets mcp_connected_at if unset, always bumps
+    mcp_last_seen_at, idempotent on repeated calls
+  - IMPLEMENT: issue_recruiter_key(db, recruiter) -> RecruiterMcpApiKey (secrets.token_urlsafe(32))
+  - IMPLEMENT: revoke_recruiter_key(db, key_id, recruiter) -> ownership-checked, sets revoked_at
+  - IMPLEMENT: get_merged_candidate_context(db, submission) -> joins AssignmentSubmission -> FluencyReport
+    (existing FK) and AssignmentSubmission.application_id -> Application (existing nullable FK), returns
+    a single dict with report fields (score/summary/dimensions/highlights) + resume_text + candidate name
+    — this is the shared context both get_candidate_report and ask_about_candidate/
+    generate_interview_questions build on
+  - DEPENDENCIES: models from Task 2
+  - PLACEMENT: backend/services/mcp_bridge.py
+
+Task 5: CREATE backend/routers/mcp_candidate.py
+  - IMPLEMENT: `mcp = FastMCP("nideknil-assignment")` (or Task-0-confirmed equivalent)
+  - IMPLEMENT: an auth helper reading `ctx.headers["authorization"]`, validating `Bearer <token>` by
+    calling the EXISTING `_by_token(db, token)` from routers/assignments.py (import it — do not
+    reimplement), then calling mark_mcp_connected() on every successful call
+  - IMPLEMENT tool `get_assignment_brief()` -> calls the EXISTING `candidate_view()` logic
+    (routers/assignments.py:344) for this submission's assignment, returns the same shape
+  - IMPLEMENT tool `get_submission_instructions()` -> returns a string with the exact
+    `npx nideknil-submit <access_token>` command (the SAME token, no new token minted) plus the existing
+    web portal URL as an alternative
+  - DEPENDENCIES: Task 4, routers/assignments.py's existing helpers (imported, not duplicated)
+  - PLACEMENT: backend/routers/mcp_candidate.py
+
+Task 6: CREATE backend/routers/recruiter_mcp_keys.py
+  - IMPLEMENT: POST /api/recruiter/mcp-keys (Depends(require_recruiter)) -> issue_recruiter_key(), returns
+    {key, connect_command} shown ONCE (standard API-key UX)
+  - IMPLEMENT: DELETE /api/recruiter/mcp-keys/{key_id} (Depends(require_recruiter)) -> revoke_recruiter_key()
+  - PLACEMENT: backend/routers/recruiter_mcp_keys.py
+
+Task 7: CREATE backend/routers/mcp_recruiter.py
+  - IMPLEMENT: a SECOND, distinct `FastMCP` instance — never share one instance/auth model with Task 5
+  - IMPLEMENT: an auth helper validating against RecruiterMcpApiKey.key (revoked_at IS NULL), updating
+    last_used_at on success
+  - IMPLEMENT tool `list_submissions(job_id: int | None = None)` -> submissions on jobs the recruiter owns,
+    optionally filtered
+  - IMPLEMENT tool `get_candidate_report(submission_id: int)` -> ownership-checked by calling the EXISTING
+    `_own_submission(db, submission_id, recruiter)` from routers/assignments.py (import it; catch its
+    HTTPException and translate to a tool error string), then get_merged_candidate_context()
+  - IMPLEMENT tool `ask_about_candidate(submission_id: int, question: str)` -> same ownership check, answers
+    from get_merged_candidate_context()'s fields (report + resume), NOT the raw transcript by default —
+    keeps cost/latency bounded
+  - IMPLEMENT tool `generate_interview_questions(submission_id: int)` -> same ownership check, drafts 4-5
+    questions from the same merged context (cheap addition given the context is already assembled)
+  - CRITICAL: never let a recruiter query a submission on a job they don't own — test this explicitly
+  - PLACEMENT: backend/routers/mcp_recruiter.py
+
+Task 8: MODIFY backend/main.py — mounting & registration for BOTH MCP servers
+  - ADD: a `lifespan` async context manager entering BOTH session managers via `contextlib.AsyncExitStack`
+  - ADD: `app.mount("/mcp", candidate_mcp.streamable_http_app())` and
+    `app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())`
+  - ADD: `app.include_router(...)` for recruiter_mcp_keys_router
+  - PRESERVE: all existing router registrations, CORS config untouched
+
+Task 9: MODIFY backend/routers/assignments.py — invite email only
+  - MODIFY: `_send_invite_email()` (line 85) to append the `claude mcp add --transport http
+    nideknil-assignment <mcp_url> --header "Authorization: Bearer <token>"` command to the email body,
+    right after the existing portal link
+  - PRESERVE: every other line of this file untouched — this is a one-line addition to an email string,
+    not a behavior change to the endpoint logic
+
+Task 10: MODIFY backend/schemas.py + routers/jobs equivalent for submissions
+  - IMPLEMENT: add `mcp_connected_at: datetime | None` / `mcp_last_seen_at: datetime | None` to
+    `schemas.SubmissionResponse`
+  - VERIFY: `_submission_response()` (routers/assignments.py ~line 67) already uses
+    `schemas.SubmissionResponse.model_validate(s)` — confirm the new columns flow through automatically
+    once added to the model+schema, no extra plumbing needed
+
+Task 11: MODIFY frontend/src/pages/JobAssignments.tsx
+  - IMPLEMENT: render a small "connected via Claude Code, active <Xm> ago" hint per submission row when
+    mcp_last_seen_at is present, using the data already coming back from the existing polling call (Task 10
+    makes it available) — no new endpoint, no new polling loop
+
+Task 12: CREATE frontend/src/pages/RecruiterMcpSettings.tsx
+  - IMPLEMENT: generate a RecruiterMcpApiKey, display connect_command ONCE with a clear "won't be shown
+    again" warning, list/revoke existing keys
+  - MODIFY frontend/src/App.tsx: register the route
+
+Task 13: ADD light rate limiting (hygiene, not launch-blocking in this version)
+  - IMPLEMENT: a simple per-token/per-key call-rate guard on both MCP servers' auth helpers (Task 5 & 7),
+    using last_seen_at/last_used_at + a call-counter, to prevent a runaway loop from one connection
+  - PLACEMENT: services/mcp_bridge.py
+```
+
+### Implementation Patterns & Key Details
+
+```python
+# Pattern: FastAPI app lifespan wiring for BOTH mounted MCP sub-apps (backend/main.py)
+import contextlib
+from routers.mcp_candidate import mcp as candidate_mcp   # Task 5
+from routers.mcp_recruiter import mcp as recruiter_mcp    # Task 7
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with contextlib.AsyncExitStack() as stack:
+        await stack.enter_async_context(candidate_mcp.session_manager.run())
+        await stack.enter_async_context(recruiter_mcp.session_manager.run())
+        yield
+
+app = FastAPI(lifespan=lifespan, title="Nideknil", ...)  # merge with existing FastAPI(...) call
+app.mount("/mcp", candidate_mcp.streamable_http_app())
+app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
+
+# Pattern: candidate MCP auth REUSES the existing assignments.py helper directly (backend/routers/mcp_candidate.py)
+from mcp.server.context import Context   # CONFIRM import path per Task 0
+from routers.assignments import _by_token          # genuine reuse, not a mirror
+from services.mcp_bridge import mark_mcp_connected
+
+def _authenticate(ctx: Context, db: Session) -> models.AssignmentSubmission:
+    headers = ctx.headers or {}
+    auth = headers.get("authorization", "")
+    if not auth.startswith("Bearer "):
+        raise ValueError("Missing or invalid Authorization header")
+    token = auth.removeprefix("Bearer ").strip()
+    submission = _by_token(db, token)          # raises HTTPException(404) if unknown — catch/translate
+    mark_mcp_connected(db, submission)
+    return submission
+
+@mcp.tool()
+def get_assignment_brief(ctx: Context) -> dict:
+    db = SessionLocal()
+    try:
+        submission = _authenticate(ctx, db)
+        assignment = submission.assignment
+        return {
+            "title": assignment.title, "brief": assignment.brief,
+            "evaluation_focus": assignment.evaluation_focus, "deadline": assignment.deadline,
+            "company": assignment.job.company, "job_title": assignment.job.title,
+        }
+    finally:
+        db.close()
+
+@mcp.tool()
+def get_submission_instructions(ctx: Context) -> str:
+    db = SessionLocal()
+    try:
+        submission = _authenticate(ctx, db)
+        return (
+            f"When you're done, run:\n  npx nideknil-submit {submission.access_token}\n"
+            f"or upload directly at {settings.FRONTEND_URL}/assignment/{submission.access_token}"
+        )
+    finally:
+        db.close()
+
+# Pattern: recruiter MCP tools REUSE the existing ownership-check helper (backend/routers/mcp_recruiter.py)
+from routers.assignments import _own_submission   # genuine reuse
+from fastapi import HTTPException
+
+def _owned_submission(ctx: Context, db: Session, submission_id: int) -> models.AssignmentSubmission:
+    recruiter = _authenticate_recruiter(ctx, db)   # validates RecruiterMcpApiKey, separate from above
+    try:
+        return _own_submission(db, submission_id, recruiter)   # raises HTTPException on 404/403
+    except HTTPException as exc:
+        raise ValueError(exc.detail)   # translate to a plain error for the MCP tool caller
+
+@recruiter_mcp.tool()
+def get_candidate_report(ctx: Context, submission_id: int) -> dict:
+    db = SessionLocal()
+    try:
+        submission = _owned_submission(ctx, db, submission_id)
+        return get_merged_candidate_context(db, submission)
+    finally:
+        db.close()
+```
+
+### Integration Points
+
+```yaml
+DATABASE:
+  - new table: recruiter_mcp_api_keys (auto-created via Base.metadata.create_all — no migration entry)
+  - migration: two ALTER TABLE assignment_submissions statements (mcp_connected_at, mcp_last_seen_at)
+    appended to the _MIGRATIONS list in backend/main.py
+
+CONFIG:
+  - add to: backend/config.py — settings for constructing both MCP connect-command URLs
+  - add to: backend/requirements.txt — pinned `mcp` package version (Task 0)
+
+ROUTES:
+  - app.mount("/mcp", candidate_mcp.streamable_http_app())
+  - app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
+  - app.include_router(recruiter_mcp_keys_router.router)  — /api/recruiter/mcp-keys
+
+EMAIL:
+  - routers/assignments.py's _send_invite_email() gains one appended line with the claude mcp add command
+
+FRONTEND:
+  - modified: JobAssignments.tsx renders the MCP-connected hint per row
+  - new: RecruiterMcpSettings.tsx for key generation/revocation
+
+EXTERNAL TOOL:
+  - tools/nideknil-submit — NO CHANGES. It already targets the correct endpoint with the correct token.
+```
+
+## Validation Loop
+
+_No pytest/test_*.py convention exists anywhere in this repo — validation here is manual/integration-based._
+
+### Level 1: Syntax & Style
+
+```bash
+ls backend/pyproject.toml backend/setup.cfg backend/ruff.toml 2>/dev/null   # confirm lint config exists before assuming a command
+python -c "import main"   # from backend/, venv activated — confirms the app still imports cleanly
+```
+
+### Level 2: Component Validation (manual)
+
+```bash
+cd backend && uvicorn main:app --reload --port 8000
+
+# Simulate an existing recruiter invite (use the real endpoint, a real assignment/job) to get a real
+# AssignmentSubmission.access_token, then:
+TOKEN=<the real access_token from that invite>
+claude mcp add --transport http nideknil-local http://localhost:8000/mcp --header "Authorization: Bearer $TOKEN"
+# Inside a real Claude Code session: "what's the brief for this assignment" -> get_assignment_brief
+# "how do I submit" -> get_submission_instructions
+# Confirm assignment_submissions.mcp_connected_at / mcp_last_seen_at are now set for THIS row only
+
+# Recruiter side:
+curl -s -X POST http://localhost:8000/api/recruiter/mcp-keys -H "Authorization: Bearer <recruiter-jwt>" | tee /tmp/key.json
+KEY=$(python3 -c "import json;print(json.load(open('/tmp/key.json'))['key'])")
+claude mcp add --transport http nideknil-recruiter-local http://localhost:8000/mcp/recruiter --header "Authorization: Bearer $KEY"
+# "list my submissions for job <id>" -> list_submissions
+# "get the report for submission <id>" -> get_candidate_report
+# "what should I ask them in the interview" -> generate_interview_questions
+```
+
+### Level 3: Integration Testing
+
+```bash
+# Confirm the existing web-upload AND nideknil-submit CLI paths are completely unaffected
+cd tools/nideknil-submit && node bin/cli.js <access_token> --dry-run   # exact existing usage, no flags added
+
+# Confirm the invite email now contains the claude mcp add command (check logs/console-printed email
+# fallback per services/email_service.py if SMTP isn't configured locally)
+
+# Confirm a SECOND candidate's token cannot fetch the FIRST candidate's brief (multi-tenant isolation)
+# Confirm a SECOND recruiter's key cannot get_candidate_report on the FIRST recruiter's submission
+```
+
+### Level 4: Creative & Domain-Specific Validation
+
+```bash
+# Security check: malformed/missing Authorization header rejected by every tool on BOTH servers
+# Confirm Mcp-Session-Id (if assigned) is never treated as authentication on either server
+# Confirm get_submission_instructions never embeds transcript bytes — only ever a command/URL string
+```
+
+## Final Validation Checklist
+
+### Technical Validation
+
+- [ ] Task 0's SDK-version verification note is recorded and every import matches it
+- [ ] Backend starts cleanly with the new lifespan + BOTH mounted MCP apps
+- [ ] `POST /api/recruiter/mcp-keys` requires a valid recruiter JWT; the returned key works exactly once shown
+- [ ] A real `claude mcp add` + real Claude Code session can call both candidate tools AND, separately, all four recruiter tools
+
+### Feature Validation
+
+- [ ] Existing take-home invite/submission/scoring behavior is provably unchanged (Level 3 checks above)
+- [ ] `mcp_connected_at`/`mcp_last_seen_at` show correctly on the recruiter's existing submissions list
+- [ ] `get_candidate_report`/`ask_about_candidate`/`generate_interview_questions` work for the owning recruiter and are refused for any other recruiter
+- [ ] No code path anywhere passes transcript file bytes as an MCP tool argument
+
+### Code Quality Validation
+
+- [ ] `_by_token`, `_own_submission`, `candidate_view` are imported and called from `routers/assignments.py`, not reimplemented
+- [ ] `tools/nideknil-submit/` has zero diffs
+- [ ] New models/routers follow existing naming/style conventions
+
+### Documentation & Deployment
+
+- [ ] The exact `claude mcp add` command strings (candidate email + recruiter key response) are re-verified against `claude mcp add --help` at implementation time
+- [ ] New `mcp` dependency version is pinned, not left floating
+
+---
+
+## Anti-Patterns to Avoid
+
+- ❌ Don't pass transcript file content as an MCP tool-call argument — this is the single most important architectural constraint in this version of the plan.
+- ❌ Don't reimplement `_by_token`/`_own_submission`/`candidate_view` in the new MCP routers — import and call them.
+- ❌ Don't change the EXISTING behavior of `routers/assignments.py`'s endpoints while reusing its helpers — this feature is additive to that file, not a refactor of it.
+- ❌ Don't touch `tools/nideknil-submit/` — it already works correctly against the real `AssignmentSubmission.access_token`.
+- ❌ Don't share one `FastMCP` instance or auth helper between the candidate and recruiter servers — different trust models, keep them structurally separate even though they now both plug into the same underlying tables.
+- ❌ Don't let `get_candidate_report`/`ask_about_candidate` silently return data for a submission the requesting recruiter doesn't own — fail loudly via the reused `_own_submission` check.
+- ❌ Don't treat a bare MCP `initialize` as proof of active engagement — `claude mcp list`/`get` can trigger one on their own.

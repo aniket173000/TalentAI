@@ -13,6 +13,16 @@ const STATUS_TONE: Record<Submission['status'], 'neutral' | 'match' | 'longshot'
   analyzed: 'match', failed: 'full',
 }
 
+// "touched the MCP server" — not "is actively working right now" (claude mcp list/get
+// can themselves trigger a handshake). Kept deliberately vague ("Xm/Xh/Xd ago").
+function relativeTime(iso: string): string {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
+}
+
 interface PoolCandidate { id: number; candidate_name: string; candidate_email: string }
 
 export default function JobAssignments() {
@@ -288,6 +298,11 @@ function SubmissionsTable({ submissions, onRetry }: {
             {s.integrity_confidence && s.integrity_confidence !== 'high' && (
               <Tag tone={s.integrity_confidence === 'low' ? 'full' : 'longshot'}>
                 integrity: {s.integrity_confidence}
+              </Tag>
+            )}
+            {s.mcp_last_seen_at && (
+              <Tag icon="mono" tone="match">
+                connected via Claude Code · active {relativeTime(s.mcp_last_seen_at)}
               </Tag>
             )}
             <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>

@@ -87,7 +87,44 @@
       "Bash(./venv/bin/python -c \"import schemas; from routers import admin; from main import app; print\\('backend OK'\\); print\\([r.path for r in app.routes if '/admin' in getattr\\(r,'path',''\\)]\\)\")",
       "Bash(grep -n 'pattern=\"\\\\^\\(recruiter|candidate\\)\\\\$\"\\\\|account_type: str = Query\\\\|if not user:\\\\|user = models.User' /Users/aniket/Desktop/Mark1Job/backend/routers/linkedin_auth.py /Users/aniket/Desktop/Mark1Job/backend/routers/google_auth.py)",
       "Bash(./venv/bin/python -c \"from routers import google_auth, linkedin_auth; import ast; ast.parse\\(open\\('routers/google_auth.py'\\).read\\(\\)\\); ast.parse\\(open\\('routers/linkedin_auth.py'\\).read\\(\\)\\); print\\('OAuth routers OK'\\)\")",
-      "Bash(./venv/bin/python -c \"from routers import google_auth, linkedin_auth, auth; print\\('BE OK'\\)\")"
+      "Bash(./venv/bin/python -c \"from routers import google_auth, linkedin_auth, auth; print\\('BE OK'\\)\")",
+      "Bash(/bin/bash --noprofile --norc -c ' *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(lsof -nP -iTCP:8000 -sTCP:LISTEN)",
+      "Bash(kill 4328 34729)",
+      "Bash(claude mcp *)",
+      "mcp__nideknil-assignment__get_assignment_brief",
+      "mcp__nideknil-assignment__get_submission_instructions",
+      "Bash(node -c /Users/aniket/Desktop/Mark1Job/tools/nideknil-submit/bin/cli.js)",
+      "Bash(node -c /Users/aniket/Desktop/Mark1Job/tools/nideknil-submit/src/discover.js)",
+      "Bash(curl -s -o /dev/null -w \"GET / -> %{http_code}\\\\n\" https://nideknil.in/ --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET /api/health -> %{http_code}\\\\n\" https://nideknil.in/api/health --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET /health -> %{http_code}\\\\n\" https://nideknil.in/health --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"POST /api/assignments/portal/x/submit -> %{http_code}\\\\n\" -X POST https://nideknil.in/api/assignments/portal/x/submit --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET  /                 -> %{http_code}\\\\n\" https://nideknil.in/ --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET  /api/health       -> %{http_code}\\\\n\" https://nideknil.in/api/health --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET  /health           -> %{http_code}\\\\n\" https://nideknil.in/health --max-time 8)",
+      "Bash(curl -sI https://nideknil.in/api/health --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET  -L /api/health -> %{http_code}  \\(url: %{url_effective}\\)\\\\n\" -L https://nideknil.in/api/health --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"POST -L /api/assignments/portal/x/submit -> %{http_code}  \\(url: %{url_effective}\\)\\\\n\" -L -X POST https://nideknil.in/api/assignments/portal/x/submit --max-time 8)",
+      "Bash(curl -sL https://www.nideknil.in/api/health --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"POST -L www /api/assignments/portal/x/submit -> %{http_code}\\\\n\" -X POST https://www.nideknil.in/api/assignments/portal/x/submit --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET  https://api.nideknil.in/openapi.json -> %{http_code}\\\\n\" https://api.nideknil.in/openapi.json --max-time 8)",
+      "Bash(curl -s -o /dev/null -w \"GET  https://api.nideknil.in/health       -> %{http_code}\\\\n\" https://api.nideknil.in/health --max-time 8)",
+      "Bash(curl -s https://api.nideknil.in/openapi.json --max-time 10)",
+      "Bash(npx tools/nideknil-submit --help)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(npx --version)",
+      "Bash(npx ./tools/nideknil-submit --help)",
+      "Bash(npx ./tools/nideknil-submit sZWuS1gg-z5phgvqNtCVwQ3TL845_ZbM2b41A8ztb6M --since 2026-07-05 --api http://localhost:8000 --dry-run)",
+      "Bash(grep -iE \"useParams|navigate\\\\\\(|to=\\\\`|Link to\")",
+      "Bash(grep -c \"\\\\.pyc$\")",
+      "Bash(grep -E \"\\\\.pyc$|__pycache__\")",
+      "Bash(git commit --only -- backend/venv -m ' *)",
+      "Bash(awk '{print $1}')",
+      "Bash(grep -z \"\\\\.pyc$\")",
+      "Bash(grep -vc \"\\\\.pyc$\")",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "/tmp",
@@ -95,5 +132,8 @@
       "/Users/aniket/Desktop/Mark1Job/backend",
       "/Users/aniket/Desktop/Mark1Job/frontend"
     ]
+  },
+  "enabledPlugins": {
+    "prp@rapid-shipping": true
   }
 }

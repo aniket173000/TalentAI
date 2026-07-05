@@ -91,6 +91,10 @@ async def _send_invite_email(to_email: str, candidate_name: str, assignment_titl
     # (even eager-loaded ones) — any ORM attribute access here would raise
     # DetachedInstanceError.
     link = f"{settings.FRONTEND_URL}/assignment/{token}"
+    mcp_command = (
+        f'claude mcp add --transport http nideknil-assignment {settings.MCP_PUBLIC_URL}/mcp '
+        f'--header "Authorization: Bearer {token}"'
+    )
     deadline = (
         f"\nDeadline: {deadline_at.strftime('%d %b %Y, %H:%M UTC')}"
         if deadline_at else ""
@@ -104,6 +108,8 @@ async def _send_invite_email(to_email: str, candidate_name: str, assignment_titl
         f"Claude Code session transcripts along with your work — we assess how "
         f"effectively you collaborate with AI, not just the final code.\n\n"
         f"Open your assignment portal to see the full brief and submit:\n{link}\n\n"
+        f"Or connect this same link straight into your terminal — run this once and you "
+        f"can ask Claude Code for the brief or how to submit at any time:\n{mcp_command}\n\n"
         f"Good luck!\n{job_company} Recruiting"
     )
     try:

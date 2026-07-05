@@ -30,6 +30,8 @@ export interface Submission {
   analyzed_at: string | null
   overall_score: number | null
   integrity_confidence: 'high' | 'medium' | 'low' | null
+  mcp_connected_at: string | null
+  mcp_last_seen_at: string | null
 }
 
 export interface ReportDimension {

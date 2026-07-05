@@ -7,6 +7,8 @@
 // Options:
 //   --project <slug|path>   Which Claude Code project to submit (default: the
 //                           project matching the current directory).
+//   --since <YYYY-MM-DD>    Only include sessions modified on/after this date.
+//   --until <YYYY-MM-DD>    Only include sessions modified on/before this date.
 //   --repo <url>            Link to the repo you built (optional).
 //   --api <url>             API base URL (default: $NIDEKNIL_API_URL or prod).
 //   --yes                   Skip the confirmation prompt.
@@ -16,13 +18,19 @@
 // The command runs entirely on YOUR machine. It reads only the one project's
 // transcripts, redacts secrets locally, shows you exactly what will be sent,
 // and asks before uploading. Nothing is transmitted without your confirmation.
+// If a project has multiple sessions and you didn't pass --since/--until, you
+// will be prompted to pick which sessions actually belong to this assignment.
 
 import fs from 'node:fs';
 import readline from 'node:readline';
-import { captureGit, listProjects, resolveProject, sessionFiles } from '../src/discover.js';
+import { captureGit, filterSessionsByDate, listProjects, resolveProject, sessionFiles } from '../src/discover.js';
 import { scrubBuffer } from '../src/scrub.js';
 
-const DEFAULT_API = process.env.NIDEKNIL_API_URL || 'https://nideknil.in';
+// NOTE: this must be the API host, NOT the frontend SPA domain. nideknil.in /
+// www.nideknil.in are Vercel-hosted static hosting (frontend/vercel.json
+// rewrites every GET to index.html and 405s any POST) — the real backend is
+// a separate host, api.nideknil.in.
+const DEFAULT_API = process.env.NIDEKNIL_API_URL || 'https://api.nideknil.in';
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -32,6 +40,8 @@ function parseArgs(argv) {
     else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--project') args.project = argv[++i];
+    else if (a === '--since') args.since = argv[++i];
+    else if (a === '--until') args.until = argv[++i];
     else if (a === '--repo') args.repo = argv[++i];
     else if (a === '--api') args.api = argv[++i];
     else args._.push(a);
@@ -42,11 +52,16 @@ function parseArgs(argv) {
 const HELP = `
 nideknil-submit — submit your Claude Code transcripts for a take-home assignment
 
-  npx nideknil-submit <token> [--project <slug|path>] [--repo <url>]
-                              [--api <url>] [--yes] [--dry-run]
+  npx nideknil-submit <token> [--project <slug|path>]
+                              [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]
+                              [--repo <url>] [--api <url>] [--yes] [--dry-run]
 
 The <token> is in your invitation email/link (…/assignment/<token>).
 Run this from inside the project folder you built the assignment in.
+
+If that project folder has sessions from unrelated work too, use --since/
+--until to only include the ones from when you actually built this
+assignment, or answer the prompt shown when multiple sessions are found.
 `;
 
 function fmtBytes(n) {
@@ -81,6 +96,48 @@ async function pickProject() {
   return projects[idx];
 }
 
+// Parse "YYYY-MM-DD" as a day boundary in local time. `endOfDay` pushes the
+// timestamp to 23:59:59.999 so a bare date used as --until is inclusive of
+// the whole day, not just midnight.
+function parseDayBoundary(dateStr, endOfDay) {
+  const ms = new Date(dateStr).getTime();
+  if (Number.isNaN(ms)) return null;
+  return endOfDay ? ms + 24 * 60 * 60 * 1000 - 1 : ms;
+}
+
+async function pickSessions(files) {
+  console.log(`\nFound ${files.length} sessions in this project — some may be from unrelated work.\n`);
+  files.forEach((f, i) => {
+    console.log(`  ${String(i + 1).padStart(2)}. ${new Date(f.mtime).toLocaleString()}  ${f.name}  (${fmtBytes(f.size)})`);
+  });
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((r) => rl.question(
+    '\nWhich sessions actually built this assignment?\n' +
+    '  Enter numbers (e.g. 3,4,5), a date (YYYY-MM-DD), a date range (YYYY-MM-DD:YYYY-MM-DD),\n' +
+    '  or press Enter to include all of them: ', (a) => { rl.close(); r(a.trim()); },
+  ));
+  if (!answer) return files;
+
+  const rangeMatch = answer.match(/^(\d{4}-\d{2}-\d{2})(?::(\d{4}-\d{2}-\d{2}))?$/);
+  if (rangeMatch) {
+    const since = parseDayBoundary(rangeMatch[1], false);
+    const until = parseDayBoundary(rangeMatch[2] || rangeMatch[1], true);
+    const picked = filterSessionsByDate(files, since, until);
+    if (!picked.length) {
+      console.error('No sessions match that date/range.');
+      process.exit(1);
+    }
+    return picked;
+  }
+
+  const idxs = answer.split(',').map((s) => Number(s.trim()) - 1);
+  if (idxs.some((i) => Number.isNaN(i) || i < 0 || i >= files.length)) {
+    console.error('Invalid selection.');
+    process.exit(1);
+  }
+  return idxs.map((i) => files[i]);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || args._.length === 0) {
@@ -103,15 +160,31 @@ async function main() {
     project = await pickProject();
   }
 
-  const files = sessionFiles(project);
-  if (!files.length) {
+  const allFiles = sessionFiles(project);
+  if (!allFiles.length) {
     console.error(`No .jsonl transcripts in ${project.dir}`);
     process.exit(1);
   }
 
+  // 1b. Narrow to the sessions that actually built this assignment. Explicit
+  // --since/--until wins non-interactively; otherwise, with more than one
+  // session found, ask (a project folder often has unrelated work mixed in).
+  let files = allFiles;
+  if (args.since || args.until) {
+    const since = args.since ? parseDayBoundary(args.since, false) : null;
+    const until = args.until ? parseDayBoundary(args.until, true) : null;
+    files = filterSessionsByDate(allFiles, since, until);
+    if (!files.length) {
+      console.error(`No sessions between ${args.since || '(start)'} and ${args.until || '(now)'}.`);
+      process.exit(1);
+    }
+  } else if (allFiles.length > 1) {
+    files = await pickSessions(allFiles);
+  }
+
   // 2. Scrub locally + measure.
   console.log(`\nProject:  ${project.slug}`);
-  console.log(`Sessions: ${files.length} file(s)`);
+  console.log(`Sessions: ${files.length} of ${allFiles.length} file(s) selected`);
   const prepared = [];
   let totalIn = 0;
   let totalOut = 0;

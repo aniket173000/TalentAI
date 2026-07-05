@@ -169,3 +169,13 @@ class AIStrategy(ABC):
 
         Malformed JSON must trigger up to 3 automatic retries before raising.
         """
+
+    @abstractmethod
+    async def answer_question(self, context: str, question: str) -> str:
+        """
+        Free-form Q&A grounded in a supplied context blob (used by the recruiter MCP
+        copilot — routers/mcp_recruiter.py — to answer questions about a candidate's
+        AI-fluency report + resume, and to draft interview questions). Plain-text
+        answer, no JSON contract — the caller supplies the full prompt/instructions
+        as part of `question`.
+        """

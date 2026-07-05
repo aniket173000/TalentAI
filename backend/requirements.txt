@@ -1,8 +1,13 @@
 fastapi==0.115.0
-uvicorn[standard]==0.30.6
+uvicorn[standard]==0.31.1
 sqlalchemy==2.0.35
-pydantic==2.9.2
+pydantic==2.11.0
 pydantic-settings==2.5.2
+starlette==0.38.6
+# ── MCP (Claude Code companion servers, routers/mcp_candidate.py + mcp_recruiter.py) ───────────
+# NOTE: mcp>=2.11.0 pydantic requirement forced the pydantic/uvicorn bumps above — verified compatible
+# with fastapi==0.115.0 (needs starlette<0.39.0) by explicitly pinning starlette here too.
+mcp==1.28.1
 pydantic[email]
 openai>=1.55.0
 pdfplumber==0.11.4

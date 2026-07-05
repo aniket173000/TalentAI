@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import re
 
@@ -24,6 +25,9 @@ from routers import semantic as semantic_router
 from routers import product_feedback as product_feedback_router
 from routers import admin as admin_router
 from routers import assignments as assignments_router
+from routers import recruiter_mcp_keys as recruiter_mcp_keys_router
+from routers.mcp_candidate import mcp as candidate_mcp
+from routers.mcp_recruiter import mcp as recruiter_mcp
 
 logging.basicConfig(level=logging.INFO)
 
@@ -269,6 +273,15 @@ _MIGRATIONS = [
     # ── AI Fluency assignments: submit-CLI fields ─────────────────────────────
     "ALTER TABLE assignment_submissions ADD COLUMN git_metadata TEXT",
     "ALTER TABLE assignment_submissions ADD COLUMN submit_source VARCHAR(20) DEFAULT 'web'",
+
+    # ── Claude Code MCP companion (routers/mcp_candidate.py) ──────────────────
+    # NOTE: TIMESTAMP, not DATETIME — confirmed empirically that DATETIME is not a
+    # valid Postgres type (raises UndefinedObject) and this dev DB is real Postgres,
+    # not SQLite. TIMESTAMP works on both engines. Several older entries above use
+    # DATETIME and silently no-op on Postgres via the try/except below — pre-existing
+    # behavior, not something this feature touches.
+    "ALTER TABLE assignment_submissions ADD COLUMN mcp_connected_at TIMESTAMP",
+    "ALTER TABLE assignment_submissions ADD COLUMN mcp_last_seen_at TIMESTAMP",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
@@ -434,10 +447,37 @@ with SessionLocal() as _s:
     except Exception:
         _s.rollback()
 
+def _warm_reranker():
+    # Verify the reranker client is ready (cheap — the hosted Cohere API has no
+    # model to preload). In Celery mode the funnel runs in the worker, which
+    # does its own readiness check, so the API process skips it.
+    if settings.USE_CELERY:
+        return
+    import threading
+
+    from services.reranker import warm
+    threading.Thread(target=warm, daemon=True).start()
+
+
+# NOTE: FastAPI/Starlette does not allow both an explicit `lifespan` and the legacy
+# @app.on_event("startup") decorator on the same app — passing `lifespan` silently
+# disables on_event handlers. _warm_reranker (above) used to be registered via
+# @app.on_event("startup"); it's now called directly from this lifespan instead, so
+# adding the two Claude Code MCP servers' session managers doesn't lose that behavior.
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    _warm_reranker()
+    async with contextlib.AsyncExitStack() as stack:
+        await stack.enter_async_context(candidate_mcp.session_manager.run())
+        await stack.enter_async_context(recruiter_mcp.session_manager.run())
+        yield
+
+
 app = FastAPI(
     title="Nideknil",
     description="AI-Powered Recruitment Intelligence Platform",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -471,19 +511,18 @@ app.include_router(referrals_router.router)
 app.include_router(product_feedback_router.router)
 app.include_router(admin_router.router)
 app.include_router(assignments_router.router)
+app.include_router(recruiter_mcp_keys_router.router)
 
-
-@app.on_event("startup")
-def _warm_reranker():
-    # Verify the reranker client is ready (cheap — the hosted Cohere API has no
-    # model to preload). In Celery mode the funnel runs in the worker, which
-    # does its own readiness check, so the API process skips it.
-    if settings.USE_CELERY:
-        return
-    import threading
-
-    from services.reranker import warm
-    threading.Thread(target=warm, daemon=True).start()
+# Claude Code MCP companion servers. streamable_http_path="/" (set on each FastMCP
+# instance) is required — without it, each server's own internal route defaults to
+# "/mcp" regardless of mount prefix, which 404s once mounted here.
+# NOTE: order matters — Starlette matches Mounts in registration order, and "/mcp" is
+# a literal prefix of "/mcp/recruiter". Mounting the more specific path FIRST is
+# required, or every /mcp/recruiter/* request gets swallowed by the /mcp mount first
+# (stripped to "/recruiter", which 404s inside the candidate server) and never reaches
+# the recruiter server at all.
+app.mount("/mcp/recruiter", recruiter_mcp.streamable_http_app())
+app.mount("/mcp", candidate_mcp.streamable_http_app())
 
 
 @app.get("/health")

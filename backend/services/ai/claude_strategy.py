@@ -57,3 +57,6 @@ class ClaudeStrategy(AIStrategy):
 
     async def extract_structured_profile(self, resume_text):
         raise NotImplementedError(self._MSG)
+
+    async def answer_question(self, context, question):
+        raise NotImplementedError(self._MSG)

@@ -546,6 +546,28 @@ class SubmissionResponse(BaseModel):
     analyzed_at: Optional[datetime] = None
     overall_score: Optional[float] = None      # populated when analyzed
     integrity_confidence: Optional[str] = None
+    mcp_connected_at: Optional[datetime] = None   # first Claude Code MCP handshake, if any
+    mcp_last_seen_at: Optional[datetime] = None   # most recent MCP tool call, if any
+
+    class Config:
+        from_attributes = True
+
+
+class RecruiterMcpKeyIssueResponse(BaseModel):
+    id: int
+    key: str                # shown ONCE — not retrievable again after this response
+    connect_command: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RecruiterMcpKeyResponse(BaseModel):
+    id: int
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

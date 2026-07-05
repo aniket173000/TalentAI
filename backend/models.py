@@ -827,6 +827,14 @@ class AssignmentSubmission(Base):
     submitted_at = Column(DateTime, nullable=True)
     analyzed_at = Column(DateTime, nullable=True)
 
+    # Claude Code MCP companion (routers/mcp_candidate.py) — set when the candidate connects
+    # their own Claude Code using this row's access_token. mcp_connected_at is the FIRST
+    # successful handshake; mcp_last_seen_at is bumped on every subsequent MCP tool call.
+    # Neither implies "actively working right now" — `claude mcp list`/`get` can themselves
+    # trigger a handshake.
+    mcp_connected_at = Column(DateTime, nullable=True)
+    mcp_last_seen_at = Column(DateTime, nullable=True)
+
     assignment = relationship("Assignment", back_populates="submissions")
     application = relationship("Application", foreign_keys=[application_id])
     report = relationship("FluencyReport", back_populates="submission", uselist=False)
@@ -860,3 +868,22 @@ class FluencyReport(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     submission = relationship("AssignmentSubmission", back_populates="report")
+
+
+class RecruiterMcpApiKey(Base):
+    """
+    A long-lived, revocable bearer credential a recruiter generates from their account
+    settings to connect THEIR OWN Claude Code to the recruiter-only MCP server
+    (/mcp/recruiter). Deliberately NOT the recruiter's JWT — JWTs are short-lived
+    session tokens, the wrong shape for a static CLI bearer header.
+    """
+    __tablename__ = "recruiter_mcp_api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    key = Column(String(64), unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)  # non-null => key rejected on every auth check
+
+    recruiter = relationship("User", foreign_keys=[recruiter_id])

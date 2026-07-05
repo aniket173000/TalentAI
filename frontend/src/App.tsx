@@ -33,6 +33,7 @@ import AdminPanel from './pages/AdminPanel'
 import JobAssignments from './pages/JobAssignments'
 import FluencyReportPage from './pages/FluencyReportPage'
 import AssignmentPortal from './pages/AssignmentPortal'
+import RecruiterMcpSettings from './pages/RecruiterMcpSettings'
 
 // Skipping hides the modal for the current browser session only.
 // On next login (new session) it reappears until the form is actually completed.
@@ -233,6 +234,14 @@ function AppShell() {
                     element={
                       <ProtectedRoute requires="recruiter">
                         <FluencyReportPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/recruiter/mcp-settings"
+                    element={
+                      <ProtectedRoute requires="recruiter">
+                        <RecruiterMcpSettings />
                       </ProtectedRoute>
                     }
                   />

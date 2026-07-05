@@ -112,6 +112,17 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
 
+    # ── Claude Code MCP companion servers (routers/mcp_candidate.py, mcp_recruiter.py) ──────
+    # Base URL candidates/recruiters use to `claude mcp add` against this backend. Locally
+    # this is the backend's own address; in production set to the deployed API host.
+    MCP_PUBLIC_URL: str = "http://localhost:8000"
+    # DNS-rebinding protection (mcp SDK's TransportSecuritySettings) only trusts Host headers
+    # matching these patterns by default (127.0.0.1/localhost/::1 with a port) — a REAL request
+    # to a deployed domain gets 421 Misdirected Request unless the real host is added here.
+    # Comma-separated, e.g. "nideknil.in,api.nideknil.in". Empty in dev (127.0.0.1/localhost
+    # are always allowed regardless of this setting).
+    MCP_ALLOWED_HOSTS: str = ""
+
     # ── AWS S3 (resume file storage) ─────────────────────────────────────────
     # Leave blank to run without S3 — text-only fallback will be used.
     AWS_ACCESS_KEY_ID: str = ""
