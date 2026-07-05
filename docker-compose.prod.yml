@@ -6,6 +6,19 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    volumes:
+      # Shared with celery-worker below. Without this, the S3-unavailable local-disk
+      # fallback (services/fluency/store.py, services/storage_service.py) writes into
+      # THIS container's own filesystem — a file the api container falls back to
+      # storing locally is invisible to celery-worker, which runs analysis in a
+      # SEPARATE container. Confirmed in production: an assignment submission fell
+      # back to local disk (S3 PutObject denied — IAM only allows the resumes/*
+      # prefix, not assignments/*) and the worker then reported the file "unreadable"
+      # because it was looking at its own empty /app/uploads. Fixing the underlying
+      # IAM policy (add assignments/* PutObject/GetObject) is the real fix and makes
+      # this fallback path a non-issue either way — this volume just makes the
+      # fallback actually correct in the meantime, and for any future local-disk use.
+      - uploads-data:/app/uploads
 
   celery-worker:
     build: ./backend
@@ -13,6 +26,8 @@ services:
     command: celery -A celery_app worker --loglevel=info --concurrency=2
     env_file:
       - ./backend/.env
+    volumes:
+      - uploads-data:/app/uploads
     depends_on:
       - api
 
@@ -35,5 +50,6 @@ services:
   #     - /var/run/docker.sock:/var/run/docker.sock:ro
   #     - alloy-data:/var/lib/alloy/data
 
-# volumes:
-#   alloy-data:
+volumes:
+  uploads-data:
+# alloy-data: (re-enable alongside the alloy service above once config.alloy exists)
