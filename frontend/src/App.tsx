@@ -109,6 +109,8 @@ function AppShell() {
           <Routes>
             {/* Public */}
             <Route path="/" element={<RootRoute />} />
+                  {/* Public job board — browsable without logging in */}
+                  <Route path="/jobs" element={<Home />} />
                   <Route path="/colleges" element={<Colleges />} />
                   <Route path="/jobs/:jobId" element={<JobDetail />} />
                   <Route path="/result" element={<ApplicationResult />} />
@@ -245,6 +247,8 @@ function AppShell() {
                     }
                   />
                   <Route path="/admin" element={<AdminGate><AdminPanel /></AdminGate>} />
+                  {/* Unknown paths → the public job board instead of a blank screen */}
+                  <Route path="*" element={<Navigate to="/jobs" replace />} />
                 </Routes>
         </main>
       </div>

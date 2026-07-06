@@ -259,7 +259,7 @@ export default function Navbar() {
 
           {/* Desktop nav — hidden on mobile */}
           <nav className="hidden md:flex items-center gap-5 ml-2">
-            <Link to="/" className={linkClass('/')}>Jobs</Link>
+            <Link to="/jobs" className={linkClass('/jobs')}>Jobs</Link>
             <Link to="/colleges" className={linkClass('/colleges')}>Colleges</Link>
             <Link to="/feedback" className={linkClass('/feedback')}>Feedback</Link>
             {!(isRecruiter && !isCandidate) && (
@@ -353,7 +353,7 @@ export default function Navbar() {
             className="md:hidden px-4 pb-4 pt-1 flex flex-col gap-1"
             style={{ borderTop: '1px solid var(--line)', background: dark ? 'rgba(8,8,11,.96)' : 'var(--bg)' }}
           >
-            <Link to="/" className={mobileLinkClass('/')} onClick={() => setMobileOpen(false)}>Jobs</Link>
+            <Link to="/jobs" className={mobileLinkClass('/jobs')} onClick={() => setMobileOpen(false)}>Jobs</Link>
             <Link to="/colleges" className={mobileLinkClass('/colleges')} onClick={() => setMobileOpen(false)}>Colleges</Link>
             <Link to="/feedback" className={mobileLinkClass('/feedback')} onClick={() => setMobileOpen(false)}>Feedback</Link>
             {!(isRecruiter && !isCandidate) && (
