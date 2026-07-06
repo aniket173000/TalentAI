@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import api from '../api/client'
-import EligibilityCriteriaEditor from '../components/EligibilityCriteriaEditor'
+import AIJobDescription, { SuggestedDetails } from '../components/AIJobDescription'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { EligibilityCriteria, Job, JobAuditLog } from '../types'
-import { CURRENCIES } from './CreateJob'
+import { Job, JobAuditLog } from '../types'
 
-const BLANK_CRITERIA: EligibilityCriteria = { min_years_experience: null, required_skills: [], required_education: null }
 const inputCls = 'w-full border-2 border-hairline rounded-lg px-4 py-2.5 text-sm bg-surface text-ink focus:outline-none focus:border-accent transition'
 const selectCls = `${inputCls}`
 const labelCls = 'block text-sm font-bold text-ink mb-1.5'
@@ -33,14 +31,9 @@ export default function EditJob() {
   const [department, setDepartment] = useState('')
   const [employmentType, setEmploymentType] = useState('')
   const [remotePolicy, setRemotePolicy] = useState('')
-  const [salaryMin, setSalaryMin] = useState('')
-  const [salaryMax, setSalaryMax] = useState('')
-  const [salaryCurrency, setSalaryCurrency] = useState('INR')
-  const [deadline, setDeadline] = useState('')
   const [maxCount, setMaxCount] = useState(10)
   const [minScore, setMinScore] = useState(80)
   const [jdText, setJdText] = useState('')
-  const [criteria, setCriteria] = useState<EligibilityCriteria>(BLANK_CRITERIA)
 
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -51,7 +44,15 @@ export default function EditJob() {
   // Track initial values to detect dirty state
   const initialRef = useRef<string>('')
 
-  const snapshot = () => JSON.stringify({ title, company, companyUrl, location, department, employmentType, remotePolicy, salaryMin, salaryMax, salaryCurrency, deadline, maxCount, minScore, jdText, criteria })
+  const snapshot = () => JSON.stringify({ title, company, companyUrl, location, department, employmentType, remotePolicy, maxCount, minScore, jdText })
+
+  // Fill any empty detail field from an AI suggestion; everything stays editable.
+  const applyDetails = (d: SuggestedDetails) => {
+    if (d.department && !department.trim()) setDepartment(d.department)
+    if (d.employment_type && !employmentType) setEmploymentType(d.employment_type)
+    if (d.remote_policy && !remotePolicy) setRemotePolicy(d.remote_policy)
+    if (d.location && !location.trim()) setLocation(d.location)
+  }
 
   useEffect(() => {
     if (!jobId) return
@@ -68,14 +69,9 @@ export default function EditJob() {
       setDepartment(j.department || '')
       setEmploymentType(j.employment_type || '')
       setRemotePolicy(j.remote_policy || '')
-      setSalaryMin(j.salary_range_min?.toString() || '')
-      setSalaryMax(j.salary_range_max?.toString() || '')
-      setSalaryCurrency(j.salary_currency || 'INR')
-      setDeadline(j.application_deadline ? j.application_deadline.slice(0, 16) : '')
       setMaxCount(j.max_count)
       setMinScore(j.min_match_score)
       setJdText(j.jd_text)
-      setCriteria(j.eligibility_criteria ?? BLANK_CRITERIA)
       setAuditLog(logRes.data as JobAuditLog[])
     }).finally(() => setLoading(false))
   }, [jobId])
@@ -115,11 +111,6 @@ export default function EditJob() {
       if (department) body.department = department
       if (employmentType) body.employment_type = employmentType
       if (remotePolicy) body.remote_policy = remotePolicy
-      if (salaryMin) body.salary_range_min = parseInt(salaryMin)
-      if (salaryMax) body.salary_range_max = parseInt(salaryMax)
-      if (salaryMin || salaryMax) body.salary_currency = salaryCurrency
-      if (deadline) body.application_deadline = new Date(deadline).toISOString()
-      body.eligibility_criteria = criteria
 
       const res = await api.patch<Job>(`/jobs/${jobId}`, body)
       setJob(res.data)
@@ -239,42 +230,23 @@ export default function EditJob() {
                 {['On-site', 'Remote', 'Hybrid'].map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
-            <div>
-              <label className={labelCls}>Application Deadline</label>
-              <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} className={inputCls} />
-            </div>
-          </div>
-        </section>
-
-        {/* Compensation */}
-        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
-          <h2 className="font-display font-extrabold text-ink text-lg mb-5">Compensation <span className="text-xs font-normal text-slate-400">(optional)</span></h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className={labelCls}>Currency</label>
-              <select value={salaryCurrency} onChange={e => setSalaryCurrency(e.target.value)} className={selectCls}>
-                {CURRENCIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Salary Min <span className="font-normal text-slate-400">/ year</span></label>
-              <input type="number" min={0} value={salaryMin} onChange={e => setSalaryMin(e.target.value)} placeholder="800000" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Salary Max <span className="font-normal text-slate-400">/ year</span></label>
-              <input type="number" min={0} value={salaryMax} onChange={e => setSalaryMax(e.target.value)} placeholder="1200000" className={inputCls} />
-            </div>
           </div>
         </section>
 
         {/* Job Description */}
         <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
-          <h2 className="font-bold text-slate-800 mb-2">Job Description</h2>
-          <p className="text-xs text-slate-400 mb-4">Editing a published job flags it for AI re-parsing on the next application submission.</p>
-          <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={14}
-            className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition resize-none" />
+          <h2 className="font-display font-extrabold text-ink text-lg mb-2">Job Description</h2>
+          <p className="text-xs text-slate-400 mb-4">Rewrite it yourself, or use Write with AI. Editing a published job flags it for AI re-parsing on the next application submission.</p>
+          <AIJobDescription
+            value={jdText}
+            onChange={setJdText}
+            title={title}
+            company={company}
+            employmentType={employmentType}
+            location={location}
+            onDetails={applyDetails}
+            rows={14}
+          />
         </section>
 
         {/* Screening Settings */}
@@ -290,13 +262,6 @@ export default function EditJob() {
               <input type="number" min={0} max={100} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className={inputCls} />
             </div>
           </div>
-        </section>
-
-        {/* Eligibility Criteria */}
-        <section className="bg-surface rounded-2xl border-2 border-ink shadow-card p-6">
-          <h2 className="font-bold text-slate-800 mb-1.5">Eligibility Criteria</h2>
-          <p className="text-xs text-slate-400 mb-5">Changes do not retroactively re-score existing candidates.</p>
-          <EligibilityCriteriaEditor value={criteria} onChange={setCriteria} />
         </section>
 
         {saveError && (

@@ -4,7 +4,7 @@ import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { Application, CandidateStatus, Job, JobApplicationsResponse, JobListResponse } from '../types'
 
-type Tab = 'jobs' | 'applications'
+type Tab = 'jobs' | 'applications' | 'mcp'
 type SortField = 'created_at' | 'total_applicants' | 'avg_score'
 type StatusFilter = 'all' | 'draft' | 'published' | 'closed'
 
@@ -245,7 +245,7 @@ export default function RecruiterPortal() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit mb-8">
-        {([['jobs', 'My Jobs'], ['applications', 'Applications']] as [Tab, string][]).map(([t, label]) => (
+        {([['jobs', 'My Jobs'], ['applications', 'Applications'], ['mcp', 'Claude Code']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t ? 'bg-white shadow text-ink' : 'text-slate-500 hover:text-slate-700'}`}>
             {label}
@@ -876,6 +876,149 @@ export default function RecruiterPortal() {
           </div>
         </div>
       )}
+
+      {/* ── CLAUDE CODE (MCP) TAB ── */}
+      {tab === 'mcp' && <McpKeysCard />}
+    </div>
+  )
+}
+
+// ── Claude Code / MCP connect card ──────────────────────────────────────────
+// Lets a recruiter generate a key to connect their own Claude Code to the
+// recruiter MCP server (interview copilot). Revoking hard-deletes the key.
+
+interface McpKey {
+  id: number
+  created_at: string
+  last_used_at: string | null
+}
+interface McpKeyIssue extends McpKey {
+  key: string
+  connect_command: string
+}
+
+function McpKeysCard() {
+  const [keys, setKeys] = useState<McpKey[] | null>(null)
+  const [justIssued, setJustIssued] = useState<McpKeyIssue | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    const res = await api.get<McpKey[]>('/recruiter/mcp-keys')
+    setKeys(res.data)
+  }, [])
+
+  useEffect(() => { load().catch(() => { setError('Could not load keys'); setKeys([]) }) }, [load])
+
+  const generate = async () => {
+    setBusy(true); setError('')
+    try {
+      const res = await api.post<McpKeyIssue>('/recruiter/mcp-keys')
+      setJustIssued(res.data); setCopied(false)
+      await load()
+    } catch { setError('Failed to generate key') } finally { setBusy(false) }
+  }
+
+  const remove = async (id: number) => {
+    try { await api.delete(`/recruiter/mcp-keys/${id}`); await load() }
+    catch { setError('Failed to revoke key') }
+  }
+
+  const copy = () => {
+    if (!justIssued) return
+    navigator.clipboard?.writeText(justIssued.connect_command)
+    setCopied(true)
+  }
+
+  return (
+    <div className="max-w-3xl">
+      {/* Intro */}
+      <div className="bg-white rounded-2xl border-2 border-ink shadow-card p-6 mb-6">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl">🤖</div>
+          <div>
+            <h2 className="font-display font-extrabold text-ink text-lg">Connect Claude Code</h2>
+            <p className="text-sm text-slate-500 mt-1 leading-6">
+              Generate a key to connect your own Claude Code to Nideknil's recruiter MCP server.
+              Then ask questions about a candidate's AI-fluency report right before an interview —
+              e.g. <span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5">"what should I ask them?"</span>.
+              You'll only ever see submissions on jobs you own.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm">{error}</div>
+      )}
+
+      {/* One-time key reveal */}
+      {justIssued && (
+        <div className="mb-6 rounded-2xl border-2 border-violet-300 bg-violet-50 p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-extrabold text-violet-900">Your connect command</span>
+            <span className="text-xs font-semibold text-violet-600 bg-white border border-violet-200 rounded-full px-2 py-0.5">
+              shown once — copy it now
+            </span>
+          </div>
+          <pre className="bg-white border border-violet-200 rounded-lg p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all text-slate-800">
+            {justIssued.connect_command}
+          </pre>
+          <div className="mt-3 flex items-center gap-2">
+            <button onClick={copy}
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 text-white text-sm font-bold hover:from-violet-500 hover:to-pink-500 transition">
+              {copied ? '✓ Copied' : 'Copy command'}
+            </button>
+            <button onClick={() => setJustIssued(null)}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Keys */}
+      <div className="bg-white rounded-2xl border-2 border-ink shadow-card p-6">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <h3 className="font-display font-extrabold text-ink text-base">Your keys</h3>
+          <button onClick={generate} disabled={busy}
+            className="px-4 py-2 rounded-lg bg-ink text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition inline-flex items-center gap-2">
+            {busy && <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />}
+            {busy ? 'Generating…' : '+ Generate new key'}
+          </button>
+        </div>
+
+        {!keys ? (
+          <LoadingSpinner />
+        ) : keys.length === 0 ? (
+          <div className="text-center text-slate-400 text-sm py-8">
+            No keys yet — generate one to connect Claude Code.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {keys.map(k => (
+              <div key={k.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-800">
+                    Created {new Date(k.created_at).toLocaleDateString()}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {k.last_used_at ? `Last used ${new Date(k.last_used_at).toLocaleString()}` : 'Never used'}
+                  </div>
+                </div>
+                <button onClick={() => remove(k.id)}
+                  className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 transition">
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-slate-400 mt-4">
+          Revoking a key deletes it permanently and immediately disconnects any Claude Code using it.
+        </p>
+      </div>
     </div>
   )
 }

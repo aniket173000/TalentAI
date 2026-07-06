@@ -51,20 +51,24 @@ def list_keys(
 ):
     keys = (
         db.query(models.RecruiterMcpApiKey)
-        .filter(models.RecruiterMcpApiKey.recruiter_id == recruiter.id)
+        .filter(
+            models.RecruiterMcpApiKey.recruiter_id == recruiter.id,
+            # Legacy soft-revoked rows (if any) are hidden — revoke now hard-deletes.
+            models.RecruiterMcpApiKey.revoked_at.is_(None),
+        )
         .order_by(models.RecruiterMcpApiKey.created_at.desc())
         .all()
     )
     return [schemas.RecruiterMcpKeyResponse.model_validate(k) for k in keys]
 
 
-@router.delete("/{key_id}", response_model=schemas.RecruiterMcpKeyResponse)
+@router.delete("/{key_id}", status_code=204)
 def delete_key(
     key_id: int,
     db: Session = Depends(get_db),
     recruiter: models.User = Depends(require_recruiter),
 ):
-    key = revoke_recruiter_key(db, key_id, recruiter)
-    if not key:
+    # Hard delete — the key is removed from the DB entirely, not just flagged.
+    if not revoke_recruiter_key(db, key_id, recruiter):
         raise HTTPException(status_code=404, detail="Key not found")
-    return schemas.RecruiterMcpKeyResponse.model_validate(key)
+    return None

@@ -209,7 +209,7 @@ const GUIDE_STEPS: { title: string; body: ReactNode }[] = [
     title: '(Optional) Interview copilot',
     body: <>Connect your <em>own</em> Claude Code to the recruiter MCP server to ask questions
       about a candidate right before an interview — <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--surface)', padding: '1px 6px', borderRadius: 6 }}>"what should I ask them?"</code>.
-      Generate a key from <strong>Recruiter → Claude Code (MCP settings)</strong>.</>,
+      Generate a key from the <strong>Claude Code</strong> tab in your Recruiter Portal.</>,
   },
 ]
 

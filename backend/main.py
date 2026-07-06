@@ -26,6 +26,7 @@ from routers import product_feedback as product_feedback_router
 from routers import admin as admin_router
 from routers import assignments as assignments_router
 from routers import recruiter_mcp_keys as recruiter_mcp_keys_router
+from routers import ai_assist as ai_assist_router
 from routers.mcp_candidate import mcp as candidate_mcp
 from routers.mcp_recruiter import mcp as recruiter_mcp
 
@@ -512,6 +513,7 @@ app.include_router(product_feedback_router.router)
 app.include_router(admin_router.router)
 app.include_router(assignments_router.router)
 app.include_router(recruiter_mcp_keys_router.router)
+app.include_router(ai_assist_router.router)
 
 # Claude Code MCP companion servers. streamable_http_path="/" (set on each FastMCP
 # instance) is required — without it, each server's own internal route defaults to

@@ -274,9 +274,6 @@ export default function Navbar() {
             {isRecruiter && (
               <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>Rank</Link>
             )}
-            {isRecruiter && (
-              <Link to="/recruiter/mcp-settings" className={linkClass('/recruiter/mcp-settings')}>Claude Code</Link>
-            )}
             {user?.is_admin && (
               <Link to="/admin" className={linkClass('/admin')}>Admin</Link>
             )}
@@ -370,9 +367,6 @@ export default function Navbar() {
             )}
             {isRecruiter && (
               <Link to="/recruiter/rank-candidates" className={mobileLinkClass('/recruiter/rank-candidates')} onClick={() => setMobileOpen(false)}>Rank Candidates</Link>
-            )}
-            {isRecruiter && (
-              <Link to="/recruiter/mcp-settings" className={mobileLinkClass('/recruiter/mcp-settings')} onClick={() => setMobileOpen(false)}>Claude Code</Link>
             )}
             {user?.is_admin && (
               <Link to="/admin" className={mobileLinkClass('/admin')} onClick={() => setMobileOpen(false)}>Admin</Link>

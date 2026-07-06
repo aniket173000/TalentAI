@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
+import AIJobDescription from '../components/AIJobDescription'
 import { useAuth } from '../context/AuthContext'
 
 type Step = 'verify' | 'details' | 'settings' | 'done'
@@ -492,12 +493,15 @@ export default function CreateReferralPost() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Job Description</label>
-              <textarea
-                rows={10}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent resize-none font-mono"
-                placeholder="Paste the full job description here. This will be shown to candidates and used for AI matching."
+              <AIJobDescription
                 value={form.jd_raw}
-                onChange={e => setField('jd_raw', e.target.value)}
+                onChange={v => setField('jd_raw', v)}
+                title={form.title}
+                company={form.company_name}
+                employmentType={form.employment_type}
+                location={form.location}
+                minChars={0}
+                rows={10}
               />
               <p className="text-xs text-muted mt-1">The more detailed, the better the AI matching quality.</p>
             </div>

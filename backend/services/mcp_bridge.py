@@ -67,13 +67,18 @@ def issue_recruiter_key(db: Session, recruiter: models.User) -> models.Recruiter
     return key
 
 
-def revoke_recruiter_key(db: Session, key_id: int, recruiter: models.User) -> models.RecruiterMcpApiKey | None:
+def revoke_recruiter_key(db: Session, key_id: int, recruiter: models.User) -> bool:
+    """
+    Hard-delete a recruiter's MCP key. Once revoked, the row is gone — nothing to
+    track. Returns True if a key owned by this recruiter was deleted, else False.
+    Auth immediately fails for a deleted key (the lookup simply finds nothing).
+    """
     key = db.get(models.RecruiterMcpApiKey, key_id)
     if not key or key.recruiter_id != recruiter.id:
-        return None
-    key.revoked_at = datetime.now(timezone.utc)
+        return False
+    db.delete(key)
     db.commit()
-    return key
+    return True
 
 
 def mark_recruiter_key_used(db: Session, key: models.RecruiterMcpApiKey) -> None:
