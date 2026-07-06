@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../api/client'
 import {
@@ -85,6 +86,9 @@ export default function JobAssignments() {
 
       {error && <Card padding={16} style={{ background: 'var(--red-soft)' }}>{error}</Card>}
 
+      <HowItWorks />
+
+
       {assignments.length === 0 && !showCreate && (
         <Card padding={40} style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, marginBottom: 8 }}>
@@ -163,6 +167,107 @@ export default function JobAssignments() {
         </>
       )}
     </div>
+  )
+}
+
+// End-to-end walkthrough shown at the top of the Assignments page so a recruiter
+// always knows the full lifecycle — from sending an invite to reading the report —
+// without leaving the screen. Collapsible; the choice is remembered per browser.
+const GUIDE_KEY = 'nideknil.assignmentsGuide.open'
+
+const GUIDE_STEPS: { title: string; body: ReactNode }[] = [
+  {
+    title: 'Create the assignment',
+    body: <>Click <strong>New assignment</strong> and write a specific brief — features,
+      constraints, stack, and what "done" means. Optionally add an evaluation focus and a deadline.</>,
+  },
+  {
+    title: 'Invite candidates',
+    body: <>Open an assignment and hit <strong>Invite</strong>. Pick applicants from the pool or
+      paste emails. Each candidate gets an email with a web portal link <em>and</em> a ready-to-run
+      Claude Code connect command — no setup required on your side.</>,
+  },
+  {
+    title: 'Candidates build & submit',
+    body: <>They build the project in <strong>Claude Code</strong> and submit their session
+      transcript (via the CLI or the web portal). We score <em>how they collaborate with AI</em>,
+      not just the final code.</>,
+  },
+  {
+    title: 'Track progress here',
+    body: <>The list below updates live: <Tag tone="neutral">invited</Tag> →{' '}
+      <Tag tone="longshot">submitted</Tag> → <Tag tone="longshot">processing</Tag> →{' '}
+      <Tag tone="match">analyzed</Tag>. A "connected via Claude Code" tag appears once a
+      candidate links their MCP server.</>,
+  },
+  {
+    title: 'Read the report',
+    body: <>Once a submission is <strong>analyzed</strong>, click <strong>View report</strong> for
+      the score, the 8-dimension breakdown, and a summary of how they worked.</>,
+  },
+  {
+    title: '(Optional) Interview copilot',
+    body: <>Connect your <em>own</em> Claude Code to the recruiter MCP server to ask questions
+      about a candidate right before an interview — <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--surface)', padding: '1px 6px', borderRadius: 6 }}>"what should I ask them?"</code>.
+      Generate a key from <strong>Recruiter → Claude Code (MCP settings)</strong>.</>,
+  },
+]
+
+function HowItWorks() {
+  const [open, setOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem(GUIDE_KEY) !== 'closed' } catch { return true }
+  })
+  const toggle = () => setOpen(prev => {
+    const next = !prev
+    try { localStorage.setItem(GUIDE_KEY, next ? 'open' : 'closed') } catch { /* ignore */ }
+    return next
+  })
+
+  return (
+    <Card padding={0} style={{ background: 'var(--surface-2)', overflow: 'hidden' }}>
+      <button
+        onClick={toggle}
+        aria-expanded={open}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+          padding: '16px 20px', background: 'transparent', border: 'none', textAlign: 'left',
+          color: 'var(--ink)',
+        }}
+      >
+        <Icon name="sliders" size={18} />
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16 }}>
+          How assignments work — from invite to report
+        </span>
+        <Icon
+          name="chevron" size={18}
+          style={{ marginLeft: 'auto', transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }}
+        />
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {GUIDE_STEPS.map((step, i) => (
+            <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{
+                flexShrink: 0, width: 26, height: 26, borderRadius: '50%',
+                display: 'grid', placeItems: 'center', background: 'var(--ink)', color: 'var(--bg)',
+                fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13,
+              }}>
+                {i + 1}
+              </div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14.5 }}>
+                  {step.title}
+                </div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--muted)', marginTop: 2 }}>
+                  {step.body}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   )
 }
 
