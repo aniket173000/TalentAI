@@ -187,15 +187,44 @@ def download_file(file_key: str) -> bytes | None:
         return None
 
 
-def check_file_exists(file_key: str) -> bool:
-    """Check whether an object exists in S3 via head_object. Returns False on any error."""
+def object_status(file_key: str) -> str:
+    """
+    Probe an S3 object via head_object and classify the result:
+
+      "present" — the object exists and is readable.
+      "missing" — S3 confirmed the key does not exist (404 / NoSuchKey).
+      "unknown" — we could not determine existence. The common cause is the IAM
+                  user lacking s3:ListBucket: without it, S3 answers a HEAD/GET on a
+                  *missing* key with 403 AccessDenied (citing s3:ListBucket) instead
+                  of a clean 404, so "denied" and "missing" are indistinguishable.
+
+    Callers that must not regress when permissions are incomplete should treat
+    "unknown" like "present" (hand out the presigned URL anyway) and only act on a
+    confirmed "missing".
+    """
     if not s3_enabled() or not file_key:
-        return False
+        return "unknown"
     try:
         _client().head_object(Bucket=settings.S3_BUCKET, Key=file_key)
-        return True
-    except Exception:
-        return False
+        return "present"
+    except Exception as exc:
+        status = getattr(getattr(exc, "response", None), "get", lambda *_: {})("ResponseMetadata", {})
+        code = status.get("HTTPStatusCode") if isinstance(status, dict) else None
+        if code == 404:
+            return "missing"
+        # 403 here almost always means the IAM user is missing s3:ListBucket — grant
+        # it on arn:aws:s3:::<bucket> so missing keys return 404 and this becomes legible.
+        logger.warning(
+            "head_object could not confirm existence (key=%s, bucket=%s): %s "
+            "(if 403/AccessDenied, grant s3:ListBucket on the bucket)",
+            file_key, settings.S3_BUCKET, exc,
+        )
+        return "unknown"
+
+
+def check_file_exists(file_key: str) -> bool:
+    """Backwards-compatible boolean probe. True only when S3 confirms the object is present."""
+    return object_status(file_key) == "present"
 
 
 def delete_file(file_key: str) -> None:

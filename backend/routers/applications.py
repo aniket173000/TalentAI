@@ -27,7 +27,7 @@ from services.email_service import (
     send_status_change_email,
 )
 from services.file_parser import parse_resume
-from services.storage_service import check_file_exists, get_presigned_url, upload_resume_file
+from services.storage_service import check_file_exists, get_presigned_url, object_status, upload_resume_file
 from services.vector_service import cosine_similarity, rank_applications_by_vector
 
 logger = logging.getLogger(__name__)
@@ -1325,6 +1325,14 @@ def get_resume_url(
     if not app.resume_file_key:
         return {"available": False}
 
+    # If S3 can positively confirm the object is gone (legacy row, lost/failed
+    # upload), tell the UI cleanly instead of handing the browser a presigned URL
+    # that renders S3's raw AccessDenied XML in the resume viewer. "unknown"
+    # (e.g. IAM missing s3:ListBucket) falls through to the URL so we don't
+    # regress the working case while permissions are being fixed.
+    if object_status(app.resume_file_key) == "missing":
+        return {"available": False, "reason": "file_not_found"}
+
     url = get_presigned_url(app.resume_file_key, app.resume_filename or "resume")
     if not url:
         return {"available": False}
@@ -1357,7 +1365,7 @@ def s3_debug(
     Debug endpoint — returns S3 configuration and file existence check for an application.
     Remove or restrict this endpoint before going to production.
     """
-    from services.storage_service import s3_enabled, check_file_exists
+    from services.storage_service import s3_enabled, object_status
     from config import settings as _s
 
     app = db.query(models.Application).filter(models.Application.id == app_id).first()
@@ -1369,9 +1377,9 @@ def s3_debug(
         raise HTTPException(status_code=403, detail="Access denied.")
 
     file_key = app.resume_file_key
-    file_exists_in_s3 = check_file_exists(file_key) if file_key else False
+    status = object_status(file_key) if file_key else "unknown"
     presigned_url = None
-    if file_key and file_exists_in_s3:
+    if file_key and status != "missing":
         presigned_url = get_presigned_url(file_key, app.resume_filename or "resume")
 
     return {
@@ -1380,7 +1388,10 @@ def s3_debug(
         "configured_bucket": _s.S3_BUCKET,
         "access_key_id_prefix": (_s.AWS_ACCESS_KEY_ID[:8] + "...") if _s.AWS_ACCESS_KEY_ID else None,
         "resume_file_key": file_key,
-        "file_exists_in_s3": file_exists_in_s3,
+        # present / missing / unknown — "unknown" typically means the IAM user is
+        # missing s3:ListBucket, so missing keys can't be told apart from denials.
+        "object_status": status,
+        "file_exists_in_s3": status == "present",
         "presigned_url_generated": presigned_url is not None,
         "presigned_url_preview": (presigned_url[:120] + "...") if presigned_url else None,
     }
