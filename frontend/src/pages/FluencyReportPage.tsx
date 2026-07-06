@@ -85,7 +85,12 @@ export default function FluencyReportPage() {
           {report.dimensions.map(d => (
             <div key={d.key} style={{ borderBottom: '1.5px solid var(--line)', paddingBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: 15, minWidth: 220 }}>{d.label}</div>
+                <div style={{ minWidth: 220 }}>
+                  <span style={{ fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: 15 }}>{d.label}</span>
+                  {d.weight != null && (
+                    <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>· {d.weight}%</span>
+                  )}
+                </div>
                 <div style={{ flex: 1, height: 10, background: 'var(--track)', borderRadius: 99, minWidth: 120, overflow: 'hidden' }}>
                   {d.score != null && (
                     <div style={{ width: `${d.score}%`, height: '100%', background: barColor(d.score), borderRadius: 99 }} />

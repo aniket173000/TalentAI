@@ -199,7 +199,7 @@ async def _analyze(submission: models.AssignmentSubmission,
                                   assignment.brief, assignment.evaluation_focus)
 
     dimensions = _normalize_dimensions(final.get("dimensions"))
-    overall = _clamp_score(final.get("overall_score"), dimensions)
+    overall = _weighted_overall(dimensions)
 
     return {
         "overall_score": overall,
@@ -239,6 +239,7 @@ def _normalize_dimensions(raw) -> list[dict]:
         out.append({
             "key": spec["key"],
             "label": spec["label"],
+            "weight": spec["weight"],
             "score": score,
             "confidence": d.get("confidence") if d.get("confidence") in ("high", "medium", "low") else "low",
             "note": str(d.get("note") or "")[:600],
@@ -247,8 +248,15 @@ def _normalize_dimensions(raw) -> list[dict]:
     return out
 
 
-def _clamp_score(raw, dimensions: list[dict]) -> float:
-    if isinstance(raw, (int, float)):
-        return max(0.0, min(100.0, round(float(raw), 1)))
-    scored = [d["score"] for d in dimensions if d["score"] is not None]
-    return round(sum(scored) / len(scored), 1) if scored else 0.0
+def _weighted_overall(dimensions: list[dict]) -> float:
+    """
+    Deterministic overall = weighted average of the OBSERVED dimensions, using the
+    rubric weights (which sum to 100). Weights are renormalized over the dimensions
+    that actually got a score, so a transcript that never exercised a low-weight
+    dimension isn't penalized for it. Returns 0.0 if nothing was observable.
+    """
+    scored = [(d["score"], d.get("weight", 0)) for d in dimensions if d["score"] is not None]
+    total_weight = sum(w for _, w in scored)
+    if total_weight <= 0:
+        return 0.0
+    return round(sum(s * w for s, w in scored) / total_weight, 1)

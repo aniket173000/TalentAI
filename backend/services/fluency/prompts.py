@@ -9,62 +9,89 @@ from __future__ import annotations
 
 import json
 
+# The scoring rubric. `weight` is the dimension's share of the overall score and
+# the eight weights sum to 100 — the overall is a weighted average of the observed
+# dimensions (see pipeline._weighted_overall), renormalized over whatever was
+# actually exercised in the transcript. `desc` is the judge-facing instruction for
+# each dimension; it lives ONLY here (backend) — the frontend renders reports from
+# the returned label/score/note/evidence and never needs this text.
 RUBRIC: list[dict] = [
     {
         "key": "planning_decomposition",
-        "label": "Planning & decomposition",
-        "desc": "Did the candidate start with architecture/plan discussion and break the "
-                "project into scoped steps, or fire one vague mega-prompt and hope?",
+        "label": "Planning & Decomposition",
+        "weight": 20,
+        "desc": "Ability to break complex work into executable tasks. Did the candidate "
+                "open with a plan/architecture discussion and decompose the project into "
+                "scoped, ordered steps — or fire one vague mega-prompt and hope?",
     },
     {
-        "key": "context_provisioning",
-        "label": "Context provisioning",
-        "desc": "Do prompts include concrete requirements, constraints, examples, and "
-                "expected behavior — or leave the AI guessing?",
+        "key": "context_engineering",
+        "label": "Context Engineering",
+        "weight": 20,
+        "desc": "Quality of prompts, specifications, constraints, and examples. Do the "
+                "candidate's prompts supply concrete requirements, constraints, sample "
+                "inputs/outputs, and expected behavior — or leave the AI guessing?",
     },
     {
-        "key": "edge_case_thinking",
-        "label": "Edge-case thinking",
-        "desc": "Did the CANDIDATE proactively raise edge cases, error handling, "
-                "validation, concurrency, or failure modes (not just accept what the AI mentioned)?",
+        "key": "verification_validation",
+        "label": "Verification & Validation",
+        "weight": 15,
+        "desc": "Testing, checking outputs, and proving correctness. Did they run "
+                "tests/builds, review diffs, exercise the app, and confirm results — or "
+                "blind-accept generated code?",
     },
     {
-        "key": "longterm_reasoning",
-        "label": "Long-term / architectural reasoning",
-        "desc": "Did they discuss trade-offs, scalability, maintainability, or future "
-                "requirements with the AI — or take the first answer every time?",
+        "key": "debugging_rca",
+        "label": "Debugging & Root Cause Analysis",
+        "weight": 15,
+        "desc": "Finding and fixing issues systematically. When things broke, was it "
+                "hypothesis-driven (narrowing scope, adding logs, reading errors, isolating "
+                "the cause) — or paste-the-error-and-pray loops?",
     },
     {
-        "key": "verification_behavior",
-        "label": "Verification behavior",
-        "desc": "Did they run tests/builds, review diffs, exercise the app, and catch AI "
-                "mistakes — or blind-accept generated code?",
+        "key": "architectural_reasoning",
+        "label": "Architectural & Long-Term Reasoning",
+        "weight": 10,
+        "desc": "Scalability, maintainability, and future-proofing. Did they weigh "
+                "trade-offs, structure, and future requirements with the AI — or take the "
+                "first answer every time?",
     },
     {
-        "key": "debugging_quality",
-        "label": "Debugging quality",
-        "desc": "When things broke: hypothesis-driven iteration (narrowing, adding logs, "
-                "reading errors) vs paste-the-error-and-pray loops?",
+        "key": "critical_thinking",
+        "label": "Critical Thinking / Pushback",
+        "weight": 10,
+        "desc": "Challenging AI assumptions and spotting mistakes. Did they question, "
+                "correct, or reject an AI suggestion with reasoning? A strong seniority "
+                "signal — absence is neutral, presence is a plus.",
     },
     {
-        "key": "critical_pushback",
-        "label": "Critical pushback",
-        "desc": "Did they ever question, correct, or reject an AI suggestion with reasoning? "
-                "This is a strong seniority signal — absence is neutral, presence is a plus.",
-    },
-    {
-        "key": "efficiency",
-        "label": "Efficiency & direction",
-        "desc": "Progress per interaction: steady convergence toward the goal vs thrash, "
+        "key": "efficiency_leverage",
+        "label": "Efficiency & AI Leverage",
+        "weight": 5,
+        "desc": "Using AI to accelerate delivery. Progress per interaction: steady "
+                "convergence toward the goal and good use of the AI's strengths vs thrash, "
                 "abandoned directions, and repeated re-explanations.",
+    },
+    {
+        "key": "edge_cases_reliability",
+        "label": "Edge Cases & Reliability",
+        "weight": 5,
+        "desc": "Thinking about failure modes and corner cases. Did the CANDIDATE "
+                "proactively raise edge cases, error handling, validation, concurrency, or "
+                "reliability concerns (not just accept what the AI mentioned)?",
     },
 ]
 
 RUBRIC_KEYS = [d["key"] for d in RUBRIC]
 
+# Defensive: the overall-score math assumes these sum to 100.
+assert sum(d["weight"] for d in RUBRIC) == 100, "RUBRIC weights must sum to 100"
+
 
 def _rubric_block() -> str:
-    return "\n".join(f"- {d['key']}: {d['label']} — {d['desc']}" for d in RUBRIC)
+    return "\n".join(
+        f"- {d['key']} (weight {d['weight']}%): {d['label']} — {d['desc']}" for d in RUBRIC
+    )
 
 
 CHUNK_SYSTEM = (
@@ -163,6 +190,11 @@ Produce the final report as JSON with exactly these keys:
 Rules:
 - Include ALL {len(RUBRIC)} dimensions in "dimensions", in rubric order.
 - A dimension nobody exercised gets score null + confidence "low" — never a made-up number.
-- overall_score must be consistent with the dimension scores and metrics
-  (e.g. verification_runs=0 in metrics caps verification_behavior).
-- critical_pushback: absence is neutral (score null), presence scores high."""
+- Each dimension carries the weight shown above (they sum to 100). The final overall
+  is a WEIGHTED average of the dimensions you score, renormalized over the ones that
+  were actually observed — so put your effort into calibrating each dimension score
+  accurately; the heavily-weighted ones (Planning & Decomposition, Context Engineering)
+  move the needle most.
+- overall_score should reflect that weighting and the metrics
+  (e.g. verification_runs=0 in metrics caps Verification & Validation).
+- Critical Thinking / Pushback: absence is neutral (score null), presence scores high."""

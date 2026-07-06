@@ -37,6 +37,7 @@ export interface Submission {
 export interface ReportDimension {
   key: string
   label: string
+  weight?: number          // rubric weight (share of overall, sums to 100); backend-provided
   score: number | null
   confidence: 'high' | 'medium' | 'low'
   note: string
