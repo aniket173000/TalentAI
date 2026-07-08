@@ -63,8 +63,8 @@ async def _categorise(text: str, mood: Optional[str]) -> dict:
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
             resp = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0,
+                model=settings.AI_MODEL_NANO,
+                reasoning_effort="low",
                 response_format={"type": "json_object"},
                 messages=[{"role": "user", "content": prompt}],
             )

@@ -37,7 +37,20 @@ class Settings(BaseSettings):
     # ── AI provider (Strategy pattern) ───────────────────────────────────────
     # Supported values: "openai" | "claude" (stub)
     AI_PROVIDER: str = "openai"
-    AI_MODEL: str = "gpt-4o"
+    # Model tiers (OpenAI GPT-5 reasoning family; gpt-4o/4o-mini were retired 2026).
+    # AI_MODEL       — core reasoning: resume screening, ranking, rank explanations,
+    #                  skill verification, structured extraction, JD parsing.
+    # AI_MODEL_MINI  — moderate extraction/generation (skills/education parse,
+    #                  resume tailoring, college info/resolve, autocomplete).
+    # AI_MODEL_NANO  — trivial classification (feedback triage).
+    # These are reasoning models: the API needs max_completion_tokens (not
+    # max_tokens), rejects custom temperature, and takes an optional reasoning_effort.
+    AI_MODEL: str = "gpt-5.5"
+    AI_MODEL_MINI: str = "gpt-5.4-mini"
+    AI_MODEL_NANO: str = "gpt-5.4-nano"
+    # NOTE: embeddings are pinned — changing the model changes vector dimensions and
+    # would invalidate every embedding already stored in pgvector (needs a re-embed
+    # migration, not a config flip).
     EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     # ── Rerank stage (funnel stage 2) ────────────────────────────────────────
@@ -94,8 +107,8 @@ class Settings(BaseSettings):
     # rest of the platform's AI routing.
     FLUENCY_AI_PROVIDER: str = ""
     # Cheap model that reads transcript chunks; stronger model that aggregates.
-    FLUENCY_CHUNK_MODEL: str = "gpt-4o-mini"
-    FLUENCY_AGGREGATE_MODEL: str = "gpt-4o"
+    FLUENCY_CHUNK_MODEL: str = "gpt-5.4-mini"
+    FLUENCY_AGGREGATE_MODEL: str = "gpt-5.5"
     # Claude equivalents, used when the judge provider is "claude".
     FLUENCY_CHUNK_MODEL_CLAUDE: str = "claude-haiku-4-5-20251001"
     FLUENCY_AGGREGATE_MODEL_CLAUDE: str = "claude-sonnet-4-5"

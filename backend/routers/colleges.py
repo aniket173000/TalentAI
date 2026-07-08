@@ -184,8 +184,8 @@ async def ai_search_colleges(q: str = Query(..., min_length=2)):
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
             resp = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0,
+                model=settings.AI_MODEL_MINI,
+                reasoning_effort="low",
                 response_format={"type": "json_object"},
                 messages=[{"role": "user", "content": prompt}],
             )

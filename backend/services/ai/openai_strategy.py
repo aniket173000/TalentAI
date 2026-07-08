@@ -134,7 +134,6 @@ Be rigorous on experience shortfalls. Be fair on technology alternatives — a s
                 {"role": "user", "content": user},
             ],
             response_format={"type": "json_object"},
-            temperature=0.1,
         )
         result = json.loads(response.choices[0].message.content)
 
@@ -210,8 +209,7 @@ Start directly with: Dear {candidate_name},"""
         response = await _client().chat.completions.create(
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=400,
+            max_completion_tokens=2000,
         )
         return response.choices[0].message.content
 
@@ -246,8 +244,7 @@ Return ONLY this JSON (no markdown):
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            temperature=0.1,
-            max_tokens=300,
+            max_completion_tokens=2000,
         )
         result = json.loads(response.choices[0].message.content)
         return result.get("ranking", [c[0] for c in candidates])
@@ -291,8 +288,7 @@ Address the candidate directly (use "you"/"your"). Be specific, not generic."""
         response = await _client().chat.completions.create(
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-            max_tokens=250,
+            max_completion_tokens=2000,
         )
         return response.choices[0].message.content
 
@@ -359,8 +355,7 @@ Rules:
                     model=settings.AI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
-                    temperature=0.3,
-                    max_tokens=1000,
+                    max_completion_tokens=3000,
                 )
                 return json.loads(response.choices[0].message.content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -400,8 +395,7 @@ Return ONLY a JSON object — one key per skill (exact spelling from the list ab
                     model=settings.AI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
-                    temperature=0.0,
-                    max_tokens=600,
+                    max_completion_tokens=2500,
                 )
                 return json.loads(response.choices[0].message.content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -492,7 +486,6 @@ Rules:
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            temperature=0.3,
         )
         result = json.loads(response.choices[0].message.content)
         # Clamp readiness_score to valid range
@@ -574,8 +567,7 @@ Confidence score rules:
                         {"role": "user", "content": user},
                     ],
                     response_format={"type": "json_object"},
-                    temperature=0.0,
-                    max_tokens=2000,
+                    max_completion_tokens=4000,
                 )
                 return json.loads(response.choices[0].message.content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -689,8 +681,7 @@ Constraints:
                         {"role": "user", "content": user},
                     ],
                     response_format={"type": "json_object"},
-                    temperature=0.0,
-                    max_tokens=1500,
+                    max_completion_tokens=3500,
                 )
                 return json.loads(response.choices[0].message.content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -740,8 +731,7 @@ Be specific. Use the actual technologies from their resume. Avoid generic advice
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            temperature=0.3,
-            max_tokens=1200,
+            max_completion_tokens=3000,
         )
         return json.loads(response.choices[0].message.content)
 
@@ -752,7 +742,6 @@ Be specific. Use the actual technologies from their resume. Avoid generic advice
         response = await _client().chat.completions.create(
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            max_tokens=600,
+            max_completion_tokens=2500,
         )
         return response.choices[0].message.content

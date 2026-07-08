@@ -66,7 +66,6 @@ async def stream_job_description(
     client = _client()
     stream = await client.chat.completions.create(
         model=settings.AI_MODEL,
-        temperature=0.6,
         stream=True,
         messages=[
             {"role": "system", "content": _JD_SYSTEM},
@@ -121,7 +120,6 @@ async def suggest_job_details(
     try:
         resp = await client.chat.completions.create(
             model=settings.AI_MODEL,
-            temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system},

@@ -377,12 +377,12 @@ async def _call_ai_tailor(system: str, user_msg: str) -> str:
             import openai as _oai
             client = _oai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
             resp = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=settings.AI_MODEL_MINI,
+                reasoning_effort="low",
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_msg},
                 ],
-                temperature=0.2,
                 response_format={"type": "json_object"},
             )
             raw = resp.choices[0].message.content

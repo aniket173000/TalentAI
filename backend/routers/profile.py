@@ -774,8 +774,8 @@ async def _extract_work_experience_from_text(resume_text: str) -> list[dict]:
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
             resp = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.1,
+                model=settings.AI_MODEL_MINI,
+                reasoning_effort="low",
                 messages=[
                     {"role": "system", "content": "You extract work experience from resumes. Return valid JSON array only."},
                     {"role": "user", "content": prompt},
@@ -975,8 +975,8 @@ async def _extract_education_from_text(resume_text: str) -> list[dict]:
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
             resp = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.1,
+                model=settings.AI_MODEL_MINI,
+                reasoning_effort="low",
                 messages=[
                     {"role": "system", "content": "You extract education from resumes. Return valid JSON array only."},
                     {"role": "user", "content": prompt},

@@ -57,7 +57,7 @@ class FluencyJudge(ABC):
             CHUNK_SYSTEM,
             build_chunk_prompt(chunk_text, assignment_brief, evaluation_focus),
             model=self.chunk_model,
-            max_tokens=2_000,
+            max_tokens=3_000,
         )
 
     async def score_chunks(self, chunks: list[str], assignment_brief: str,
@@ -95,7 +95,7 @@ class FluencyJudge(ABC):
             build_aggregate_prompt(chunk_results, metrics, integrity_flags,
                                    assignment_brief, evaluation_focus),
             model=self.aggregate_model,
-            max_tokens=4_000,
+            max_tokens=6_000,
         )
 
 
@@ -114,8 +114,9 @@ class OpenAIFluencyJudge(FluencyJudge):
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         resp = await client.chat.completions.create(
             model=model,
-            temperature=0.2,
-            max_tokens=max_tokens,
+            # GPT-5 reasoning models: max_completion_tokens (not max_tokens) and no
+            # custom temperature. Budget must leave room for reasoning + output tokens.
+            max_completion_tokens=max_tokens,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system},
