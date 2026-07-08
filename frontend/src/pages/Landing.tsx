@@ -1201,8 +1201,12 @@ export default function Landing() {
                       flexWrap:'wrap', gap:14 }}>
           <div style={{ fontSize:13, color:'rgba(251,249,244,0.45)' }}>© 2026 Nideknil. All rights reserved.</div>
           <div style={{ display:'flex', gap:10 }}>
-            {['in','X'].map(s => (
-              <a key={s} href="#" className="nk-foot-icon"
+            {[{s:'in',href:'https://www.linkedin.com/company/nideknilai/',label:'Nideknil on LinkedIn'},
+              {s:'X',href:'#',label:'Nideknil on X'}].map(({s,href,label}) => (
+              <a key={s} href={href} aria-label={label}
+                target={href === '#' ? undefined : '_blank'}
+                rel={href === '#' ? undefined : 'noopener noreferrer'}
+                className="nk-foot-icon"
                 style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
                          width:34, height:34, borderRadius:9, background:'rgba(251,249,244,0.08)',
                          fontSize:13, fontWeight:700, color:'#fff',
