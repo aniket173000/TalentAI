@@ -47,11 +47,13 @@ class Settings(BaseSettings):
     RERANK_MODEL: str = "rerank-v3.5"
 
     # ── Email ─────────────────────────────────────────────────────────────────
-    SMTP_HOST: str = "smtp.gmail.com"
+    # Business mail is on Titan; sender is talent@nideknil.in. SMTP_USER/PASSWORD
+    # come from .env (the mailbox must be allowed to send as FROM_EMAIL).
+    SMTP_HOST: str = "smtp.titan.email"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    FROM_EMAIL: str = ""
+    FROM_EMAIL: str = "talent@nideknil.in"
 
     FRONTEND_URL: str = "http://localhost:5173"
 

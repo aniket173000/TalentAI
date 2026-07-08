@@ -1147,6 +1147,12 @@ export default function Landing() {
                         margin:'18px 0 14px', maxWidth:280 }}>
               AI ranks your whole candidate base for any role — explainably, in seconds.
             </p>
+            <a href="mailto:talent@nideknil.in"
+               className="nk-foot"
+               style={{ display:'inline-block', fontSize:14, fontWeight:500,
+                        color:'rgba(251,249,244,0.7)', marginBottom:14 }}>
+              talent@nideknil.in
+            </a>
             <div style={{ fontFamily:"'Geist Mono',monospace", fontSize:12,
                           color:'rgba(251,249,244,0.4)' }}>
               LinkedIn, flipped. · nideknil.ai
@@ -1170,8 +1176,9 @@ export default function Landing() {
                           color:'rgba(251,249,244,0.4)', marginBottom:16 }}>Company</div>
             <div style={{ display:'flex', flexDirection:'column', gap:11, fontSize:14,
                           color:'rgba(251,249,244,0.7)' }}>
-              {['About','Careers','Blog','Contact'].map(l => (
-                <a key={l} href="#" className="nk-foot" style={{ color:'rgba(251,249,244,0.7)' }}>{l}</a>
+              {[{l:'About',h:'#'},{l:'Careers',h:'#'},{l:'Blog',h:'#'},
+                {l:'Contact',h:'mailto:talent@nideknil.in'}].map(({l,h}) => (
+                <a key={l} href={h} className="nk-foot" style={{ color:'rgba(251,249,244,0.7)' }}>{l}</a>
               ))}
             </div>
           </div>

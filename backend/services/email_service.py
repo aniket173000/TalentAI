@@ -7,7 +7,8 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 # Values that mean "not actually configured"
-_PLACEHOLDERS = {"", "your-email@gmail.com", "your-app-password", "your-password"}
+_PLACEHOLDERS = {"", "your-email@gmail.com", "your-app-password", "your-password",
+                 "your-titan-mailbox-password"}
 
 
 def _smtp_ready() -> bool:
@@ -28,8 +29,9 @@ async def send_email(to_email: str, subject: str, body: str) -> None:
         print(sep)
         logger.info("Email printed to console (SMTP not configured). "
                     "To enable real delivery, set SMTP_USER / SMTP_PASSWORD in .env. "
-                    "For Gmail, create an App Password at "
-                    "https://myaccount.google.com/apppasswords")
+                    "Business mail is on Titan (smtp.titan.email, STARTTLS on 587) — "
+                    "SMTP_USER must be the talent@nideknil.in mailbox and SMTP_PASSWORD "
+                    "its Titan mailbox password.")
         return
 
     try:
@@ -56,8 +58,9 @@ async def send_email(to_email: str, subject: str, body: str) -> None:
         logger.error(
             f"Failed to send email to {to_email}: {exc}\n"
             "Common fixes:\n"
-            "  1. Gmail: create an App Password at https://myaccount.google.com/apppasswords\n"
-            "  2. Set FROM_EMAIL=SMTP_USER in .env if FROM_EMAIL is blank\n"
+            "  1. Titan: confirm the talent@nideknil.in mailbox exists and SMTP_PASSWORD is its\n"
+            "     mailbox password (host smtp.titan.email, STARTTLS on port 587)\n"
+            "  2. SMTP_USER must match FROM_EMAIL so the mailbox may send as that address\n"
             "  3. For port 465 SSL change start_tls=True to use_tls=True in email_service.py"
         )
 
