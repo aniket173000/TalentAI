@@ -47,10 +47,12 @@ class Settings(BaseSettings):
     RERANK_MODEL: str = "rerank-v3.5"
 
     # ── Email ─────────────────────────────────────────────────────────────────
-    # Business mail is on Titan; sender is talent@nideknil.in. SMTP_USER/PASSWORD
-    # come from .env (the mailbox must be allowed to send as FROM_EMAIL).
-    SMTP_HOST: str = "smtp.titan.email"
-    SMTP_PORT: int = 587
+    # Business mail is GoDaddy Professional Email (mailbox talent@nideknil.in),
+    # so we send through GoDaddy's relay smtpout.secureserver.net — the domain's
+    # SPF already authorises secureserver.net, so this delivers without DNS edits.
+    # SMTP_USER/PASSWORD come from .env; SMTP_USER must equal FROM_EMAIL.
+    SMTP_HOST: str = "smtpout.secureserver.net"
+    SMTP_PORT: int = 587  # STARTTLS; use 465 with use_tls=True for SSL
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     FROM_EMAIL: str = "talent@nideknil.in"
