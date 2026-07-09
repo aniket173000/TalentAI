@@ -181,7 +181,9 @@ def _profile_response(user: models.User) -> dict:
             (c.current_company_logo_url or company_logos.get(c.current_company))
             if c and c.current_company else None
         ),
-        "resume_filename": c.resume_filename if c else None,
+        # Active resume — candidate copy wins for dual-mode users; falls back to
+        # the recruiter's own resume for pure-recruiter accounts.
+        "resume_filename": (c.resume_filename if c else None) or (r.resume_filename if r else None),
         "career_profile": career,
         "career_profile_updated_at": (
             c.career_profile_updated_at.isoformat()
@@ -214,6 +216,7 @@ def _profile_response(user: models.User) -> dict:
         # Recruiter fields
         "company": r.company if r else None,
         "is_third_party_recruiter": bool(r.is_third_party) if r else False,
+        "recruiter_onboarding_completed": bool(r.onboarding_completed) if r else False,
     }
 
 
@@ -389,11 +392,13 @@ async def upload_resume(
     current_user: models.User = Depends(get_current_user),
 ):
     """
-    Upload or replace the candidate's active profile resume.
+    Upload or replace the user's active profile resume.
     Saves to the vault (max 3 — oldest removed if full) and sets as primary.
+    Available to candidates and recruiters alike; for a pure recruiter this is
+    also the compulsory step that completes recruiter onboarding.
     """
-    if not current_user.is_candidate:
-        raise HTTPException(status_code=403, detail="Resume upload is only available for candidates.")
+    if not (current_user.is_candidate or current_user.is_recruiter):
+        raise HTTPException(status_code=403, detail="Resume upload requires a candidate or recruiter profile.")
 
     content = await resume_file.read()
     filename = resume_file.filename or "resume"
@@ -413,17 +418,25 @@ async def upload_resume(
 
     _add_to_vault(db, current_user, filename, resume_text, file_key)
 
-    # Update the fast-access copy on the extension
-    ext = current_user.candidate_ext
-    ext.resume_text = resume_text
-    ext.resume_filename = filename
-    ext.career_profile = None
-    ext.career_profile_updated_at = None
-    ext.profile_embedding = None
-    db.commit()
+    # Update the fast-access copy on the relevant extension
+    if current_user.is_candidate:
+        ext = current_user.candidate_ext
+        ext.resume_text = resume_text
+        ext.resume_filename = filename
+        ext.career_profile = None
+        ext.career_profile_updated_at = None
+        ext.profile_embedding = None
+        db.commit()
 
-    background_tasks.add_task(_update_profile_embedding, current_user.id, resume_text)
-    background_tasks.add_task(prepare_candidate, current_user.id)
+        background_tasks.add_task(_update_profile_embedding, current_user.id, resume_text)
+        background_tasks.add_task(prepare_candidate, current_user.id)
+    else:
+        r_ext = current_user.recruiter_ext
+        r_ext.resume_text = resume_text
+        r_ext.resume_filename = filename
+        r_ext.onboarding_completed = True
+        db.commit()
+
     return _profile_response(current_user)
 
 
@@ -454,9 +467,16 @@ def set_active_resume(
         ext.career_profile = None
         ext.career_profile_updated_at = None
         ext.profile_embedding = None
-    db.commit()
+        db.commit()
+        background_tasks.add_task(prepare_candidate, current_user.id)
+    else:
+        r_ext = current_user.recruiter_ext
+        if r_ext:
+            r_ext.resume_text = entry.resume_text
+            r_ext.resume_filename = entry.filename
+            r_ext.onboarding_completed = True
+        db.commit()
 
-    background_tasks.add_task(prepare_candidate, current_user.id)
     return _profile_response(current_user)
 
 
@@ -823,16 +843,20 @@ async def import_work_experience(
     current_user: models.User = Depends(get_current_user),
 ):
     """Extract work experience entries from the user's current resume using AI.
-    Returns a preview list — nothing is saved until the client confirms."""
-    if not current_user.is_candidate:
-        raise HTTPException(status_code=403, detail="Candidate profile required.")
-    ext = current_user.candidate_ext
-    if not ext or not ext.resume_text:
+    Returns a preview list — nothing is saved until the client confirms.
+    Available to candidates and recruiters alike (whichever role holds the resume)."""
+    if not (current_user.is_candidate or current_user.is_recruiter):
+        raise HTTPException(status_code=403, detail="Candidate or recruiter profile required.")
+    resume_text = (
+        (current_user.candidate_ext.resume_text if current_user.candidate_ext else None)
+        or (current_user.recruiter_ext.resume_text if current_user.recruiter_ext else None)
+    )
+    if not resume_text:
         raise HTTPException(
             status_code=400,
             detail="No resume on file. Upload a resume on the profile page first.",
         )
-    entries = await _extract_work_experience_from_text(ext.resume_text)
+    entries = await _extract_work_experience_from_text(resume_text)
     return {"entries": entries}
 
 

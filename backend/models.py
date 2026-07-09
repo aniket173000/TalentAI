@@ -200,6 +200,13 @@ class RecruiterExtension(Base):
     company = Column(String(255), nullable=True)
     is_third_party = Column(Boolean, default=False)         # agency / staffing firm
 
+    # Onboarding
+    onboarding_completed = Column(Boolean, default=False)
+
+    # Active profile resume (fast-access copy; full vault lives in user_resumes)
+    resume_text = Column(Text, nullable=True)
+    resume_filename = Column(String(255), nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

@@ -283,6 +283,11 @@ _MIGRATIONS = [
     # behavior, not something this feature touches.
     "ALTER TABLE assignment_submissions ADD COLUMN mcp_connected_at TIMESTAMP",
     "ALTER TABLE assignment_submissions ADD COLUMN mcp_last_seen_at TIMESTAMP",
+
+    # ── Recruiter onboarding + compulsory resume upload ───────────────────────
+    "ALTER TABLE recruiter_extensions ADD COLUMN onboarding_completed BOOLEAN DEFAULT false",
+    "ALTER TABLE recruiter_extensions ADD COLUMN resume_text TEXT",
+    "ALTER TABLE recruiter_extensions ADD COLUMN resume_filename VARCHAR(255)",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table

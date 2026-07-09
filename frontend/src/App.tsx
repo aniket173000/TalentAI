@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import CandidateOnboarding from './components/CandidateOnboarding'
+import RecruiterOnboarding from './components/RecruiterOnboarding'
 import CandidatesCorpus from './pages/CandidatesCorpus'
 import RankCandidates from './pages/RankCandidates'
 import CandidateRankingDetail from './pages/CandidateRankingDetail'
@@ -39,7 +40,7 @@ import AssignmentPortal from './pages/AssignmentPortal'
 const SESSION_SKIP_KEY = 'onboarding_skipped_this_session'
 
 function OnboardingGate({ children }: { children: React.ReactNode }) {
-  const { user, isCandidate, refreshUser } = useAuth()
+  const { user, isCandidate, isRecruiter, refreshUser } = useAuth()
   const [skippedThisSession, setSkippedThisSession] = useState(
     () => sessionStorage.getItem(SESSION_SKIP_KEY) === '1'
   )
@@ -48,6 +49,12 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
     isCandidate &&
     user != null &&
     !user.onboarding_completed &&
+    !skippedThisSession
+
+  const needsRecruiterOnboarding =
+    isRecruiter &&
+    user != null &&
+    !user.recruiter_onboarding_completed &&
     !skippedThisSession
 
   const handleComplete = async () => {
@@ -66,6 +73,9 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
       {children}
       {needsOnboarding && (
         <CandidateOnboarding onComplete={handleComplete} onSkip={handleSkip} />
+      )}
+      {!needsOnboarding && needsRecruiterOnboarding && (
+        <RecruiterOnboarding onComplete={handleComplete} onSkip={handleSkip} />
       )}
     </>
   )

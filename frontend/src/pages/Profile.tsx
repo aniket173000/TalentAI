@@ -1060,6 +1060,8 @@ export default function Profile() {
           { id: 'resume', label: 'Resume' },
           { id: 'insights', label: 'Career Insights' },
         ]
+      : profile.is_recruiter
+      ? [{ id: 'resume', label: 'Resume' }]
       : []),
   ]
 
@@ -1312,7 +1314,7 @@ export default function Profile() {
                   <>
                     <button
                       onClick={handleImport}
-                      disabled={importing || !profile.is_candidate || !profile.resume_filename}
+                      disabled={importing || !profile.resume_filename}
                       title={!profile.resume_filename ? 'Upload a resume first' : undefined}
                       className={BTN_GHOST_SM}
                     >
@@ -1392,11 +1394,12 @@ export default function Profile() {
               )}
             </Panel>
 
-            {/* Education + Resume (candidates only) */}
-            {profile.is_candidate && (
-              <div className="grid lg:grid-cols-2 gap-5 items-start">
+            {/* Education + Resume */}
+            {(profile.is_candidate || profile.is_recruiter) && (
+              <div className={profile.is_candidate ? 'grid lg:grid-cols-2 gap-5 items-start' : ''}>
 
-                {/* Education */}
+                {/* Education (candidates only) */}
+                {profile.is_candidate && (
                 <Panel
                   id="education"
                   title="Education"
@@ -1490,6 +1493,7 @@ export default function Profile() {
                     </div>
                   )}
                 </Panel>
+                )}
 
                 {/* Resume */}
                 <Panel
@@ -1519,7 +1523,9 @@ export default function Profile() {
                             Upload your resume
                           </p>
                           <p className="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT · Click to browse</p>
-                          <p className="text-xs text-sky-600 mt-1.5 font-medium">Enables Career Insights and Magic Match</p>
+                          {profile.is_candidate && (
+                            <p className="text-xs text-sky-600 mt-1.5 font-medium">Enables Career Insights and Magic Match</p>
+                          )}
                         </>
                       )}
                     </button>
@@ -1531,14 +1537,16 @@ export default function Profile() {
                           <div className="w-10 h-10 shrink-0 rounded-lg bg-slate-100 grid place-items-center text-[11px] font-bold text-slate-500">PDF</div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-slate-800 truncate">{profile.resume_filename}</p>
-                            {isAnalysed && analysedDate ? (
-                              <p className="text-xs text-slate-400 mt-0.5">Analysed {analysedDate}</p>
-                            ) : (
-                              <p className="text-xs text-amber-600 font-medium mt-0.5">Not yet analysed</p>
+                            {profile.is_candidate && (
+                              isAnalysed && analysedDate ? (
+                                <p className="text-xs text-slate-400 mt-0.5">Analysed {analysedDate}</p>
+                              ) : (
+                                <p className="text-xs text-amber-600 font-medium mt-0.5">Not yet analysed</p>
+                              )
                             )}
                           </div>
                         </div>
-                        {isAnalysed && !analysing && (
+                        {profile.is_candidate && isAnalysed && !analysing && (
                           <button onClick={handleAnalyse}
                             className="shrink-0 text-[12.5px] font-bold text-sky-700 hover:text-sky-800 transition-colors">
                             ↻ Re-analyse
@@ -1546,29 +1554,33 @@ export default function Profile() {
                         )}
                       </div>
 
-                      {/* Analyse CTA */}
-                      {!isAnalysed && !analysing && (
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-semibold text-amber-800">Resume ready for analysis</p>
-                            <p className="text-xs text-amber-600 mt-0.5">Get your strengths, gaps, and career upgrade plan</p>
-                          </div>
-                          <button onClick={handleAnalyse}
-                            className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg px-4 py-2 text-xs transition-colors">
-                            ✨ Analyse
-                          </button>
-                        </div>
-                      )}
+                      {profile.is_candidate && (
+                        <>
+                          {/* Analyse CTA */}
+                          {!isAnalysed && !analysing && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-semibold text-amber-800">Resume ready for analysis</p>
+                                <p className="text-xs text-amber-600 mt-0.5">Get your strengths, gaps, and career upgrade plan</p>
+                              </div>
+                              <button onClick={handleAnalyse}
+                                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg px-4 py-2 text-xs transition-colors">
+                                ✨ Analyse
+                              </button>
+                            </div>
+                          )}
 
-                      {analysing && (
-                        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex items-center gap-3">
-                          <div className="w-4 h-4 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin shrink-0" />
-                          <p className="text-sm text-sky-700 font-medium">{analyseMsg ?? 'Analysing…'}</p>
-                        </div>
-                      )}
+                          {analysing && (
+                            <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex items-center gap-3">
+                              <div className="w-4 h-4 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin shrink-0" />
+                              <p className="text-sm text-sky-700 font-medium">{analyseMsg ?? 'Analysing…'}</p>
+                            </div>
+                          )}
 
-                      {!analysing && analyseMsg && (
-                        <p className="text-xs text-red-500">{analyseMsg}</p>
+                          {!analysing && analyseMsg && (
+                            <p className="text-xs text-red-500">{analyseMsg}</p>
+                          )}
+                        </>
                       )}
 
                       {/* Resume vault */}

@@ -48,6 +48,7 @@ class UserResponse(BaseModel):
     # Recruiter-specific (populated only when is_recruiter=True)
     company: Optional[str] = None
     is_third_party_recruiter: bool = False
+    recruiter_onboarding_completed: bool = False
 
     class Config:
         from_attributes = True
@@ -86,6 +87,7 @@ class UserResponse(BaseModel):
             # recruiter fields
             company=r.company if r else None,
             is_third_party_recruiter=bool(r.is_third_party) if r else False,
+            recruiter_onboarding_completed=bool(r.onboarding_completed) if r else False,
         )
 
 

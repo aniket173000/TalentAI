@@ -26,6 +26,7 @@ export interface AuthUser {
   // Recruiter-specific (populated only when is_recruiter = true)
   company: string | null
   is_third_party_recruiter: boolean
+  recruiter_onboarding_completed: boolean
 }
 
 export type JobStatus = 'draft' | 'published' | 'closed'
@@ -223,6 +224,7 @@ export interface UserProfile {
   // Recruiter-specific
   company: string | null
   is_third_party_recruiter: boolean
+  recruiter_onboarding_completed: boolean
 }
 
 export interface CollegeInfo {

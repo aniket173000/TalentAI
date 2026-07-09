@@ -124,7 +124,13 @@
       "Bash(awk '{print $1}')",
       "Bash(grep -z \"\\\\.pyc$\")",
       "Bash(grep -vc \"\\\\.pyc$\")",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(bash --noprofile --norc -c 'cd /Users/aniket/Desktop/Mark1Job/frontend && cat package.json | grep -A6 \"\\\\\"scripts\\\\\"\"')",
+      "Bash(bash --noprofile --norc -c 'cd /Users/aniket/Desktop/Mark1Job/frontend && npx tsc --noEmit -p . 2>&1 | head -150')",
+      "Bash(bash --noprofile --norc -c 'cd /Users/aniket/Desktop/Mark1Job/backend && ls venv/bin/python* 2>/dev/null; which python3')",
+      "Bash(bash --noprofile --norc -c 'cd /Users/aniket/Desktop/Mark1Job/backend && venv/bin/python -c \"import ast; ast.parse\\(open\\(\\\\\"models.py\\\\\"\\).read\\(\\)\\); ast.parse\\(open\\(\\\\\"main.py\\\\\"\\).read\\(\\)\\); ast.parse\\(open\\(\\\\\"schemas.py\\\\\"\\).read\\(\\)\\); ast.parse\\(open\\(\\\\\"routers/profile.py\\\\\"\\).read\\(\\)\\); print\\(\\\\\"syntax OK\\\\\"\\)\"')",
+      "Bash(bash --noprofile --norc -c ' *)",
+      "Bash(bash --noprofile --norc -c 'cd /Users/aniket/Desktop/Mark1Job/frontend && npx tsc --noEmit -p . 2>&1 | head -100')"
     ],
     "additionalDirectories": [
       "/tmp",
