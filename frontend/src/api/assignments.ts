@@ -100,6 +100,23 @@ export const getReport = (submissionId: number) =>
 export const retryAnalysis = (submissionId: number) =>
   api.post<Submission>(`/assignments/submissions/${submissionId}/retry`).then(r => r.data)
 
+export interface VoiceSessionMint {
+  voice_session_id: number
+  client_secret: string
+  expires_at: string | null
+  model: string
+  max_duration_seconds: number
+}
+
+// Mints a short-lived OpenAI Realtime ephemeral client secret — the browser uses
+// it to connect DIRECTLY to OpenAI over WebRTC, this backend never sees the audio.
+export const mintVoiceSession = (submissionId: number) =>
+  api.post<VoiceSessionMint>(`/assignments/submissions/${submissionId}/voice-session`).then(r => r.data)
+
+// Best-effort cleanup beacon for cost visibility only, not the real cost cap.
+export const endVoiceSession = (voiceSessionId: number) =>
+  api.post(`/assignments/voice-session/${voiceSessionId}/end`).then(r => r.data)
+
 // ── Candidate portal (tokenized, no auth) ────────────────────────────────────
 
 export const getPortal = (token: string) =>

@@ -10,6 +10,9 @@ Recruiter side (JWT + recruiter mode):
     GET    /api/assignments/{id}/submissions         submission list + scores
     GET    /api/assignments/submissions/{sid}/report full fluency report
     POST   /api/assignments/submissions/{sid}/retry  re-run failed analysis
+    POST   /api/assignments/submissions/{sid}/voice-session   mint an OpenAI Realtime
+                                                                ephemeral secret for this candidate
+    POST   /api/assignments/voice-session/{vsid}/end          best-effort session-end beacon
 
 Candidate side (tokenized, no login — mirrors Application.status_token):
     GET    /api/assignments/portal/{token}           assignment brief + status
@@ -42,7 +45,13 @@ from services.fluency import store
 from services.fluency.pipeline import dispatch_fluency_analysis
 from services.fluency.scrubber import scrub_transcript_bytes
 from services.fluency.transcript_parser import TranscriptParseError, parse_claude_code_jsonl
-from services.mcp_bridge import require_recruiter_mcp_key
+from services.mcp_bridge import get_merged_candidate_context, require_recruiter_mcp_key
+from services.voice_session import (
+    VoiceSessionError,
+    check_mint_rate_limit,
+    has_active_session,
+    mint_realtime_session,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assignments", tags=["assignments"])
@@ -413,6 +422,94 @@ def retry_analysis(
                             detail=f"Cannot retry a submission in status {submission.status!r}")
     dispatch_fluency_analysis(submission.id)
     return _submission_response(submission)
+
+
+# ── recruiter: voice copilot (OpenAI Realtime, browser-direct WebRTC) ────────
+#
+# Backend only mints a short-lived ephemeral client secret — audio never flows
+# through this server. See services/voice_session.py for the full rationale
+# and services/mcp_bridge.get_merged_candidate_context for the shared context
+# builder (same one the text-based ask_about_candidate MCP tool uses).
+
+def _parse_expires_at(value) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+@router.post("/submissions/{submission_id}/voice-session")
+async def create_voice_session(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    recruiter: models.User = Depends(require_recruiter),
+):
+    submission = _own_submission(db, submission_id, recruiter)
+
+    if not check_mint_rate_limit(recruiter.id):
+        raise HTTPException(status_code=429,
+                            detail="Too many voice sessions started — wait a few minutes and try again")
+    if has_active_session(db, submission_id):
+        raise HTTPException(status_code=409,
+                            detail="A voice session for this candidate is already active")
+
+    context = get_merged_candidate_context(db, submission)
+    context.pop("candidate_email", None)  # not needed for voice Q&A — shrinks PII
+                                            # blast radius if the ephemeral secret leaks
+    context_blob = json.dumps(context, default=str, indent=2)
+
+    try:
+        minted = await mint_realtime_session(context_blob)
+    except VoiceSessionError as exc:
+        logger.error("Voice session mint failed for submission %s: %s", submission_id, exc)
+        raise HTTPException(status_code=502, detail="Could not start voice session")
+
+    voice_session = models.VoiceSession(
+        submission_id=submission.id,
+        recruiter_id=recruiter.id,
+        client_secret_expires_at=_parse_expires_at(minted.get("expires_at")),
+    )
+    db.add(voice_session)
+    db.commit()
+    db.refresh(voice_session)
+
+    return {
+        "voice_session_id": voice_session.id,
+        "client_secret": minted["client_secret"],
+        # Send the ALREADY-PARSED datetime as a clean ISO string, not OpenAI's raw
+        # expires_at — that raw value's shape (unix seconds vs ISO string) has moved
+        # across API revisions, and the frontend's `new Date(...)` would silently
+        # misinterpret a raw epoch-seconds number as epoch-milliseconds (landing on
+        # a 1970 date, which made the countdown timer close the call after ~1s).
+        "expires_at": voice_session.client_secret_expires_at.isoformat()
+            if voice_session.client_secret_expires_at else None,
+        "model": minted["model"],
+        # Frontend counts down from THIS directly rather than diffing expires_at
+        # against its own clock — removes any client/server clock-skew risk from
+        # the countdown (expires_at is still returned above for display/debugging).
+        "max_duration_seconds": settings.VOICE_SESSION_MAX_DURATION_SECONDS,
+    }
+
+
+@router.post("/voice-session/{voice_session_id}/end")
+def end_voice_session(
+    voice_session_id: int,
+    db: Session = Depends(get_db),
+    recruiter: models.User = Depends(require_recruiter),
+):
+    # Best-effort cleanup beacon for cost visibility only — the real cap is the
+    # `expires_after` bound set server-side at mint time, not this call.
+    voice_session = db.get(models.VoiceSession, voice_session_id)
+    if not voice_session or voice_session.recruiter_id != recruiter.id:
+        raise HTTPException(status_code=404, detail="Voice session not found")
+    if voice_session.ended_at is None:
+        voice_session.ended_at = datetime.now(timezone.utc)
+        db.commit()
+    return {"ok": True}
 
 
 # ── candidate portal (tokenized, no auth) ─────────────────────────────────────

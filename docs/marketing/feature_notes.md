@@ -69,6 +69,28 @@ Brand reminders: name is **Nideknil** ("LinkedIn" reversed), domain **nideknil.i
 
 ---
 
+## Outreach DM Draft — Atulya Marwah (2026-07-11)
+
+**Context:** Founder/recruiter, hiring AI engineers, PMs, Platform engineers for enterprise agentic workflows, asked what Nideknil can do for aggressive growth hiring. Shortened DM version below (see chat for the longer first draft).
+
+**Sent draft:**
+
+> Hey Atulya, congrats on the growth — hiring AI engineers, PMs, and Platform engineers at once is exactly the hiring problem Nideknil is built for.
+>
+> Quick version: we're an anti-black-box hiring platform. Our vector-retrieval funnel ranks your entire candidate DB against a role in seconds, so volume hiring doesn't mean manual resume triage.
+>
+> Since you're building agentic workflows, two things will land for you specifically:
+> - **AI Fluency Assignments** — candidates build a real take-home with Claude Code and submit the session transcript; we score actual AI-collaboration skill on an 8-dimension rubric, not resume claims.
+> - **Recruiter MCP / Interview Copilot** — built right into Claude Code: pull a candidate's full fluency scorecard, ask natural-language questions about them, auto-generate interview questions from their actual submission — no tab-switching, no dashboard.
+>
+> We also keep a ranked Reserve Pool so strong runner-ups never disappear — handy when you're filling multiple roles back to back.
+>
+> If there's a specific feature you need for your hiring flow that we don't have — say the word, we build fast and would rather ship it than have you work around a gap.
+>
+> Free for a quick call this week to walk you through it live?
+
+---
+
 ## Template Reference (Numbered List / Playbook)
 
 ```

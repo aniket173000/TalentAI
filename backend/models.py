@@ -894,3 +894,22 @@ class RecruiterMcpApiKey(Base):
     revoked_at = Column(DateTime, nullable=True)  # non-null => key rejected on every auth check
 
     recruiter = relationship("User", foreign_keys=[recruiter_id])
+
+
+class VoiceSession(Base):
+    """
+    Usage log for the recruiter Voice Copilot (OpenAI Realtime API, browser-direct
+    WebRTC — see services/voice_session.py). NOT a billing/entitlement layer, just
+    cost visibility: one row per minted ephemeral client secret. `ended_at` is
+    client-reported on cleanup and best-effort only (a tab close can't guarantee
+    delivery) — the real per-session cost cap is the `expires_after` bound set on
+    the OpenAI session itself at mint time, not this row.
+    """
+    __tablename__ = "voice_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("assignment_submissions.id"), nullable=False, index=True)
+    recruiter_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    minted_at = Column(DateTime, server_default=func.now())
+    client_secret_expires_at = Column(DateTime, nullable=True)
+    ended_at = Column(DateTime, nullable=True)

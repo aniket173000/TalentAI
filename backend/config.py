@@ -140,6 +140,18 @@ class Settings(BaseSettings):
     # are always allowed regardless of this setting).
     MCP_ALLOWED_HOSTS: str = ""
 
+    # ── Recruiter Voice Copilot (OpenAI Realtime API, browser-direct WebRTC) ──
+    # Backend only mints a short-lived ephemeral client secret via this model; the
+    # browser then connects straight to OpenAI over WebRTC — audio never touches
+    # this backend. Verify the current realtime model id + per-minute audio
+    # pricing against live OpenAI docs before deploying; do not assume this default.
+    REALTIME_MODEL: str = "gpt-realtime"
+    REALTIME_VOICE: str = "alloy"
+    # Hard cap enforced both server-side (session `expires_after`) and client-side
+    # (frontend force-closes the peer connection) — the real cost backstop, since
+    # our backend never sees session-end once WebRTC is negotiated.
+    VOICE_SESSION_MAX_DURATION_SECONDS: int = 600
+
     # ── AWS S3 (resume file storage) ─────────────────────────────────────────
     # Leave blank to run without S3 — text-only fallback will be used.
     AWS_ACCESS_KEY_ID: str = ""

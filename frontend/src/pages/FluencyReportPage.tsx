@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { FluencyReport, getReport } from '../api/assignments'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { Button, Card, ScoreRing, Tag } from '../components/ui'
+import VoiceCopilot from '../components/VoiceCopilot'
 
 const CONF_TONE = { high: 'match', medium: 'longshot', low: 'full' } as const
 
@@ -56,6 +57,8 @@ export default function FluencyReportPage() {
         </div>
         <p style={{ marginTop: 18, fontSize: 15, lineHeight: 1.65 }}>{report.summary}</p>
       </Card>
+
+      <VoiceCopilot submissionId={report.submission_id} />
 
       {/* Integrity flags */}
       {visibleFlags.length > 0 && (
