@@ -14,6 +14,11 @@ Recruiter side (JWT + recruiter mode):
 Candidate side (tokenized, no login — mirrors Application.status_token):
     GET    /api/assignments/portal/{token}           assignment brief + status
     POST   /api/assignments/portal/{token}/submit    upload transcript files
+
+Partner side (RecruiterMcpApiKey bearer — server-to-server, e.g. Bhume's own
+hiring page calling us on a recruiter's behalf, no candidate Nideknil account needed):
+    POST   /api/assignments/{id}/connect-token                       mint/rotate a candidate's MCP connect token
+    GET    /api/assignments/submissions/{sid}/connection-status      poll whether that candidate has connected
 """
 from __future__ import annotations
 
@@ -24,6 +29,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 import models
@@ -36,6 +42,7 @@ from services.fluency import store
 from services.fluency.pipeline import dispatch_fluency_analysis
 from services.fluency.scrubber import scrub_transcript_bytes
 from services.fluency.transcript_parser import TranscriptParseError, parse_claude_code_jsonl
+from services.mcp_bridge import require_recruiter_mcp_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assignments", tags=["assignments"])
@@ -286,6 +293,75 @@ def list_submissions(
     subs = sorted(assignment.submissions, key=lambda s: s.invited_at or datetime.min,
                   reverse=True)
     return [_submission_response(s) for s in subs]
+
+
+# ── partner: candidate connect token (server-to-server, e.g. Bhume) ───────────
+#
+# Auth is the recruiter's EXISTING RecruiterMcpApiKey (services/mcp_bridge.py),
+# not a new credential type. A partner platform's backend holds that key and calls
+# these on a recruiter's behalf — the candidate never needs a Nideknil account or
+# an emailed invite; the "generate command" click on the partner's own page is what
+# creates the AssignmentSubmission, if one doesn't already exist for that email.
+
+@router.post("/{assignment_id}/connect-token", response_model=schemas.ConnectTokenResponse)
+def create_connect_token(
+    assignment_id: int,
+    payload: schemas.ConnectTokenRequest,
+    db: Session = Depends(get_db),
+    recruiter: models.User = Depends(require_recruiter_mcp_key),
+):
+    assignment = _own_assignment(db, assignment_id, recruiter)
+    if not _assignment_open(assignment):
+        raise HTTPException(status_code=400, detail="Assignment is closed")
+
+    email = str(payload.candidate_email)
+    submission = (
+        db.query(models.AssignmentSubmission)
+        .filter(
+            models.AssignmentSubmission.assignment_id == assignment.id,
+            func.lower(models.AssignmentSubmission.candidate_email) == email.lower(),
+        )
+        .first()
+    )
+    if submission:
+        # Rotate — this is also the reconnect path: if a candidate's terminal session
+        # died or the previous token expired from view, calling this again with the
+        # same email invalidates the old token and returns a fresh one.
+        submission.access_token = secrets.token_urlsafe(32)
+    else:
+        submission = models.AssignmentSubmission(
+            assignment_id=assignment.id,
+            candidate_name=payload.candidate_name or email.split("@")[0],
+            candidate_email=email,
+            access_token=secrets.token_urlsafe(32),
+        )
+        db.add(submission)
+    db.commit()
+    db.refresh(submission)
+
+    connect_command = (
+        f'claude mcp add --transport http nideknil-assignment {settings.MCP_PUBLIC_URL}/mcp/ '
+        f'--header "Authorization: Bearer {submission.access_token}"'
+    )
+    return schemas.ConnectTokenResponse(
+        submission_id=submission.id,
+        access_token=submission.access_token,
+        connect_command=connect_command,
+    )
+
+
+@router.get("/submissions/{submission_id}/connection-status", response_model=schemas.ConnectionStatusResponse)
+def get_connection_status(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    recruiter: models.User = Depends(require_recruiter_mcp_key),
+):
+    submission = _own_submission(db, submission_id, recruiter)
+    return schemas.ConnectionStatusResponse(
+        connected=submission.mcp_connected_at is not None,
+        connected_at=submission.mcp_connected_at,
+        last_seen_at=submission.mcp_last_seen_at,
+    )
 
 
 # ── recruiter: report + retry ─────────────────────────────────────────────────

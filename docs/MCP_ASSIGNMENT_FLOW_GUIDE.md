@@ -124,6 +124,47 @@ report, never another candidate's.
 
 ---
 
+## Partner integrations (e.g. Bhume) — connect tokens without an invite email
+
+Some hiring platforms want to embed the "connect Claude Code" step directly on their **own**
+candidate-facing page instead of sending our invite email. There's no separate credential or
+table for this — it reuses the same `RecruiterMcpApiKey` a recruiter already generates for the
+interview copilot (above), plus two extra REST endpoints on the existing candidate `access_token`.
+
+**Flow:** the partner's backend calls Nideknil with the recruiter's key + a candidate email →
+we find-or-create the `AssignmentSubmission` and return a fresh `claude mcp add` command → the
+candidate runs it → the partner polls a status endpoint to show "Connected" on their own page.
+
+1. **Onboard the partner as a normal recruiter/company** — sign up a recruiter account with
+   `company` set to the partner's name, create the Job + Assignment under it as usual.
+2. **Issue them an MCP key** — `POST /api/recruiter/mcp-keys` (same endpoint recruiters use for
+   the interview copilot). This key is what the partner's backend holds server-side; it must
+   never be exposed to the candidate's browser.
+3. **Partner mints a connect token per candidate:**
+   ```bash
+   curl -s -X POST https://api.nideknil.in/api/assignments/<assignment_id>/connect-token \
+     -H "Authorization: Bearer <recruiter's mcp key>" \
+     -H "Content-Type: application/json" \
+     -d '{"candidate_email": "candidate@example.com", "candidate_name": "Jane Doe"}'
+   ```
+   Returns `{submission_id, access_token, connect_command}`. No candidate account or prior
+   invite required — the submission is created on first call. Calling this again for the same
+   email **rotates** `access_token`, silently invalidating whatever command was shown before —
+   this is also the reconnect path if a candidate's terminal session died or they lost the command.
+4. **Candidate runs `connect_command`** exactly like the emailed version — same `/mcp/` server,
+   same tools (`get_assignment_brief`, `get_submission_instructions`).
+5. **Partner polls connection status:**
+   ```bash
+   curl -s https://api.nideknil.in/api/assignments/submissions/<submission_id>/connection-status \
+     -H "Authorization: Bearer <recruiter's mcp key>"
+   ```
+   Returns `{connected, connected_at, last_seen_at}`. Poll-based for now — no webhook yet.
+
+Ownership is enforced the same way as everywhere else in this feature: a key only ever sees
+assignments/submissions on jobs its own recruiter owns (403 otherwise).
+
+---
+
 ## Command cheat sheet
 
 ```bash
@@ -149,6 +190,15 @@ curl -s -X POST https://api.nideknil.in/api/recruiter/mcp-keys -H "Authorization
 # Recruiter: connect (use the connect_command from the response above — already has the trailing slash)
 claude mcp add --transport http nideknil-recruiter https://api.nideknil.in/mcp-recruiter/ \
   --header "Authorization: Bearer <key>"
+
+# Partner: mint/rotate a candidate connect token (uses the recruiter's mcp key, not a JWT)
+curl -s -X POST https://api.nideknil.in/api/assignments/<assignment_id>/connect-token \
+  -H "Authorization: Bearer <recruiter's mcp key>" -H "Content-Type: application/json" \
+  -d '{"candidate_email": "candidate@example.com", "candidate_name": "Jane Doe"}'
+
+# Partner: poll connection status
+curl -s https://api.nideknil.in/api/assignments/submissions/<submission_id>/connection-status \
+  -H "Authorization: Bearer <recruiter's mcp key>"
 
 # Either side: check a connection
 claude mcp get nideknil-assignment

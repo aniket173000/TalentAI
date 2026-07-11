@@ -13,12 +13,14 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 import models
 from mcp.server.transport_security import TransportSecuritySettings
 
 from config import settings
+from database import get_db
 
 # ── transport security (DNS-rebinding protection) ─────────────────────────────
 
@@ -84,6 +86,31 @@ def revoke_recruiter_key(db: Session, key_id: int, recruiter: models.User) -> bo
 def mark_recruiter_key_used(db: Session, key: models.RecruiterMcpApiKey) -> None:
     key.last_used_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def require_recruiter_mcp_key(
+    authorization: str = Header(default=""),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """
+    FastAPI dependency for REST endpoints that should be callable server-to-server
+    by whatever holds a recruiter's existing RecruiterMcpApiKey — e.g. a partner
+    platform's backend minting candidate connect tokens on a recruiter's behalf.
+    Deliberately the SAME key/table as the /mcp-recruiter tool auth in
+    routers/mcp_recruiter.py, not a new credential type.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    key_value = authorization.removeprefix("Bearer ").strip()
+    key = (
+        db.query(models.RecruiterMcpApiKey)
+        .filter(models.RecruiterMcpApiKey.key == key_value, models.RecruiterMcpApiKey.revoked_at.is_(None))
+        .first()
+    )
+    if not key:
+        raise HTTPException(status_code=401, detail="Unknown or revoked API key")
+    mark_recruiter_key_used(db, key)
+    return key.recruiter
 
 
 # ── merged candidate context (report + resume) for the recruiter copilot ──────

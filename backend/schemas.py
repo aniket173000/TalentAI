@@ -565,6 +565,25 @@ class RecruiterMcpKeyIssueResponse(BaseModel):
         from_attributes = True
 
 
+class ConnectTokenRequest(BaseModel):
+    # Candidate need not have any prior Nideknil account or Application — a partner
+    # platform (e.g. Bhume) calls this with just enough to find-or-create a submission.
+    candidate_email: EmailStr
+    candidate_name: Optional[str] = None
+
+
+class ConnectTokenResponse(BaseModel):
+    submission_id: int
+    access_token: str        # fresh on every call — the previous one stops working
+    connect_command: str
+
+
+class ConnectionStatusResponse(BaseModel):
+    connected: bool
+    connected_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+
+
 class RecruiterMcpKeyResponse(BaseModel):
     id: int
     created_at: datetime
