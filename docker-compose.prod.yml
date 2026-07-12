@@ -2,16 +2,20 @@ services:
   # Self-hosted broker/result-backend for Celery — replaces the managed Upstash
   # Redis, whose free tier is metered by command COUNT (not memory) and gets
   # exhausted by Celery's constant idle heartbeat/polling traffic regardless of
-  # real ranking volume. A tiny local Redis has no such quota. Sized well above
-  # what a 500-user, low-volume task queue needs; persistence is disabled since
-  # this is a transient queue (RDB/AOF would also risk a memory-doubling fork
-  # on save, unnecessary risk on this box) and losing an in-flight task on
-  # restart just leaves its RankingRun row in "pending", not data loss.
+  # real ranking volume. Also now doubles as the OpenAI response cache (DB
+  # index 1, separate from Celery's DB 0 — see services/llm_cache.py), which is
+  # why the ceiling below is bigger than a bare task queue would need.
+  # Persistence is disabled: Celery's queue is transient (losing an in-flight
+  # task on restart just leaves its RankingRun row in "pending", not data
+  # loss), and the LLM cache is a pure cache — a cold cache after a restart
+  # just means the next identical call misses instead of hitting, never wrong.
+  # RDB/AOF would also risk a memory-doubling fork on save, unnecessary risk
+  # on this box.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    mem_limit: 64m
-    command: redis-server --save "" --appendonly no --maxmemory 48mb --maxmemory-policy allkeys-lru
+    mem_limit: 160m
+    command: redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
 
   api:
     build: ./backend

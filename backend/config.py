@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
+    # ── OpenAI response cache (Redis) ────────────────────────────────────────
+    # Caches exact-repeat chat-completion/embedding calls (e.g. re-ranking the
+    # same unchanged (job, candidate) pair across funnel runs). Separate DB
+    # index from the Celery broker/backend above so it can be inspected/cleared
+    # independently. Fails open — a cache outage never blocks a real LLM call.
+    LLM_CACHE_ENABLED: bool = True
+    LLM_CACHE_TTL_SECONDS: int = 604800          # 7 days — chat completions
+    LLM_CACHE_EMBEDDING_TTL_SECONDS: int = 5184000  # 60 days — embeddings are near-immutable per (model, text)
+    LLM_CACHE_REDIS_URL: str = "redis://localhost:6379/1"
+
     # ── AI provider (Strategy pattern) ───────────────────────────────────────
     # Supported values: "openai" | "claude" (stub)
     AI_PROVIDER: str = "openai"

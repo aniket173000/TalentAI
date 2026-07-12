@@ -27,6 +27,9 @@ psycopg2-binary>=2.9.9
 pgvector>=0.3.0
 # ── Ranking funnel task queue ──────────────────────────────────────────────────
 celery[redis]>=5.3.0
+# ── OpenAI response cache (services/llm_cache.py) — already pulled in transitively
+# by celery[redis], pinned explicitly here since app code imports it directly too.
+redis>=6.4.0
 # ── Rerank stage (services/reranker.py) — hosted Cohere Rerank, no local torch ──
 cohere>=5.13.0
 # ── Payments ───────────────────────────────────────────────────────────────────

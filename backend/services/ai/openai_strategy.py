@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 
 from config import settings
 from services.ai.base import AIStrategy
+from services.llm_cache import cached_chat_completion, cached_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,8 @@ Scoring guide:
 
 Be rigorous on experience shortfalls. Be fair on technology alternatives — a strong Java engineer is not a weak Node.js engineer, they are a strong backend engineer who chose a different language."""
 
-        response = await _client().chat.completions.create(
+        content = await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             reasoning_effort="low",
             messages=[
@@ -136,7 +138,7 @@ Be rigorous on experience shortfalls. Be fair on technology alternatives — a s
             ],
             response_format={"type": "json_object"},
         )
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(content)
 
         # Recompute composite from sub_scores to prevent the LLM from ignoring the formula.
         # The LLM is trusted for sub_scores (which reflect its semantic analysis) but not
@@ -207,12 +209,12 @@ Best regards,
 
 Start directly with: Dear {candidate_name},"""
 
-        response = await _client().chat.completions.create(
+        return await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=2000,
         )
-        return response.choices[0].message.content
 
     async def rank_tied_candidates(
         self,
@@ -241,13 +243,14 @@ Return ONLY this JSON (no markdown):
     "reasoning": "<2-3 sentences on why the top candidate wins the tie>"
 }}"""
 
-        response = await _client().chat.completions.create(
+        content = await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             max_completion_tokens=2000,
         )
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(content)
         return result.get("ranking", [c[0] for c in candidates])
 
     async def generate_rank_explanation(
@@ -286,19 +289,15 @@ Write 3-4 sentences that:
 
 Address the candidate directly (use "you"/"your"). Be specific, not generic."""
 
-        response = await _client().chat.completions.create(
+        return await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=2000,
         )
-        return response.choices[0].message.content
 
     async def get_embedding(self, text: str) -> list[float]:
-        response = await _client().embeddings.create(
-            model=settings.EMBEDDING_MODEL,
-            input=text[:8000],
-        )
-        return response.data[0].embedding
+        return await cached_embedding(_client(), model=settings.EMBEDDING_MODEL, text=text[:8000])
 
     async def generate_displacement_comparison(
         self,
@@ -352,13 +351,14 @@ Rules:
         last_exc: Exception | None = None
         for attempt in range(1, 4):
             try:
-                response = await _client().chat.completions.create(
+                content = await cached_chat_completion(
+                    _client(),
                     model=settings.AI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
                     max_completion_tokens=3000,
                 )
-                return json.loads(response.choices[0].message.content)
+                return json.loads(content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_exc = exc
                 logger.warning("generate_displacement_comparison attempt %d failed: %s", attempt, exc)
@@ -392,13 +392,14 @@ Return ONLY a JSON object — one key per skill (exact spelling from the list ab
         last_exc: Exception | None = None
         for attempt in range(1, 4):
             try:
-                response = await _client().chat.completions.create(
+                content = await cached_chat_completion(
+                    _client(),
                     model=settings.AI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
                     max_completion_tokens=2500,
                 )
-                return json.loads(response.choices[0].message.content)
+                return json.loads(content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_exc = exc
                 logger.warning("verify_skill_claims attempt %d failed: %s", attempt, exc)
@@ -483,12 +484,13 @@ Rules:
 - quick_wins: only list things actually useful given the real gap. If the gap is fundamental, say so (e.g. "Complete a 3-month Python course before anything else")
 - Be specific and honest. A 20% readiness score is NOT a failure — it is accurate information that helps the candidate plan realistically."""
 
-        response = await _client().chat.completions.create(
+        content = await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(content)
         # Clamp readiness_score to valid range
         if "readiness_score" in result:
             result["readiness_score"] = max(0, min(100, int(result["readiness_score"])))
@@ -561,7 +563,8 @@ Confidence score rules:
         last_exc: Exception | None = None
         for attempt in range(1, 4):
             try:
-                response = await _client().chat.completions.create(
+                content = await cached_chat_completion(
+                    _client(),
                     model=settings.AI_MODEL,
                     messages=[
                         {"role": "system", "content": system},
@@ -570,7 +573,7 @@ Confidence score rules:
                     response_format={"type": "json_object"},
                     max_completion_tokens=4000,
                 )
-                return json.loads(response.choices[0].message.content)
+                return json.loads(content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_exc = exc
                 logger.warning(
@@ -675,7 +678,8 @@ Constraints:
         last_exc: Exception | None = None
         for attempt in range(1, 4):
             try:
-                response = await _client().chat.completions.create(
+                content = await cached_chat_completion(
+                    _client(),
                     model=settings.AI_MODEL,
                     messages=[
                         {"role": "system", "content": system},
@@ -684,7 +688,7 @@ Constraints:
                     response_format={"type": "json_object"},
                     max_completion_tokens=3500,
                 )
-                return json.loads(response.choices[0].message.content)
+                return json.loads(content)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_exc = exc
                 logger.warning("parse_jd_requirements attempt %d failed: %s", attempt, exc)
@@ -728,21 +732,22 @@ Return ONLY this JSON (no markdown, no extra text):
 
 Be specific. Use the actual technologies from their resume. Avoid generic advice."""
 
-        response = await _client().chat.completions.create(
+        content = await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             max_completion_tokens=3000,
         )
-        return json.loads(response.choices[0].message.content)
+        return json.loads(content)
 
     async def answer_question(self, context: str, question: str) -> str:
         prompt = f"""{context}
 
 {question}"""
-        response = await _client().chat.completions.create(
+        return await cached_chat_completion(
+            _client(),
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=2500,
         )
-        return response.choices[0].message.content
