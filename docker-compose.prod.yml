@@ -1,4 +1,18 @@
 services:
+  # Self-hosted broker/result-backend for Celery — replaces the managed Upstash
+  # Redis, whose free tier is metered by command COUNT (not memory) and gets
+  # exhausted by Celery's constant idle heartbeat/polling traffic regardless of
+  # real ranking volume. A tiny local Redis has no such quota. Sized well above
+  # what a 500-user, low-volume task queue needs; persistence is disabled since
+  # this is a transient queue (RDB/AOF would also risk a memory-doubling fork
+  # on save, unnecessary risk on this box) and losing an in-flight task on
+  # restart just leaves its RankingRun row in "pending", not data loss.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    command: redis-server --save "" --appendonly no --maxmemory 48mb --maxmemory-policy allkeys-lru
+
   api:
     build: ./backend
     restart: unless-stopped
@@ -7,6 +21,8 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    depends_on:
+      - redis
     volumes:
       # Shared with celery-worker below. Without this, the S3-unavailable local-disk
       # fallback (services/fluency/store.py, services/storage_service.py) writes into
@@ -38,6 +54,7 @@ services:
       - uploads-data:/app/uploads
     depends_on:
       - api
+      - redis
 
   # Ships all container logs to Grafana Cloud Loki. Browse them at grafana.com.
   # DISABLED: alloy/config.alloy is not present in the repo, so the bind mount
