@@ -137,7 +137,6 @@ async def evaluate_candidates(
                     "strengths": res.get("strengths") or [],
                     "risks": res.get("gaps") or [],
                     "summary": res.get("summary"),
-                    "recommendation": recommendation_for(score),
                     "ai_fluency": round(float(fluency.get("score") or 0.0), 1),
                     "ai_fluency_note": fluency.get("rationale") or (
                         "; ".join(fluency.get("signals") or []) or None
@@ -212,6 +211,11 @@ def compute_final_score(cand: dict, jd_req: dict) -> dict:
     final = sum(w * v for w, v in components) / wsum if wsum else 0.0
 
     cand["final_score"] = round(final, 2)
+    # Derive the recruiter-facing label from the SAME blended score used to
+    # rank candidates — previously this came from the LLM's raw assessment
+    # sub-score alone, so a candidate could show "Strong Match" while ranking
+    # below others with a stronger overall final_score. Confusing in practice.
+    cand["recommendation"] = recommendation_for(final)
     cand["final_breakdown"] = {
         "role_fit": round(role_fit, 1),
         "skills": round(skill, 1),
@@ -256,7 +260,7 @@ def persist_rankings(db: Session, job: models.Job, recruiter_id: int, ranked: li
             ai_fluency_note=llm.get("ai_fluency_note"),
             final_score=c["final_score"],
             rank=i,
-            recommendation=llm.get("recommendation"),
+            recommendation=c.get("recommendation"),
             llm_strengths=json.dumps(llm.get("strengths") or []),
             llm_risks=json.dumps(llm.get("risks") or []),
             llm_summary=llm.get("summary"),
