@@ -129,6 +129,7 @@ Be rigorous on experience shortfalls. Be fair on technology alternatives — a s
 
         response = await _client().chat.completions.create(
             model=settings.AI_MODEL,
+            reasoning_effort="low",
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

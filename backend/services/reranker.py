@@ -23,6 +23,13 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# Chunk size for the Cohere rerank call. Cohere accepts up to ~1000 documents
+# per request, but a single request that large is slow and has no partial
+# results on failure/timeout — chunking keeps each call small and lets other
+# chunks still score if one chunk fails.
+_MAX_RERANK_BATCH = 500
+_RERANK_TIMEOUT_S = 30
+
 
 @lru_cache(maxsize=1)
 def _client():
@@ -32,7 +39,7 @@ def _client():
             "COHERE_API_KEY is not set — the rerank stage needs it. "
             "Add it to backend/.env (get a key at https://dashboard.cohere.com)."
         )
-    return cohere.ClientV2(api_key=settings.COHERE_API_KEY)
+    return cohere.ClientV2(api_key=settings.COHERE_API_KEY, timeout=_RERANK_TIMEOUT_S)
 
 
 def warm() -> None:
@@ -142,21 +149,30 @@ def rerank_candidates(
     query = _jd_query(job)
     documents = [text_by_id.get(r["id"], "") for r in retrieved]
 
-    # Cohere rerank returns results sorted by relevance, each carrying the input
-    # `index` and a 0..1 relevance_score. Ask for all of them (top_n=len) and do
-    # our own truncation so the scores dict is populated for every candidate.
-    resp = _client().rerank(
-        model=settings.RERANK_MODEL,
-        query=query,
-        documents=documents,
-        top_n=len(documents),
-    )
-
     for r in retrieved:
         r["scores"]["rerank"] = 0.0
-    for result in resp.results:
-        score = round(max(0.0, min(1.0, float(result.relevance_score))), 4)
-        retrieved[result.index]["scores"]["rerank"] = score
+
+    # Cohere rerank returns results sorted by relevance, each carrying the input
+    # `index` (relative to the documents sent in that call) and a 0..1
+    # relevance_score. Chunk so one slow/failed call doesn't block or lose the
+    # rest of the batch's scores.
+    for start in range(0, len(documents), _MAX_RERANK_BATCH):
+        chunk = documents[start:start + _MAX_RERANK_BATCH]
+        try:
+            resp = _client().rerank(
+                model=settings.RERANK_MODEL,
+                query=query,
+                documents=chunk,
+                top_n=len(chunk),
+            )
+        except Exception as exc:  # noqa: BLE001 — leave this chunk's scores at 0.0
+            logger.warning(
+                "Cohere rerank chunk [%d:%d] failed: %s", start, start + len(chunk), exc
+            )
+            continue
+        for result in resp.results:
+            score = round(max(0.0, min(1.0, float(result.relevance_score))), 4)
+            retrieved[start + result.index]["scores"]["rerank"] = score
 
     reranked = sorted(retrieved, key=lambda r: r["scores"]["rerank"], reverse=True)
     return reranked[:top_n]

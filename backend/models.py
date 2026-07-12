@@ -396,6 +396,7 @@ class Candidate(Base):
 
     __table_args__ = (
         Index("ix_candidates_recruiter_hash", "recruiter_id", "source_resume_hash"),
+        Index("ix_candidates_ingest_status", "ingest_status"),
     )
 
 
@@ -421,6 +422,8 @@ class CandidateRanking(Base):
     rerank_score = Column(Float, nullable=True)
     llm_score = Column(Float, nullable=True)
     experience_score = Column(Float, nullable=True)
+    education_score = Column(Float, nullable=True)
+    projects_score = Column(Float, nullable=True)
     ai_fluency_score = Column(Float, nullable=True)   # how well the candidate uses AI
     ai_fluency_note = Column(Text, nullable=True)      # one-line evidence / rationale
     final_score = Column(Float, nullable=False)
@@ -514,6 +517,7 @@ class RankingRun(Base):
     retrieved = Column(Integer, nullable=True)
     reranked = Column(Integer, nullable=True)
     evaluated = Column(Integer, nullable=True)
+    deferred_count = Column(Integer, nullable=True)  # candidates not yet materialised, excluded from this run
     error = Column(Text, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())

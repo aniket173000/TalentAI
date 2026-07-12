@@ -56,7 +56,7 @@ async def run_funnel(
 
     retrieved = await retrieve_candidates(db, job, recruiter_id=None, top_k=top_k)
     reranked = rerank_candidates(db, job, retrieved, top_n=rerank_n)
-    evaluated = await evaluate_candidates(db, job, reranked, eval_n=eval_n)
+    evaluated = await evaluate_candidates(db, job, reranked, jd_req=jd_req, eval_n=eval_n)
 
     for cand in evaluated:
         compute_final_score(cand, jd_req)
@@ -65,13 +65,14 @@ async def run_funnel(
     persist_rankings(db, job, recruiter_id, evaluated)
 
     logger.info(
-        "Funnel job=%s: retrieved=%d reranked=%d evaluated=%d",
-        job.id, len(retrieved), len(reranked), len(evaluated),
+        "Funnel job=%s: retrieved=%d reranked=%d evaluated=%d deferred=%d",
+        job.id, len(retrieved), len(reranked), len(evaluated), sync["deferred"],
     )
     return {
         "retrieved": len(retrieved),
         "reranked": len(reranked),
         "evaluated": len(evaluated),
+        "deferred_count": sync["deferred"],
         "candidates": evaluated,
     }
 
@@ -102,6 +103,7 @@ def execute_ranking_run(run_id: int, job_id: int, recruiter_id: int,
         run.retrieved = result["retrieved"]
         run.reranked = result["reranked"]
         run.evaluated = result["evaluated"]
+        run.deferred_count = result["deferred_count"]
         run.completed_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("Ranking run %d done (job=%d)", run_id, job_id)

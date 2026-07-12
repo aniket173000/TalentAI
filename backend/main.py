@@ -288,6 +288,12 @@ _MIGRATIONS = [
     "ALTER TABLE recruiter_extensions ADD COLUMN onboarding_completed BOOLEAN DEFAULT false",
     "ALTER TABLE recruiter_extensions ADD COLUMN resume_text TEXT",
     "ALTER TABLE recruiter_extensions ADD COLUMN resume_filename VARCHAR(255)",
+
+    # ── Ranking speed/accuracy pass ────────────────────────────────────────────
+    "CREATE INDEX IF NOT EXISTS ix_candidates_ingest_status ON candidates (ingest_status)",
+    "ALTER TABLE candidate_rankings ADD COLUMN education_score FLOAT",
+    "ALTER TABLE candidate_rankings ADD COLUMN projects_score FLOAT",
+    "ALTER TABLE ranking_runs ADD COLUMN deferred_count INTEGER",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
