@@ -72,13 +72,13 @@ export default function CompanyReferrals() {
   const totalReferrals = companies.reduce((n, c) => n + c.open_referral_count, 0)
 
   return (
-    <div className="max-w-6xl mx-auto px-8 pb-24">
+    <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-24">
       {/* hero */}
       <section style={{ marginTop: 30, marginBottom: 28 }}>
         <div style={{ marginBottom: 14 }}>
           <Tag icon="bolt" tone="longshot">Get referred, not ignored</Tag>
         </div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 48, lineHeight: 1.02, letterSpacing: '-0.035em', margin: '0 0 14px', color: 'var(--ink)', maxWidth: 760, textWrap: 'balance' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(30px, 8vw, 48px)', lineHeight: 1.05, letterSpacing: '-0.035em', margin: '0 0 14px', color: 'var(--ink)', maxWidth: 760, textWrap: 'balance' }}>
           Find who's referring — and claim a spot in their pool.
         </h1>
         <p style={{ margin: 0, fontSize: 17, color: 'var(--muted)', fontWeight: 500, maxWidth: 600, lineHeight: 1.5 }}>
@@ -116,7 +116,7 @@ export default function CompanyReferrals() {
           {search ? 'No companies match your search.' : 'No active referrals yet — check back soon.'}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px,100%), 1fr))', gap: 20 }}>
           {filtered.map(company => (
             <CompanyCard
               key={company.company_name}

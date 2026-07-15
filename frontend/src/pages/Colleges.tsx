@@ -49,12 +49,12 @@ function ProfileModal({ person, collegeName, accent, T, onClose }: {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
       style={{ background: T.overlay, backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm overflow-hidden"
+        className="w-full max-w-sm max-h-[90vh] overflow-y-auto my-auto"
         style={{ background: T.cardGrad, borderRadius: 18, border: `1px solid ${T.border2}`, fontFamily: T.font, animation: 'mtSlideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)', boxShadow: `0 24px 60px -12px ${T.shadowStrong}` }}
         onClick={e => e.stopPropagation()}
       >
@@ -720,7 +720,7 @@ export default function Colleges() {
 
         {/* Card grid */}
         {filtered.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(330px,100%),1fr))', gap: 20 }}>
             {filtered.map((college, i) => (
               <div key={college.college_name} className="mt-card" style={{ animationDelay: `${0.02 + i * 0.06}s` }}>
                 <CollegeCard
