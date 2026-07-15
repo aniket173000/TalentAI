@@ -424,24 +424,28 @@ async def upload_resume(
 
     _add_to_vault(db, current_user, filename, resume_text, file_key)
 
-    # Update the fast-access copy on the relevant extension
-    if current_user.is_candidate:
+    # Update the fast-access copy on the relevant extension(s). Dual-mode users
+    # (candidate AND recruiter) must update BOTH — otherwise uploading a resume
+    # during recruiter onboarding never flips r_ext.onboarding_completed and the
+    # onboarding modal is stuck on "Redirecting…" forever.
+    if current_user.is_candidate and current_user.candidate_ext:
         ext = current_user.candidate_ext
         ext.resume_text = resume_text
         ext.resume_filename = filename
         ext.career_profile = None
         ext.career_profile_updated_at = None
         ext.profile_embedding = None
-        db.commit()
 
         background_tasks.add_task(_update_profile_embedding, current_user.id, resume_text)
         background_tasks.add_task(prepare_candidate, current_user.id)
-    else:
+
+    if current_user.is_recruiter and current_user.recruiter_ext:
         r_ext = current_user.recruiter_ext
         r_ext.resume_text = resume_text
         r_ext.resume_filename = filename
         r_ext.onboarding_completed = True
-        db.commit()
+
+    db.commit()
 
     return _profile_response(current_user)
 
