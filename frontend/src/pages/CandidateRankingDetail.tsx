@@ -233,12 +233,12 @@ export default function CandidateRankingDetail() {
   }
 
   if (loading) return <div className="py-16"><LoadingSpinner /></div>
-  if (!cand) return <div className="max-w-4xl mx-auto px-8 py-12" style={{ color: 'var(--muted)', fontWeight: 600 }}>Candidate not found.</div>
+  if (!cand) return <div className="max-w-4xl mx-auto px-4 sm:px-8 py-12" style={{ color: 'var(--muted)', fontWeight: 600 }}>Candidate not found.</div>
 
   const color: VouchColor = ranking ? scoreColor(ranking.final_score) : 'violet'
 
   return (
-    <div className="max-w-5xl mx-auto px-8 pt-6 pb-24">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-6 pb-24">
       <button onClick={() => navigate(-1)}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700, fontSize: 14, marginBottom: 16, padding: 0 }}>
         <Icon name="back" size={18} stroke={2.4} /> Back

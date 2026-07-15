@@ -56,9 +56,10 @@ export default function RecruiterOnboarding({ onComplete, onSkip }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
       style={{ background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(12px)' }}>
 
+      <div className="flex min-h-full items-center justify-center p-4 pt-14 pb-10 sm:py-6">
       <div className="relative w-full max-w-lg" style={{ animation: 'slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
         <style>{`
           @keyframes slideUp {
@@ -102,7 +103,7 @@ export default function RecruiterOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 0: Intro ─────────────────────────────────────────────── */}
           {step === 0 && (
-            <div className="p-8 text-center">
+            <div className="p-6 sm:p-8 text-center">
               <div className="text-6xl mb-4" style={{ animation: 'float 3s ease-in-out infinite' }}>💼</div>
               <h2 className="text-2xl font-black text-white mb-2">let's set up your recruiter profile!</h2>
               <p className="text-slate-400 text-sm mb-6 leading-relaxed">
@@ -127,7 +128,7 @@ export default function RecruiterOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 1: Company ───────────────────────────────────────────── */}
           {step === 1 && (
-            <div className="p-8">
+            <div className="p-6 sm:p-8">
               <div className="text-4xl mb-3 text-center">🏢</div>
               <h2 className="text-xl font-black text-white text-center mb-1">who are you hiring for?</h2>
               <p className="text-slate-500 text-xs text-center mb-6">optional — you can add or change this later</p>
@@ -189,7 +190,7 @@ export default function RecruiterOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 2: Resume (compulsory) ──────────────────────────────── */}
           {step === 2 && (
-            <div className="p-8">
+            <div className="p-6 sm:p-8">
               <div className="text-4xl mb-3 text-center">📄</div>
               <h2 className="text-xl font-black text-white text-center mb-1">add your resume</h2>
               <p className="text-slate-500 text-xs text-center mb-6">PDF, DOCX or TXT · max 10 MB — required to complete your profile</p>
@@ -251,7 +252,7 @@ export default function RecruiterOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 3: Success ───────────────────────────────────────────── */}
           {step === 3 && (
-            <div className="p-8 text-center relative overflow-hidden">
+            <div className="p-6 sm:p-8 text-center relative overflow-hidden">
               {['🎊', '✨', '🎉', '💫', '🌟', '🎈'].map((e, i) => (
                 <span key={i} className="absolute text-2xl pointer-events-none" style={{
                   left: `${10 + i * 15}%`, top: '-10px',
@@ -272,6 +273,7 @@ export default function RecruiterOnboarding({ onComplete, onSkip }: Props) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

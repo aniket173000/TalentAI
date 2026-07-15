@@ -38,6 +38,7 @@ class ProfileUpdate(BaseModel):
     headline: Optional[str] = None
     about: Optional[str] = None
     portfolio_link: Optional[str] = None
+    candidate_linkedin_url: Optional[str] = None
     current_company_logo_url: Optional[str] = None
 
 
@@ -333,6 +334,11 @@ def update_my_profile(
 
     if body.portfolio_link is not None and current_user.candidate_ext:
         current_user.candidate_ext.portfolio_link = body.portfolio_link.strip() or None
+
+    if body.candidate_linkedin_url is not None and current_user.candidate_ext:
+        current_user.candidate_ext.candidate_linkedin_url = (
+            body.candidate_linkedin_url.strip() or None
+        )
 
     if body.current_company_logo_url is not None and current_user.candidate_ext:
         # Empty string clears the override → falls back to the shared cache.

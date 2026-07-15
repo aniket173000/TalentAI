@@ -19,13 +19,6 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
   const [isGraduated, setIsGraduated] = useState<boolean | null>(null)
   const [gradYear, setGradYear] = useState<number | null>(null)
 
-  // Logo resolution state (first from college only)
-  const [collegeUrl, setCollegeUrl] = useState('')
-  const [resolvedLogo, setResolvedLogo] = useState<string | null>(null)
-  const [resolving, setResolving] = useState(false)
-  const [logoErr, setLogoErr] = useState(false)
-  const [isFirstFromCollege, setIsFirstFromCollege] = useState(false)
-
   // Candidate profile fields
   const [candidateLinkedIn, setCandidateLinkedIn] = useState('')
   const [currentCompany, setCurrentCompany] = useState('')
@@ -92,40 +85,6 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
     }
   }, [collegeName])
 
-  // Check if first from this college (to show logo section)
-  useEffect(() => {
-    if (!collegeName.trim()) { setIsFirstFromCollege(false); return }
-    const timer = setTimeout(() => {
-      api
-        .get<{ colleges: string[] }>(`/colleges/search?q=${encodeURIComponent(collegeName)}`)
-        .then(r => {
-          const exact = r.data.colleges.find(c => c.toLowerCase() === collegeName.toLowerCase())
-          setIsFirstFromCollege(!exact)
-        })
-        .catch(() => setIsFirstFromCollege(false))
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [collegeName])
-
-  // Live logo resolution from website/LinkedIn URL
-  useEffect(() => {
-    const url = collegeUrl.trim()
-    if (!url) { setResolvedLogo(null); return }
-
-    setResolving(true)
-    setLogoErr(false)
-    const timer = setTimeout(() => {
-      api
-        .post<{ logo_url: string | null }>('/colleges/resolve-logo', { url })
-        .then(r => {
-          setResolvedLogo(r.data.logo_url)
-          setResolving(false)
-        })
-        .catch(() => { setResolvedLogo(null); setResolving(false) })
-    }, 700)
-    return () => clearTimeout(timer)
-  }, [collegeUrl])
-
   // True when the typed name already appears in the suggestion list — used to decide
   // whether to offer "Add <name> to our list".
   const hasExactMatch = suggestions.some(
@@ -142,7 +101,6 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
         college_name: collegeName.trim(),
         graduation_year: gradYear,
         is_graduated: isGraduated,
-        college_url: collegeUrl.trim() || null,
         candidate_linkedin_url: candidateLinkedIn.trim() || null,
         current_company: currentCompany.trim() || null,
         phone: phone.trim() || null,
@@ -173,9 +131,13 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
       style={{ background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(12px)' }}>
 
+      {/* min-h-full + items-center keeps the card centred when it fits, but the
+          scrollable parent lets tall steps (e.g. status + profile fields) scroll
+          on small screens so the primary button is always reachable. */}
+      <div className="flex min-h-full items-center justify-center p-4 pt-14 pb-10 sm:py-6">
       <div className="relative w-full max-w-lg" style={{ animation: 'slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
         <style>{`
           @keyframes slideUp {
@@ -220,7 +182,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 0: Intro ─────────────────────────────────────────────── */}
           {step === 0 && (
-            <div className="p-8 text-center">
+            <div className="p-6 sm:p-8 text-center">
               <div className="text-6xl mb-4" style={{ animation: 'float 3s ease-in-out infinite' }}>🎓</div>
               <h2 className="text-2xl font-black text-white mb-2">hey, let's set up your profile!</h2>
               <p className="text-slate-400 text-sm mb-6 leading-relaxed">
@@ -245,7 +207,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 1: College name ──────────────────────────────────────── */}
           {step === 1 && (
-            <div className="p-8">
+            <div className="p-6 sm:p-8">
               <div className="text-4xl mb-3 text-center">🏛️</div>
               <h2 className="text-xl font-black text-white text-center mb-1">where do you study?</h2>
               <p className="text-slate-500 text-xs text-center mb-6">start typing — we'll auto-complete</p>
@@ -325,7 +287,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 2: Status + year + logo ─────────────────────────────── */}
           {step === 2 && (
-            <div className="p-8">
+            <div className="p-6 sm:p-8">
               <div className="text-4xl mb-3 text-center">📅</div>
               <h2 className="text-xl font-black text-white text-center mb-1">what's your status?</h2>
               <p className="text-slate-500 text-xs text-center mb-6">current student or already crushing it post-grad?</p>
@@ -391,64 +353,23 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                 </div>
               )}
 
-              {/* College website / LinkedIn — first from college only */}
-              {isFirstFromCollege && collegeName.trim() && (
-                <div className="mb-5 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                  <div className="flex items-start gap-3 mb-3">
-                    <span className="text-2xl">🌟</span>
-                    <div>
-                      <p className="text-amber-300 text-xs font-black">You're the first from {collegeName}!</p>
-                      <p className="text-slate-400 text-xs mt-0.5">
-                        Add your college website or LinkedIn URL — we'll auto-fetch the logo.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type="url"
-                      value={collegeUrl}
-                      onChange={e => { setCollegeUrl(e.target.value); setLogoErr(false) }}
-                      placeholder="https://iitb.ac.in  or  linkedin.com/school/iit-bombay"
-                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-xs pr-10
-                        placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-all"
-                    />
-                    {/* Spinner while resolving */}
-                    {resolving && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <svg className="w-3.5 h-3.5 text-amber-400" style={{ animation: 'spin-slow 0.8s linear infinite' }}
-                          fill="none" viewBox="0 0 24 24">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="10" strokeLinecap="round" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Logo preview */}
-                  {resolvedLogo && !resolving && (
-                    <div className="mt-3 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0">
-                        {!logoErr ? (
-                          <img src={resolvedLogo} alt="logo" className="w-8 h-8 object-contain" onError={() => setLogoErr(true)} />
-                        ) : (
-                          <span className="text-slate-500 text-xs">?</span>
-                        )}
-                      </div>
-                      {!logoErr ? (
-                        <p className="text-emerald-400 text-xs font-bold">✓ Logo found! Will be used for the college card.</p>
-                      ) : (
-                        <p className="text-slate-500 text-xs">Logo couldn't load — initials will be shown instead.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {collegeUrl.trim() && !resolving && !resolvedLogo && (
-                    <p className="text-slate-500 text-xs mt-2">
-                      No logo found for this URL — we'll use initials on the card.
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* LinkedIn — highlighted as the trust/source-of-truth signal */}
+              <div className="mb-5 p-4 rounded-2xl bg-sky-500/10 border border-sky-500/30">
+                <label className="block text-sky-200 text-xs font-black mb-1">
+                  🔗 Add your LinkedIn profile
+                </label>
+                <p className="text-slate-400 text-[11px] mb-2.5 leading-relaxed">
+                  Optional, but recommended — it verifies you're a real candidate and acts as your
+                  source of truth for recruiters.
+                </p>
+                <input
+                  type="url"
+                  value={candidateLinkedIn}
+                  onChange={e => setCandidateLinkedIn(e.target.value)}
+                  placeholder="https://linkedin.com/in/yourname"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-sky-500 transition-all"
+                />
+              </div>
 
               {/* Candidate profile fields — shown for everyone */}
               <div className="mb-5 space-y-3">
@@ -464,17 +385,6 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     placeholder="+91 98765 43210"
-                    className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-violet-500 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-500 text-xs mb-1.5">LinkedIn Profile URL</label>
-                  <input
-                    type="url"
-                    value={candidateLinkedIn}
-                    onChange={e => setCandidateLinkedIn(e.target.value)}
-                    placeholder="https://linkedin.com/in/yourname"
                     className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-violet-500 transition-all"
                   />
                 </div>
@@ -504,10 +414,10 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={loading || resolving}
+                  disabled={loading}
                   className="flex-[2] py-3 rounded-2xl font-black text-white text-sm bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 disabled:opacity-50 shadow-lg shadow-violet-700/40 transition-all hover:scale-[1.02] active:scale-95"
                 >
-                  {loading ? 'saving…' : resolving ? 'fetching logo…' : "i'm done 🎉"}
+                  {loading ? 'saving…' : "i'm done 🎉"}
                 </button>
               </div>
             </div>
@@ -515,7 +425,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 3: Resume upload ────────────────────────────────────── */}
           {step === 3 && (
-            <div className="p-8">
+            <div className="p-6 sm:p-8">
               <div className="text-4xl mb-3 text-center">📄</div>
               <h2 className="text-xl font-black text-white text-center mb-1">add your resume</h2>
               <p className="text-slate-500 text-xs text-center mb-6">PDF, DOCX or TXT · max 10 MB — you can always update it later</p>
@@ -583,7 +493,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
 
           {/* ── Step 4: Success ───────────────────────────────────────────── */}
           {step === 4 && (
-            <div className="p-8 text-center relative overflow-hidden">
+            <div className="p-6 sm:p-8 text-center relative overflow-hidden">
               {['🎊', '✨', '🎉', '💫', '🌟', '🎈'].map((e, i) => (
                 <span key={i} className="absolute text-2xl pointer-events-none" style={{
                   left: `${10 + i * 15}%`, top: '-10px',
@@ -606,6 +516,7 @@ export default function CandidateOnboarding({ onComplete, onSkip }: Props) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

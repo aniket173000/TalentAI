@@ -415,8 +415,8 @@ export default function RecruiterPortal() {
 
       {/* ── Interview Rejection Feedback Modal ── */}
       {pendingReject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 my-auto max-h-[90vh] overflow-y-auto animate-fade-in">
             <h3 className="text-lg font-bold text-slate-900 mb-1">Interview Rejection</h3>
             <p className="text-sm text-slate-500 mb-4">
               Provide feedback for the candidate. This will be included in the notification email and visible on their status page.
@@ -862,7 +862,7 @@ export default function RecruiterPortal() {
 
               {/* Fallback — no S3 file stored; show parsed text */}
               {!drawerFileLoading && !drawerFile && (
-                <div className="h-full overflow-y-auto px-10 py-8">
+                <div className="h-full overflow-y-auto px-4 sm:px-10 py-8">
                   <div className="mb-4 flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                     <span>⚠</span>
                     Original file not available — showing extracted text.

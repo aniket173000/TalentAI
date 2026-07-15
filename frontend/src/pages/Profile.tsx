@@ -657,6 +657,7 @@ export default function Profile() {
   const [editHeadline, setEditHeadline] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editPortfolioLink, setEditPortfolioLink] = useState('')
+  const [editLinkedIn, setEditLinkedIn] = useState('')
   const [editCompany, setEditCompany] = useState('')
   const [heroSaving, setHeroSaving] = useState(false)
   const [heroError, setHeroError] = useState<string | null>(null)
@@ -713,6 +714,7 @@ export default function Profile() {
         setEditHeadline(r.data.headline ?? '')
         setEditPhone(r.data.phone ?? '')
         setEditPortfolioLink(r.data.portfolio_link ?? '')
+        setEditLinkedIn(r.data.candidate_linkedin_url ?? '')
         setEditCompany(r.data.company ?? '')
         setEditAbout(r.data.about ?? '')
       })
@@ -755,6 +757,7 @@ export default function Profile() {
         phone: editPhone.trim() || null,
         headline: editHeadline.trim() || null,
         portfolio_link: editPortfolioLink.trim() || null,
+        ...(profile?.is_candidate ? { candidate_linkedin_url: editLinkedIn.trim() || null } : {}),
       })
       if (profile?.is_recruiter && editCompany.trim() !== (profile.company ?? '')) {
         await api.patch('/profile/recruiter', { company: editCompany.trim() || null })
@@ -1106,47 +1109,49 @@ export default function Profile() {
         <div className="h-[140px] bg-gradient-to-br from-[#d6ecfa] to-[#eef6fc] border-b border-slate-100" />
 
         {/* Hero identity row */}
-        <div className="px-5 sm:px-10 pb-5 -mt-[46px] flex items-end gap-5">
-          {/* Avatar */}
-          <div className="relative group shrink-0">
-            <div className="w-[104px] h-[104px] rounded-[26px] border-4 border-white bg-gradient-to-br from-[#2c6fa6] to-[#4aa3d8] text-white grid place-items-center overflow-hidden shadow-[0_8px_20px_-10px_rgba(16,24,40,0.35)]">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="font-display text-3xl font-extrabold">{initials(profile.full_name)}</span>
-              )}
+        <div className="px-5 sm:px-10 pb-5 -mt-[46px] flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-5">
+          <div className="flex items-end gap-4 sm:gap-5 min-w-0 flex-1">
+            {/* Avatar */}
+            <div className="relative group shrink-0">
+              <div className="w-[88px] h-[88px] sm:w-[104px] sm:h-[104px] rounded-[26px] border-4 border-white bg-gradient-to-br from-[#2c6fa6] to-[#4aa3d8] text-white grid place-items-center overflow-hidden shadow-[0_8px_20px_-10px_rgba(16,24,40,0.35)]">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="font-display text-3xl font-extrabold">{initials(profile.full_name)}</span>
+                )}
+              </div>
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                title="Change photo"
+                className="absolute inset-0 rounded-[26px] bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center disabled:cursor-wait"
+              >
+                {avatarUploading
+                  ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                  : <CameraIcon />}
+              </button>
             </div>
-            <button
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={avatarUploading}
-              title="Change photo"
-              className="absolute inset-0 rounded-[26px] bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center disabled:cursor-wait"
-            >
-              {avatarUploading
-                ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                : <CameraIcon />}
-            </button>
-          </div>
 
-          {/* Name + role */}
-          <div className="flex-1 min-w-0 pb-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-2xl font-extrabold text-ink leading-tight">{profile.full_name}</h1>
-              {profile.linkedin_verified && (
-                <span title="LinkedIn verified"
-                  className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 shrink-0">
-                  in
-                </span>
-              )}
+            {/* Name + role */}
+            <div className="flex-1 min-w-0 pb-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-display text-xl sm:text-2xl font-extrabold text-ink leading-tight break-words">{profile.full_name}</h1>
+                {profile.linkedin_verified && (
+                  <span title="LinkedIn verified"
+                    className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 shrink-0">
+                    in
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-sm font-semibold text-slate-500">{role}</p>
             </div>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{role}</p>
           </div>
 
           {/* Edit profile */}
           {!heroEditing && (
             <button
               onClick={() => { setHeroEditing(true); setHeroError(null) }}
-              className="self-center shrink-0 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl px-5 py-2.5 transition"
+              className="shrink-0 w-full sm:w-auto text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl px-5 py-2.5 transition"
             >
               Edit profile
             </button>
@@ -1176,6 +1181,16 @@ export default function Profile() {
                     placeholder="https://yourportfolio.com" type="url" maxLength={500} className={INP} />
                 </Field>
               )}
+              {profile.is_candidate && (
+                <Field label="LinkedIn Profile">
+                  <input value={editLinkedIn} onChange={e => setEditLinkedIn(e.target.value)}
+                    placeholder="https://linkedin.com/in/yourname" type="url" maxLength={500} className={INP} />
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    Optional, but recommended — verifies you're a real candidate and acts as your
+                    source of truth for recruiters.
+                  </p>
+                </Field>
+              )}
               {profile.is_recruiter && (
                 <Field label="Company">
                   <input value={editCompany} onChange={e => setEditCompany(e.target.value)}
@@ -1192,6 +1207,7 @@ export default function Profile() {
                     setEditHeadline(profile.headline ?? '')
                     setEditPhone(profile.phone ?? '')
                     setEditPortfolioLink(profile.portfolio_link ?? '')
+                    setEditLinkedIn(profile.candidate_linkedin_url ?? '')
                     setEditCompany(profile.company ?? '')
                   }}
                   disabled={heroSaving}
@@ -1225,6 +1241,22 @@ export default function Profile() {
                   className="text-sky-600 hover:text-sky-700 hover:underline truncate">
                   <span className="text-slate-400">🔗</span> Portfolio
                 </a>
+              )}
+              {profile.is_candidate && (
+                profile.candidate_linkedin_url ? (
+                  <a href={profile.candidate_linkedin_url} target="_blank" rel="noopener noreferrer"
+                    title="Verified on LinkedIn — source of truth"
+                    className="inline-flex items-center gap-1 font-semibold text-[#0a66c2] hover:underline truncate">
+                    <span className="grid place-items-center w-4 h-4 rounded-sm bg-[#0a66c2] text-white text-[9px] font-black leading-none">in</span>
+                    LinkedIn
+                  </a>
+                ) : (
+                  <button onClick={() => { setHeroEditing(true); setHeroError(null) }}
+                    className="inline-flex items-center gap-1 font-semibold text-[#0a66c2] hover:underline">
+                    <span className="grid place-items-center w-4 h-4 rounded-sm bg-[#0a66c2]/15 text-[#0a66c2] text-[9px] font-black leading-none">in</span>
+                    + Add your LinkedIn
+                  </button>
+                )
               )}
               {joined && <span><span className="text-slate-400">📅</span> {joined}</span>}
             </div>
