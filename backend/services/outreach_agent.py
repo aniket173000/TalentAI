@@ -123,19 +123,46 @@ async def _call_provider(provider: str, prompt: str, *, json_mode: bool, max_tok
 
 
 def _parse_json(text: str) -> dict:
-    """Tolerant JSON parse — strips ``` fences and grabs the first {...} block."""
-    t = text.strip()
+    """Tolerant JSON parse — strips ``` fences and grabs the first {...} block.
+
+    Also repairs the common truncation case (model hit max_tokens mid-object, so
+    the closing brace/quote is missing) by trimming to the last complete field.
+    """
+    t = (text or "").strip()
+    # Strip a ```json … ``` (or bare ```) fence if present.
     if t.startswith("```"):
-        t = t.split("```")[1]
-        if t.startswith("json"):
-            t = t[4:]
+        t = re.sub(r"^```(?:json)?\s*", "", t)
+        t = re.sub(r"\s*```$", "", t).strip()
+
+    # 1. Straight parse.
     try:
         return json.loads(t)
     except json.JSONDecodeError:
-        m = re.search(r"\{.*\}", t, re.DOTALL)
-        if m:
+        pass
+
+    # 2. Grab the outermost {...} block, greedy to the last brace.
+    m = re.search(r"\{.*\}", t, re.DOTALL)
+    if m:
+        try:
             return json.loads(m.group(0))
-        raise OutreachError("Model did not return valid JSON.")
+        except json.JSONDecodeError:
+            pass
+
+    # 3. Truncated object (no closing brace): keep only the COMPLETE
+    #    "key": <value> pairs and close the object, so a cut-off draft still
+    #    yields the fields that did make it through. An incomplete trailing
+    #    field (e.g. a half-written string) is dropped rather than corrupt the parse.
+    if t.lstrip().startswith("{"):
+        value = r'(?:"(?:[^"\\]|\\.)*"|\[[^\]]*\]|-?\d+(?:\.\d+)?|true|false|null)'
+        pairs = re.findall(r'"[^"]+"\s*:\s*' + value, t)
+        if pairs:
+            try:
+                return json.loads("{" + ",".join(p.strip() for p in pairs) + "}")
+            except json.JSONDecodeError:
+                pass
+
+    logger.error("Outreach LLM returned unparseable output (%d chars): %r", len(t), t[:800])
+    raise OutreachError(f"Model did not return valid JSON. Got: {t[:200]!r}")
 
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
