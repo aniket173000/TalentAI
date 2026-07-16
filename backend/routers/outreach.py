@@ -22,7 +22,12 @@ import models
 from database import get_db
 from routers.admin import require_admin
 from services.email_service import send_email
-from services.outreach_agent import OutreachError, analyze_and_draft
+from services.outreach_agent import (
+    OutreachError,
+    analyze_and_draft,
+    build_email_html,
+    signature_text,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/outreach", tags=["outreach"])
@@ -84,13 +89,19 @@ async def send(
     if not body.subject.strip() or not body.body.strip():
         raise HTTPException(status_code=422, detail="Subject and body cannot be empty.")
 
+    # Append the branded signature (the drafted body ends on the CTA). Plain-text
+    # gets the text signature; HTML clients get the styled version.
+    prose = body.body.strip()
+    plain_body = f"{prose}\n\n{signature_text()}"
+    html_body = build_email_html(prose)
+
     log = models.OutreachEmail(
         target_email=target,
         company=body.company,
         contact_name=body.contact_name,
         roles=json.dumps(body.roles or []),
         subject=body.subject.strip(),
-        body=body.body.strip(),
+        body=plain_body,
         source_text=(body.source_text or "")[:8000] or None,
         status="draft",
         created_by=admin.id,
@@ -99,7 +110,7 @@ async def send(
     db.flush()
 
     try:
-        await send_email(target, body.subject.strip(), body.body.strip())
+        await send_email(target, body.subject.strip(), plain_body, html_body=html_body)
         log.status = "sent"
         log.sent_at = datetime.utcnow()
         db.commit()

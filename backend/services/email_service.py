@@ -18,7 +18,12 @@ def _smtp_ready() -> bool:
     )
 
 
-async def send_email(to_email: str, subject: str, body: str) -> None:
+async def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    html_body: str | None = None,
+) -> None:
     if not _smtp_ready():
         # ── console fallback (dev / unconfigured) ────────────────────────────
         sep = "=" * 60
@@ -37,11 +42,15 @@ async def send_email(to_email: str, subject: str, body: str) -> None:
     try:
         import aiosmtplib
 
-        msg = MIMEMultipart()
+        # multipart/alternative when an HTML part is supplied, so clients that
+        # render HTML show the branded version and the rest fall back to plain text.
+        msg = MIMEMultipart("alternative" if html_body else "mixed")
         msg["Subject"] = subject
         msg["From"] = settings.FROM_EMAIL or settings.SMTP_USER
         msg["To"] = to_email
         msg.attach(MIMEText(body, "plain"))
+        if html_body:
+            msg.attach(MIMEText(html_body, "html"))
 
         await aiosmtplib.send(
             msg,
