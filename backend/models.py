@@ -917,3 +917,27 @@ class VoiceSession(Base):
     minted_at = Column(DateTime, server_default=func.now())
     client_secret_expires_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
+
+
+class OutreachEmail(Base):
+    """
+    Audit trail + dedupe store for the admin Outreach agent. One row per drafted
+    (and optionally sent) Nideknil pitch generated from a pasted hiring post.
+    `target_email` is indexed so we can warn before pitching the same contact
+    twice. `status` is one of: draft | sent | failed.
+    """
+    __tablename__ = "outreach_emails"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_email = Column(String(320), nullable=False, index=True)
+    company = Column(String(300), nullable=True)
+    contact_name = Column(String(200), nullable=True)
+    roles = Column(Text, nullable=True)              # JSON array of role titles
+    subject = Column(String(500), nullable=True)
+    body = Column(Text, nullable=True)
+    source_text = Column(Text, nullable=True)        # the pasted post (trimmed)
+    status = Column(String(20), nullable=False, default="draft", index=True)
+    error = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    sent_at = Column(DateTime, nullable=True)

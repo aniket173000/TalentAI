@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
+import OutreachAgent from './OutreachAgent'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface Overview {
@@ -68,7 +69,7 @@ function Pills({ data }: { data: Record<string, number> }) {
   )
 }
 
-type Tab = 'overview' | 'feedback' | 'users' | 'jobs'
+type Tab = 'overview' | 'feedback' | 'users' | 'jobs' | 'outreach'
 
 export default function AdminPanel() {
   const [tab, setTab] = useState<Tab>('overview')
@@ -119,6 +120,7 @@ export default function AdminPanel() {
     { key: 'feedback', label: 'Feedback', icon: '💬' },
     { key: 'users', label: 'Users', icon: '👥' },
     { key: 'jobs', label: 'Jobs', icon: '💼' },
+    { key: 'outreach', label: 'Outreach', icon: '✉️' },
   ]
 
   return (
@@ -298,6 +300,9 @@ export default function AdminPanel() {
           {jobs.length === 0 && <p className="text-muted text-sm py-10 text-center">No jobs yet.</p>}
         </div>
       )}
+
+      {/* ── Outreach ── */}
+      {tab === 'outreach' && <OutreachAgent />}
     </div>
   )
 }

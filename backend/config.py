@@ -82,6 +82,19 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # ── Outreach agent (LinkedIn-post → cold-email drafter) ─────────────────────
+    # Powers the admin "Outreach" tool: paste a hiring post, extract the contact +
+    # roles, and draft a Nideknil pitch. Uses a free-tier LLM by default so it
+    # never touches the paid ranking budget. Provider: "gemini" | "groq" | "openai".
+    #   gemini → Google AI Studio free tier (https://aistudio.google.com/apikey)
+    #   groq   → https://console.groq.com/keys
+    # Falls back to the main OPENAI/ANTHROPIC provider only if explicitly set.
+    OUTREACH_LLM_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-flash-latest"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
     # ── Brand / logo resolution ──────────────────────────────────────────────
     # Optional. When set, Brandfetch is used first (highest-quality logos +
     # brand page). Without it, the resolver falls back to keyless providers
