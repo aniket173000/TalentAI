@@ -30,8 +30,23 @@ class OutreachError(Exception):
 # ── LLM plumbing ────────────────────────────────────────────────────────────────
 
 async def _call_llm(prompt: str, *, json_mode: bool, max_tokens: int = 1200) -> str:
-    provider = (settings.OUTREACH_LLM_PROVIDER or "gemini").lower()
+    """Call the configured provider, falling back to Gemini if it fails.
 
+    Outreach runs on free tiers, which are flaky (bad keys, rate limits, JSON
+    validation quirks). Rather than 500 the admin UI, degrade to Gemini when the
+    primary provider errors and a Gemini key is available.
+    """
+    primary = (settings.OUTREACH_LLM_PROVIDER or "gemini").lower()
+    try:
+        return await _call_provider(primary, prompt, json_mode=json_mode, max_tokens=max_tokens)
+    except OutreachError as exc:
+        if primary != "gemini" and settings.GEMINI_API_KEY:
+            logger.warning("Outreach primary provider %s failed (%s); falling back to Gemini.", primary, exc)
+            return await _call_provider("gemini", prompt, json_mode=json_mode, max_tokens=max_tokens)
+        raise
+
+
+async def _call_provider(provider: str, prompt: str, *, json_mode: bool, max_tokens: int = 1200) -> str:
     if provider == "gemini":
         if not settings.GEMINI_API_KEY:
             raise OutreachError(
@@ -76,9 +91,20 @@ async def _call_llm(prompt: str, *, json_mode: bool, max_tokens: int = 1200) -> 
                 headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
                 json=body,
             )
-        if r.status_code != 200:
-            raise OutreachError(f"Groq request failed ({r.status_code}): {r.text[:300]}")
-        return r.json()["choices"][0]["message"]["content"]
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+
+        # Groq validates JSON server-side in json_object mode. Llama models often
+        # wrap output in a ```json fence, which fails that check with a 400 even
+        # though the content is usable — salvage it (our _parse_json strips fences).
+        if r.status_code == 400 and json_mode:
+            try:
+                err = r.json().get("error", {})
+            except Exception:  # noqa: BLE001
+                err = {}
+            if err.get("code") == "json_validate_failed" and err.get("failed_generation"):
+                return err["failed_generation"]
+        raise OutreachError(f"Groq request failed ({r.status_code}): {r.text[:300]}")
 
     if provider == "openai":
         if not settings.OPENAI_API_KEY:
