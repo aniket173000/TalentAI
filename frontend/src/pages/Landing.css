@@ -114,7 +114,6 @@ html:has(.nk-landing) {
   .nk-bento-3 [data-fullrow] { grid-column: auto !important; }
   .nk-steps-4 { grid-template-columns: 1fr 1fr !important; }
   .nk-stats-3 { grid-template-columns: 1fr 1fr !important; }
-  .nk-pricing-3 { grid-template-columns: 1fr !important; }
   .nk-footer-grid { grid-template-columns: 1fr 1fr !important; }
   .nk-ref-how { grid-template-columns: 1fr !important; }
   .nk-diff-6 { grid-template-columns: 1fr 1fr !important; }
@@ -129,7 +128,7 @@ html:has(.nk-landing) {
   .nk-hamburger { display: flex; align-items: center; justify-content: center; }
   .nk-bento-3 { grid-template-columns: 1fr !important; }
   .nk-steps-4 { grid-template-columns: 1fr !important; }
-  .nk-stats-3, .nk-pricing-3 { grid-template-columns: 1fr !important; }
+  .nk-stats-3 { grid-template-columns: 1fr !important; }
   .nk-footer-grid { grid-template-columns: 1fr 1fr !important; }
   /* problem strip: stack on mobile */
   .nk-problem-strip { grid-template-columns: 1fr !important; }

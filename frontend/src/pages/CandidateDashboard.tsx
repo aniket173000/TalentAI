@@ -95,6 +95,23 @@ export default function CandidateDashboard() {
         </p>
       </div>
 
+      {/* ── Cold Email ──────────────────────────────────────────────────────── */}
+      <Link
+        to="/cold-email"
+        className="mb-8 flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-cyan-50 px-6 py-4 hover:border-sky-300 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📨</span>
+          <div>
+            <p className="font-bold text-sky-900 text-sm">Cold Email</p>
+            <p className="text-xs text-sky-600">
+              Saw a hiring post? Paste it — get a personalized application, written with our top 5 proven cold-email frameworks from your profile, sent from your own Gmail.
+            </p>
+          </div>
+        </div>
+        <span className="text-sky-400 text-sm font-semibold shrink-0">Try it →</span>
+      </Link>
+
       {/* ── Magic Match ─────────────────────────────────────────────────────── */}
       <div className="mb-8 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 overflow-hidden">
         <button

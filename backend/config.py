@@ -114,6 +114,23 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
 
+    # ── Candidate Cold Email (paste hiring post → send from candidate's Gmail) ──
+    # Same Google Cloud project/credentials as Sign-in-with-Google above; the
+    # gmail.send scope is RESTRICTED — the consent screen must list it and the
+    # redirect URI below must be registered exactly. Until Google verification
+    # completes, only test users on the consent screen can connect.
+    GMAIL_REDIRECT_URI: str = "http://localhost:8000/api/cold-email/gmail/callback"
+    # Fernet key (32-byte urlsafe base64, generate with
+    # `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`).
+    # Empty → key is derived from JWT_SECRET (fine for dev; set explicitly in prod
+    # so rotating JWT_SECRET doesn't orphan every stored Gmail credential).
+    TOKEN_ENCRYPTION_KEY: str = ""
+    # Quotas: free-plan monthly sends, and a hard per-day cap for EVERY plan —
+    # the daily cap protects the candidate's own Gmail reputation and our OAuth
+    # app standing, so it is deliberately not lifted by paying.
+    COLD_EMAIL_FREE_MONTHLY: int = 5
+    COLD_EMAIL_DAILY_CAP: int = 10
+
     # ── Semantic Skills Matching (E5-S2) ─────────────────────────────────────
     # Provider: "openai" (uses EMBEDDING_MODEL) | "sentence_transformer" (local)
     SEMANTIC_EMBEDDER: str = "openai"

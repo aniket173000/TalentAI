@@ -28,6 +28,7 @@ from routers import assignments as assignments_router
 from routers import recruiter_mcp_keys as recruiter_mcp_keys_router
 from routers import ai_assist as ai_assist_router
 from routers import outreach as outreach_router
+from routers import cold_email as cold_email_router
 from routers.mcp_candidate import mcp as candidate_mcp
 from routers.mcp_recruiter import mcp as recruiter_mcp
 
@@ -295,6 +296,9 @@ _MIGRATIONS = [
     "ALTER TABLE candidate_rankings ADD COLUMN education_score FLOAT",
     "ALTER TABLE candidate_rankings ADD COLUMN projects_score FLOAT",
     "ALTER TABLE ranking_runs ADD COLUMN deferred_count INTEGER",
+
+    # ── Cold email: 5-template selection ──────────────────────────────────────
+    "ALTER TABLE cold_emails ADD COLUMN template VARCHAR(30) DEFAULT 'specific_opening'",
 ]
 
 # These are legacy SQLite-era patches. On a fresh Postgres database every table
@@ -527,6 +531,7 @@ app.include_router(assignments_router.router)
 app.include_router(recruiter_mcp_keys_router.router)
 app.include_router(ai_assist_router.router)
 app.include_router(outreach_router.router)
+app.include_router(cold_email_router.router)
 
 # Claude Code MCP companion servers. streamable_http_path="/" (set on each FastMCP
 # instance) is required — without it, each server's own internal route defaults to

@@ -941,3 +941,59 @@ class OutreachEmail(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(DateTime, server_default=func.now())
     sent_at = Column(DateTime, nullable=True)
+
+
+# ── Candidate Cold Email (candidate → recruiter, sent via candidate's own Gmail) ──
+
+class ColdEmail(Base):
+    """
+    One row per candidate cold-email draft (and optionally send). Mirrors
+    OutreachEmail but is candidate-owned: `user_id` is the sender, and the mail
+    goes out through THAT user's connected Gmail — never a Nideknil address.
+    `extracted_json`/`evidence_json` persist the analyze results so a redraft
+    never re-runs extraction. `status`: draft | sent | failed.
+    """
+    __tablename__ = "cold_emails"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    recruiter_email = Column(String(320), nullable=True, index=True)
+    recruiter_name = Column(String(200), nullable=True)
+    company = Column(String(300), nullable=True)
+    role_title = Column(String(300), nullable=True)
+    source_text = Column(Text, nullable=True)         # the pasted hiring post (trimmed)
+    extracted_json = Column(Text, nullable=True)      # Stage A output
+    evidence_json = Column(Text, nullable=True)       # Stage B output (grounding inventory)
+    subject = Column(String(500), nullable=True)
+    body = Column(Text, nullable=True)
+    tone = Column(String(20), nullable=False, default="direct")
+    template = Column(String(30), nullable=False, default="specific_opening")  # which of the 5 cold-email templates was used
+    status = Column(String(20), nullable=False, default="draft", index=True)
+    send_channel = Column(String(20), nullable=False, default="gmail_api")
+    gmail_message_id = Column(String(100), nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    sent_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class GoogleMailCredential(Base):
+    """
+    Per-user Gmail send authorization (OAuth offline grant, gmail.send scope).
+    The refresh token is Fernet-encrypted at rest — never stored or logged in
+    plaintext. `gmail_address` is the account the user actually connected (may
+    differ from their login email); it is the From: recruiters will see.
+    A revoked/invalid grant sets `revoked_at` so the UI prompts a reconnect.
+    """
+    __tablename__ = "google_mail_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    gmail_address = Column(String(320), nullable=False)
+    refresh_token_encrypted = Column(Text, nullable=False)
+    scopes = Column(String(500), nullable=True)
+    connected_at = Column(DateTime, server_default=func.now())
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])

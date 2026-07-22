@@ -135,7 +135,6 @@ export default function Landing() {
               {label:'For Candidates', href:'#candidates'},
               {label:'Referrals',      href:'#referrals'},
               {label:'How it works',   href:'#how'},
-              {label:'Pricing',        href:'#pricing'},
             ].map(({label, href}) => (
               <a key={label} href={href} className="nk-link"
                 style={{ color:MUTED, textDecoration:'none' }}>
@@ -182,7 +181,6 @@ export default function Landing() {
             {label:'For Candidates', href:'#candidates'},
             {label:'Referrals',      href:'#referrals'},
             {label:'How it works',   href:'#how'},
-            {label:'Pricing',        href:'#pricing'},
           ].map(({label, href}) => (
             <a key={label} href={href} onClick={() => setMobileNavOpen(false)}>{label}</a>
           ))}
@@ -994,110 +992,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── PRICING ─────────────────────────────────────────────────── */}
-      <section id="pricing" style={{ maxWidth:1200, margin:'0 auto', padding:'80px 24px' }}>
-        <div data-reveal style={{ textAlign:'center', maxWidth:600, margin:'0 auto 46px' }}>
-          <div style={{ fontSize:13, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase',
-                        color:V_INK, marginBottom:16 }}>Pricing</div>
-          <h2 style={{ fontFamily:"'Geist',sans-serif", fontSize:'clamp(32px,4.2vw,52px)',
-                       lineHeight:1.05, letterSpacing:'-0.03em', fontWeight:700, margin:'0 0 14px' }}>
-            For recruiters. Free for candidates.
-          </h2>
-          <p style={{ fontSize:16, color:MUTED, margin:0 }}>
-            Candidates never pay. Recruiters pick a plan that scales with hiring.
-          </p>
-        </div>
-
-        <div data-reveal className="nk-pricing-3"
-             style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:18, alignItems:'start' }}>
-
-          {/* Starter */}
-          <div className="nk-lift"
-               style={{ background:'#fff', border:`1px solid ${LINE}`, borderRadius:20, padding:32 }}>
-            <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>Starter</div>
-            <div style={{ fontSize:13, color:MUTED, marginBottom:20 }}>Ranking only</div>
-            <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:6 }}>
-              <span style={{ fontSize:38, fontWeight:700, letterSpacing:'-0.03em' }}>₹4,999</span>
-              <span style={{ fontSize:14, color:MUTED }}>/mo</span>
-            </div>
-            <div style={{ height:1, background:LINE, margin:'22px 0' }}/>
-            <div style={{ display:'flex', flexDirection:'column', gap:11, fontSize:14, color:INK }}>
-              {['Whole-base ranking','Top 20 per role, daily','Shortlist & pipeline'].map(f => (
-                <div key={f} style={{ display:'flex', gap:10 }}>
-                  <span style={{ color:V }}>✓</span> {f}
-                </div>
-              ))}
-            </div>
-            <button className="nk-soft" onClick={() => nav('/register')}
-              style={{ display:'block', textAlign:'center', width:'100%', marginTop:26,
-                       fontSize:14.5, fontWeight:600, padding:13, borderRadius:999,
-                       background:S2, color:INK, border:'none', cursor:'pointer', fontFamily:'inherit' }}>
-              Choose Starter
-            </button>
-          </div>
-
-          {/* Growth */}
-          <div className="nk-lift"
-               style={{ position:'relative', background:INK, color:PAPER, borderRadius:20,
-                        padding:32, boxShadow:'0 24px 50px rgba(26,23,38,0.22)' }}>
-            <div style={{ position:'absolute', top:-12, left:'50%', transform:'translateX(-50%)',
-                          background:V, color:'#fff', fontSize:11, fontWeight:700,
-                          letterSpacing:'0.04em', padding:'6px 14px', borderRadius:999,
-                          whiteSpace:'nowrap' }}>MOST POPULAR</div>
-            <div style={{ fontSize:15, fontWeight:600, marginBottom:6, color:'#fff' }}>Growth</div>
-            <div style={{ fontSize:13, color:'oklch(0.80 0.10 245)', marginBottom:20 }}>
-              AI Fluency + assessment credits
-            </div>
-            <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:6 }}>
-              <span style={{ fontSize:38, fontWeight:700, letterSpacing:'-0.03em', color:'#fff' }}>₹14,999</span>
-              <span style={{ fontSize:14, color:'rgba(251,249,244,0.6)' }}>/mo</span>
-            </div>
-            <div style={{ height:1, background:'rgba(251,249,244,0.14)', margin:'22px 0' }}/>
-            <div style={{ display:'flex', flexDirection:'column', gap:11, fontSize:14, color:PAPER }}>
-              {['Everything in Starter','AI Fluency scoring','Assessment credits','Verified company-matching'].map(f => (
-                <div key={f} style={{ display:'flex', gap:10 }}>
-                  <span style={{ color:'oklch(0.80 0.10 245)' }}>✓</span> {f}
-                </div>
-              ))}
-            </div>
-            <button className="nk-violet" onClick={() => nav('/register')}
-              style={{ display:'block', textAlign:'center', width:'100%', marginTop:26,
-                       fontSize:14.5, fontWeight:600, padding:13, borderRadius:999,
-                       background:V, color:'#fff', border:'none', cursor:'pointer', fontFamily:'inherit' }}>
-              Choose Growth
-            </button>
-          </div>
-
-          {/* Enterprise */}
-          <div className="nk-lift"
-               style={{ background:'#fff', border:`1px solid ${LINE}`, borderRadius:20, padding:32 }}>
-            <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>Enterprise</div>
-            <div style={{ fontSize:13, color:MUTED, marginBottom:20 }}>Unlimited + SSO</div>
-            <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:6 }}>
-              <span style={{ fontSize:38, fontWeight:700, letterSpacing:'-0.03em' }}>Custom</span>
-            </div>
-            <div style={{ height:1, background:LINE, margin:'22px 0' }}/>
-            <div style={{ display:'flex', flexDirection:'column', gap:11, fontSize:14, color:INK }}>
-              {['Everything in Growth','Unlimited ranking','SSO & advanced controls'].map(f => (
-                <div key={f} style={{ display:'flex', gap:10 }}>
-                  <span style={{ color:V }}>✓</span> {f}
-                </div>
-              ))}
-            </div>
-            <button className="nk-soft" onClick={() => {}}
-              style={{ display:'block', textAlign:'center', width:'100%', marginTop:26,
-                       fontSize:14.5, fontWeight:600, padding:13, borderRadius:999,
-                       background:S2, color:INK, border:'none', cursor:'pointer', fontFamily:'inherit' }}>
-              Talk to us
-            </button>
-          </div>
-        </div>
-        <div style={{ textAlign:'center', marginTop:22, fontFamily:"'Geist Mono',monospace",
-                      fontSize:11.5, color:MUTED }}>
-          * Placeholder pricing — illustrative only
-        </div>
-      </section>
-
       {/* ── FINAL CTA ───────────────────────────────────────────────── */}
       <section data-reveal style={{ maxWidth:1200, margin:'0 auto', padding:'24px 24px 84px' }}>
         <div style={{ position:'relative', background:V, borderRadius:28,
@@ -1165,7 +1059,7 @@ export default function Landing() {
             <div style={{ display:'flex', flexDirection:'column', gap:11, fontSize:14,
                           color:'rgba(251,249,244,0.7)' }}>
               {[{l:'For Recruiters',h:'#recruiters'},{l:'For Candidates',h:'#candidates'},
-                {l:'How it works',h:'#how'},{l:'Pricing',h:'#pricing'}].map(({l,h}) => (
+                {l:'How it works',h:'#how'}].map(({l,h}) => (
                 <a key={l} href={h} className="nk-foot" style={{ color:'rgba(251,249,244,0.7)' }}>{l}</a>
               ))}
             </div>

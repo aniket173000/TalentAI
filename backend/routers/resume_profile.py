@@ -82,50 +82,38 @@ def _upsert_unmapped_skills(db: Session, unmapped: list[str]) -> None:
     db.commit()
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# ── Core extraction (shared) ──────────────────────────────────────────────────
 
-@router.post(
-    "/extract",
-    response_model=ExtractedResumeProfile,
-    status_code=status.HTTP_201_CREATED,
-    summary="Extract a structured profile from resume text",
-)
-async def extract_profile(
-    body: ExtractProfileRequest,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+async def extract_and_store(
+    db: Session,
+    user_id: int,
+    resume_text: str,
+    application_id: Optional[int] = None,
+) -> models.CandidateProfile:
+    """LLM extraction + taxonomy normalisation, persisted as a CandidateProfile.
+
+    SHA-256 cache: if the same resume text was already extracted for this user,
+    the existing row is returned without calling the LLM. Shared by the /extract
+    endpoint and the Cold Email agent (which self-heals users who uploaded a
+    resume before structured extraction existed). Raises on LLM failure —
+    callers wrap in their own HTTP error.
     """
-    Runs LLM extraction + taxonomy normalisation on the provided resume text.
+    resume_hash = _sha256(resume_text)
 
-    If the same resume text (SHA-256 match) was already extracted for this
-    user, the cached result is returned immediately without calling the LLM.
-    """
-    resume_hash = _sha256(body.resume_text)
-
-    # Cache hit: same resume text already extracted for this user
     cached = (
         db.query(models.CandidateProfile)
         .filter(
-            models.CandidateProfile.user_id == current_user.id,
+            models.CandidateProfile.user_id == user_id,
             models.CandidateProfile.source_resume_hash == resume_hash,
         )
         .order_by(models.CandidateProfile.extracted_at.desc())
         .first()
     )
     if cached:
-        logger.info("Cache hit for user=%d resume_hash=%s", current_user.id, resume_hash[:8])
-        return _profile_to_response(cached)
+        logger.info("Cache hit for user=%d resume_hash=%s", user_id, resume_hash[:8])
+        return cached
 
-    # LLM extraction
-    try:
-        raw = await ai_extract(body.resume_text)
-    except Exception as exc:
-        logger.error("LLM extraction failed for user=%d: %s", current_user.id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Resume extraction failed. Please try again.",
-        ) from exc
+    raw = await ai_extract(resume_text)
 
     # Skills normalisation
     raw_skills: list[str] = raw.get("raw_skills") or []
@@ -137,11 +125,10 @@ async def extract_profile(
     except Exception as exc:
         logger.warning("Failed to update skill_review_queue: %s", exc)
 
-    # Persist extracted profile
     confidence_raw = raw.get("confidence_scores") or {}
     profile = models.CandidateProfile(
-        user_id=current_user.id,
-        application_id=body.application_id,
+        user_id=user_id,
+        application_id=application_id,
         source_resume_hash=resume_hash,
         full_name=raw.get("full_name"),
         email=raw.get("email"),
@@ -164,8 +151,38 @@ async def extract_profile(
 
     logger.info(
         "Extracted profile id=%d for user=%d — %d skills (%d unmapped)",
-        profile.id, current_user.id, len(normalized), len(unmapped),
+        profile.id, user_id, len(normalized), len(unmapped),
     )
+    return profile
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/extract",
+    response_model=ExtractedResumeProfile,
+    status_code=status.HTTP_201_CREATED,
+    summary="Extract a structured profile from resume text",
+)
+async def extract_profile(
+    body: ExtractProfileRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Runs LLM extraction + taxonomy normalisation on the provided resume text.
+
+    If the same resume text (SHA-256 match) was already extracted for this
+    user, the cached result is returned immediately without calling the LLM.
+    """
+    try:
+        profile = await extract_and_store(db, current_user.id, body.resume_text, body.application_id)
+    except Exception as exc:
+        logger.error("LLM extraction failed for user=%d: %s", current_user.id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Resume extraction failed. Please try again.",
+        ) from exc
     return _profile_to_response(profile)
 
 

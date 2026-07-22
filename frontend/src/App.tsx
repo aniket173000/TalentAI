@@ -32,6 +32,7 @@ import Register from './pages/Register'
 import Feedback from './pages/Feedback'
 import AdminPanel from './pages/AdminPanel'
 import JobAssignments from './pages/JobAssignments'
+import ColdEmail from './pages/ColdEmail'
 import FluencyReportPage from './pages/FluencyReportPage'
 import AssignmentPortal from './pages/AssignmentPortal'
 
@@ -151,6 +152,14 @@ function AppShell() {
                     element={
                       <ProtectedRoute requires="candidate">
                         <CandidateDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/cold-email"
+                    element={
+                      <ProtectedRoute requires="candidate">
+                        <ColdEmail />
                       </ProtectedRoute>
                     }
                   />
