@@ -139,6 +139,20 @@ def build_evidence(profile, user, extension, extraction: dict) -> dict:
             "highlights": highlights or ([w.get("description")] if w.get("description") else []),
         })
 
+    # Current role: whichever entry has no end_date / "Present", else fall back to
+    # the first entry (resumes are conventionally most-recent-first).
+    current_role = next(
+        (w for w in work if isinstance(w, dict) and (
+            w.get("end_date") is None
+            or str(w.get("end_date")).strip().lower() in ("", "present", "current", "ongoing", "till date")
+        )),
+        work[0] if work and isinstance(work[0], dict) else None,
+    )
+    previous_companies = [
+        w.get("company") for w in work[:5]
+        if isinstance(w, dict) and w is not current_role and w.get("company")
+    ]
+
     projects = _json_loads_safe(profile.projects, [])
     project_items = []
     for p in projects[:5]:
@@ -152,18 +166,22 @@ def build_evidence(profile, user, extension, extraction: dict) -> dict:
 
     education = [e for e in _json_loads_safe(profile.education, []) if isinstance(e, dict)][:2]
 
-    links = [
-        link for link in (
-            getattr(extension, "portfolio_link", None),
-            getattr(extension, "candidate_linkedin_url", None),
-        ) if link
-    ]
+    # Labeled, not bare — the draft prompt renders these as "LinkedIn : <url>" /
+    # "Portfolio : <url>" lines the candidate asked for, not unlabeled URLs.
+    links = []
+    if getattr(extension, "candidate_linkedin_url", None):
+        links.append({"label": "LinkedIn", "url": extension.candidate_linkedin_url})
+    if getattr(extension, "portfolio_link", None):
+        links.append({"label": "Portfolio", "url": extension.portfolio_link})
 
     return {
         "candidate_name": user.full_name or profile.full_name,
         "matched_skills": matched,
         "other_skills": [s for s in cand_skills if s not in matched][:12],
         "total_yoe": profile.total_yoe,
+        "current_title": (current_role or {}).get("title"),
+        "current_company": (current_role or {}).get("company"),
+        "previous_companies": previous_companies,
         "work_history": work_items,
         "projects": project_items,
         "education": education,
@@ -297,10 +315,14 @@ def select_template(extraction: dict, evidence: dict) -> str:
 
 
 def _signature_block(evidence: dict, sender_email: str) -> str:
+    """Name / current title & company / email / phone. LinkedIn & portfolio are
+    NOT repeated here — the draft already places them inline in the body as
+    labeled "LinkedIn : <url>" lines, so they'd otherwise appear twice."""
     lines = [evidence.get("candidate_name") or "", sender_email]
+    if evidence.get("current_title") and evidence.get("current_company"):
+        lines.append(f"{evidence['current_title']} at {evidence['current_company']}")
     if evidence.get("phone"):
         lines.append(str(evidence["phone"]))
-    lines.extend(evidence.get("links") or [])
     return "\n".join(line for line in lines if line)
 
 
@@ -346,22 +368,42 @@ async def draft_cold_email(
             if instructions
             else f"- {template['subject_rule']}\n"
         )
-        + "\nBody rules:\n"
-        f"- 90-130 words. First person, {tone} tone: {_TONE_NOTES[tone]}\n"
+        + "\nBody rules — this should read like a complete mini-résumé in email form, so "
+        "the candidate barely has to edit anything before sending:\n"
+        f"- 130-220 words. First person, {tone} tone: {_TONE_NOTES[tone]}\n"
         "- Line 1 is the greeting ALONE on its own line: "
         + (f"'Hi {recruiter_first_name},'" if recruiter_first_name else "'Hi,'")
         + " then a blank line before the opening sentence.\n"
         "- The opening sentence (step 1 of the structure above) MUST explicitly name or "
         "paraphrase the notable_context / must-have-skills detail given above — a generic "
         "'I saw you're hiring for X' with no specific detail is NOT acceptable.\n"
-        "- One real number beats three adjectives — always prefer a metric from the "
-        "evidence over describing yourself.\n"
-        "- End on ONE clear, easy-to-say-yes-to ask (a specific time window, a reply, "
-        "or 'keep me in mind') and make that closing line genuinely appreciative of "
-        "their time — this is the candidate's proper thank-you, not an afterthought.\n"
+        "- After the opening, cover ALL of the following as their own short lines/paragraphs "
+        "(skip any whose evidence field is empty — never invent a value to fill one in):\n"
+        "  * Current role, plainly stated: 'Currently working as {evidence.current_title} at "
+        "{evidence.current_company}.'\n"
+        "  * Total experience, if evidence.total_yoe is present (e.g. 'I have X+ years of "
+        "experience.').\n"
+        "  * Previous employers by name, if evidence.previous_companies is non-empty (e.g. "
+        "'I've previously worked at A and B.').\n"
+        "  * ALL of evidence.matched_skills (plus a few of evidence.other_skills if "
+        "matched_skills is thin) as one labeled line: 'Tech Skills: X, Y, Z.' — never invent "
+        "a skill not in the evidence.\n"
+        "  * One line per entry in evidence.links, each formatted EXACTLY as "
+        "'{label} : {url}' (e.g. 'LinkedIn : https://...') — never invent a link not in the "
+        "evidence, and never fold it into a sentence, it must stand alone.\n"
+        "  * A plain, direct statement of interest in this exact role and company (e.g. 'I am "
+        "very interested in applying for the {role} position at {company}.') — this can be "
+        "simple and sincere, it does not need to be clever.\n"
+        "  * A line noting the resume is attached for reference.\n"
+        "- Still lead with real numbers from evidence.work_history highlights where they exist "
+        "— completeness above does not mean dropping concrete achievements.\n"
+        "- End on ONE clear, easy-to-say-yes-to ask (requesting the opportunity, or a short "
+        "call) and make that closing line genuinely appreciative of their time — this is the "
+        "candidate's proper thank-you, not an afterthought.\n"
         "- NEVER: 'I hope this email finds you well', 'esteemed organization', emoji, "
         "buzzword soup, or apologizing for cold-emailing.\n"
-        "- Plain text only. Short paragraphs with blank lines between them.\n"
+        "- Plain text only, formatted like a real email — short lines/paragraphs with a blank "
+        "line between them, not one dense block.\n"
         "- Do NOT write any sign-off, closing, name, or signature — it is appended "
         "automatically. End on the ask line.\n"
         'Return ONLY JSON: {"subject": string, "body": string}'
