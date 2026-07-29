@@ -6,7 +6,71 @@
     <link rel="apple-touch-icon" href="/icon.svg" />
     <meta name="theme-color" content="#4CB2FF" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nideknil — Hire Smarter</title>
+
+    <!-- ===== SEO ===== -->
+    <title>Nideknil — Hire Smarter | AI Candidate Screening &amp; Assessments</title>
+    <meta
+      name="description"
+      content="Nideknil turns a job description into a ranked, explained shortlist — not a pile of résumés. AI-powered candidate screening, skills assessments and AI-fluency scoring for faster, fairer hiring."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://www.nideknil.in/" />
+
+    <!-- ===== Open Graph (LinkedIn / Slack / WhatsApp / Facebook) ===== -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Nideknil" />
+    <meta property="og:title" content="Nideknil — Hire Smarter" />
+    <meta
+      property="og:description"
+      content="From JD paste to ranked shortlist. AI-powered candidate screening, skills assessments and AI-fluency scoring."
+    />
+    <meta property="og:url" content="https://www.nideknil.in/" />
+    <!-- TODO: replace with a 1200×630 PNG for best previews; SVG is a stopgap and won't render on some scrapers. -->
+    <meta property="og:image" content="https://www.nideknil.in/lockup-dark.svg" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- ===== Twitter / X ===== -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nideknil — Hire Smarter" />
+    <meta
+      name="twitter:description"
+      content="From JD paste to ranked shortlist. AI-powered candidate screening, skills assessments and AI-fluency scoring."
+    />
+    <meta name="twitter:image" content="https://www.nideknil.in/lockup-dark.svg" />
+
+    <!-- ===== GEO: structured data so answer engines (ChatGPT, Perplexity, Google AI) form a clean entity ===== -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Nideknil",
+        "url": "https://www.nideknil.in/",
+        "logo": "https://www.nideknil.in/icon.svg",
+        "slogan": "Hire Smarter",
+        "description": "Nideknil is an AI-powered recruitment platform that screens candidates against a job description, runs skills and AI-fluency assessments, and returns a ranked, explained shortlist."
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Nideknil",
+        "url": "https://www.nideknil.in/"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Nideknil",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "url": "https://www.nideknil.in/",
+        "description": "AI candidate screening and assessment platform that turns a job description into a ranked, explained shortlist.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Primary UI — Inter (body) + Outfit (display/headings) + JetBrains Mono -->
@@ -22,6 +86,27 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- GEO/SEO fallback: real, extractable text for crawlers and answer engines that do not execute JS.
+         React replaces #root on hydrate; this <noscript> only shows when JS is off. -->
+    <noscript>
+      <main>
+        <h1>Nideknil — Hire Smarter</h1>
+        <p>
+          Nideknil is an AI-powered recruitment platform. Paste a job description and Nideknil screens
+          candidates, runs skills and AI-fluency assessments, and returns a ranked, explained shortlist —
+          not a pile of résumés.
+        </p>
+        <h2>What Nideknil does</h2>
+        <ul>
+          <li>Turns a JD into a ranked, explained candidate shortlist.</li>
+          <li>Runs AI-fluency and skills assessments for every applicant.</li>
+          <li>Gives candidates instant, actionable feedback.</li>
+          <li>Builds a larger, searchable talent and referral pool for recruiters.</li>
+        </ul>
+      </main>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
