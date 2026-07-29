@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import type { RouteRecord } from 'vite-react-ssg'
 import CandidateOnboarding from './components/CandidateOnboarding'
 import RecruiterOnboarding from './components/RecruiterOnboarding'
 import CandidatesCorpus from './pages/CandidatesCorpus'
@@ -46,8 +47,10 @@ const SESSION_SKIP_KEY = 'onboarding_skipped_this_session'
 
 function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { user, isCandidate, isRecruiter, refreshUser } = useAuth()
+  // SSR-safe: sessionStorage doesn't exist during static prerender (Node). Guard
+  // the initial read so vite-react-ssg can render this shell server-side.
   const [skippedThisSession, setSkippedThisSession] = useState(
-    () => sessionStorage.getItem(SESSION_SKIP_KEY) === '1'
+    () => typeof window !== 'undefined' && sessionStorage.getItem(SESSION_SKIP_KEY) === '1'
   )
 
   const needsOnboarding =
@@ -110,6 +113,7 @@ function AdminGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// App chrome shared by every route. Renders the matched route via <Outlet/>.
 function AppShell() {
   const location = useLocation()
   const isLanding = location.pathname === '/'
@@ -121,190 +125,81 @@ function AppShell() {
       <div className={`min-h-screen flex flex-col${isLanding && !user ? '' : ' bg-slate-50'}`}>
         {showNavbar && <Navbar />}
         <main className="flex-1">
-          <Routes>
-            {/* Public */}
-            <Route path="/" element={<RootRoute />} />
-                  {/* Public job board — browsable without logging in */}
-                  <Route path="/jobs" element={<Home />} />
-                  <Route path="/colleges" element={<Colleges />} />
-                  <Route path="/jobs/:jobId" element={<JobDetail />} />
-                  <Route path="/result" element={<ApplicationResult />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
-                  <Route path="/auth/google/callback" element={<GoogleCallback />} />
-                  <Route path="/status/:token" element={<ApplicationStatus />} />
-                  <Route path="/assignment/:token" element={<AssignmentPortal />} />
-                  <Route path="/pulse" element={<PulseLanding />} />
-                  <Route path="/pulse/portal/:token" element={<PulsePortal />} />
-                  <Route path="/feedback" element={<Feedback />} />
-
-                  {/* Referrals — candidate-facing discovery (recruiters blocked) */}
-                  <Route path="/referrals" element={<ReferralGate><CompanyReferrals /></ReferralGate>} />
-                  <Route path="/referrals/company/:companyName" element={<ReferralGate><CompanyReferralDetail /></ReferralGate>} />
-                  <Route path="/referrals/:slug" element={<ReferralGate><ReferralPostPage /></ReferralGate>} />
-
-                  {/* Candidate-only */}
-                  <Route
-                    path="/jobs/:jobId/apply"
-                    element={
-                      <ProtectedRoute requires="candidate">
-                        <Apply />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute requires="candidate">
-                        <CandidateDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/cold-email"
-                    element={
-                      <ProtectedRoute requires="candidate">
-                        <ColdEmail />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  {/* Referrals — candidate-only (create/dashboard) */}
-                  <Route
-                    path="/referrals/create"
-                    element={
-                      <ProtectedRoute requires="candidate">
-                        <CreateReferralPost />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/referrals/dashboard"
-                    element={
-                      <ProtectedRoute requires="candidate">
-                        <ReferrerDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/referrals/dashboard/:postId"
-                    element={
-                      <ProtectedRoute requires="candidate">
-                        <ReferrerDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  {/* Profile — both roles */}
-                  <Route
-                    path="/profile"
-                    element={
-                      <ProtectedRoute>
-                        <Profile />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  {/* Recruiter-only */}
-                  <Route
-                    path="/recruiter"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <RecruiterPortal />
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* Pulse dashboard — decoupled from hiring: any signed-in user,
-                      gated on early-access inside the component. */}
-                  <Route
-                    path="/pulse/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <TeamPulseDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/pulse/admin"
-                    element={
-                      <ProtectedRoute>
-                        <PulseAdmin />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/jobs/create"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <CreateJob />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/jobs/:jobId/edit"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <EditJob />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/candidates-corpus"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <CandidatesCorpus />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/rank-candidates"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <RankCandidates />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/jobs/:jobId/assignments"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <JobAssignments />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/submissions/:submissionId/report"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <FluencyReportPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/recruiter/candidates/:candidateId"
-                    element={
-                      <ProtectedRoute requires="recruiter">
-                        <CandidateRankingDetail />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="/admin" element={<AdminGate><AdminPanel /></AdminGate>} />
-                  {/* Unknown paths → the public job board instead of a blank screen */}
-                  <Route path="*" element={<Navigate to="/jobs" replace />} />
-                </Routes>
+          <Outlet />
         </main>
       </div>
     </OnboardingGate>
   )
 }
 
-export default function App() {
+// Root layout element: providers + shell. Everything routed renders inside this.
+export function Layout() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppShell />
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   )
 }
+
+// Route table in data-router form so vite-react-ssg can statically render the
+// public marketing pages at build time. Paths are relative to the "/" layout.
+export const routes: RouteRecord[] = [
+  {
+    path: '/',
+    element: <Layout />,
+    children: [
+      // Public
+      { index: true, element: <RootRoute /> },
+      { path: 'jobs', element: <Home /> },
+      { path: 'colleges', element: <Colleges /> },
+      { path: 'jobs/:jobId', element: <JobDetail /> },
+      { path: 'result', element: <ApplicationResult /> },
+      { path: 'login', element: <Login /> },
+      { path: 'register', element: <Register /> },
+      { path: 'auth/linkedin/callback', element: <LinkedInCallback /> },
+      { path: 'auth/google/callback', element: <GoogleCallback /> },
+      { path: 'status/:token', element: <ApplicationStatus /> },
+      { path: 'assignment/:token', element: <AssignmentPortal /> },
+      { path: 'pulse', element: <PulseLanding /> },
+      { path: 'pulse/portal/:token', element: <PulsePortal /> },
+      { path: 'feedback', element: <Feedback /> },
+
+      // Referrals — candidate-facing discovery (recruiters blocked)
+      { path: 'referrals', element: <ReferralGate><CompanyReferrals /></ReferralGate> },
+      { path: 'referrals/company/:companyName', element: <ReferralGate><CompanyReferralDetail /></ReferralGate> },
+      { path: 'referrals/:slug', element: <ReferralGate><ReferralPostPage /></ReferralGate> },
+
+      // Candidate-only
+      { path: 'jobs/:jobId/apply', element: <ProtectedRoute requires="candidate"><Apply /></ProtectedRoute> },
+      { path: 'dashboard', element: <ProtectedRoute requires="candidate"><CandidateDashboard /></ProtectedRoute> },
+      { path: 'cold-email', element: <ProtectedRoute requires="candidate"><ColdEmail /></ProtectedRoute> },
+      { path: 'referrals/create', element: <ProtectedRoute requires="candidate"><CreateReferralPost /></ProtectedRoute> },
+      { path: 'referrals/dashboard', element: <ProtectedRoute requires="candidate"><ReferrerDashboard /></ProtectedRoute> },
+      { path: 'referrals/dashboard/:postId', element: <ProtectedRoute requires="candidate"><ReferrerDashboard /></ProtectedRoute> },
+
+      // Profile — both roles
+      { path: 'profile', element: <ProtectedRoute><Profile /></ProtectedRoute> },
+
+      // Recruiter-only
+      { path: 'recruiter', element: <ProtectedRoute requires="recruiter"><RecruiterPortal /></ProtectedRoute> },
+
+      // Pulse dashboard — decoupled from hiring: any signed-in user, gated on
+      // early-access inside the component.
+      { path: 'pulse/dashboard', element: <ProtectedRoute><TeamPulseDashboard /></ProtectedRoute> },
+      { path: 'pulse/admin', element: <ProtectedRoute><PulseAdmin /></ProtectedRoute> },
+
+      { path: 'recruiter/jobs/create', element: <ProtectedRoute requires="recruiter"><CreateJob /></ProtectedRoute> },
+      { path: 'recruiter/jobs/:jobId/edit', element: <ProtectedRoute requires="recruiter"><EditJob /></ProtectedRoute> },
+      { path: 'recruiter/candidates-corpus', element: <ProtectedRoute requires="recruiter"><CandidatesCorpus /></ProtectedRoute> },
+      { path: 'recruiter/rank-candidates', element: <ProtectedRoute requires="recruiter"><RankCandidates /></ProtectedRoute> },
+      { path: 'recruiter/jobs/:jobId/assignments', element: <ProtectedRoute requires="recruiter"><JobAssignments /></ProtectedRoute> },
+      { path: 'recruiter/submissions/:submissionId/report', element: <ProtectedRoute requires="recruiter"><FluencyReportPage /></ProtectedRoute> },
+      { path: 'recruiter/candidates/:candidateId', element: <ProtectedRoute requires="recruiter"><CandidateRankingDetail /></ProtectedRoute> },
+
+      { path: 'admin', element: <AdminGate><AdminPanel /></AdminGate> },
+
+      // Unknown paths → the public job board instead of a blank screen
+      { path: '*', element: <Navigate to="/jobs" replace /> },
+    ],
+  },
+]
