@@ -1,10 +1,7 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
 import './index.css'
+import { ViteReactSSG } from 'vite-react-ssg'
+import { routes } from './App'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+// vite-react-ssg owns the router: it renders the static marketing pages in Node
+// at build time and hydrates the same tree (into #root) in the browser.
+export const createRoot = ViteReactSSG({ routes })
