@@ -1,0 +1,164 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Nideknil Pulse — "Signal" design system.
+   A dark instrument surface for the AI-fluency team product. Scoped entirely
+   under .pulse-root so it never touches the rest of the (light) app.
+   ───────────────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+.pulse-root {
+  --p-ink: #0E0B1A;
+  --p-panel: #17132A;
+  --p-panel-2: #211A3D;
+  --p-line: rgba(255, 255, 255, 0.09);
+  --p-line-2: rgba(255, 255, 255, 0.15);
+  --p-text: #EDEBF5;
+  --p-muted: #9A93B8;
+  --p-signal: #FF6A3D;
+  --p-signal-2: #FFC24B;
+  --p-cool: #7C6BFF;
+  --p-cool-ink: #B7AEFF;
+  --p-mint: #38E0B0;
+
+  --p-display: "Space Grotesk", "Outfit", system-ui, sans-serif;
+  --p-body: "Inter", system-ui, sans-serif;
+  --p-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 80% at 85% -10%, rgba(124, 107, 255, 0.16), transparent 60%),
+    radial-gradient(90% 70% at 5% 0%, rgba(255, 106, 61, 0.10), transparent 55%),
+    var(--p-ink);
+  color: var(--p-text);
+  font-family: var(--p-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.pulse-wrap { max-width: 1060px; margin: 0 auto; padding: 34px 22px 80px; }
+
+/* ── type ── */
+.pulse-root .eyebrow {
+  font-family: var(--p-mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.pulse-root .eyebrow .dot { color: var(--p-signal); }
+.pulse-root h1, .pulse-root h2, .pulse-root h3 { font-family: var(--p-display); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.pulse-root .display-xl { font-family: var(--p-display); font-weight: 700; font-size: clamp(30px, 5vw, 46px); letter-spacing: -0.03em; line-height: 1.02; }
+.pulse-root .lede { color: var(--p-muted); font-size: 15px; line-height: 1.55; max-width: 52ch; }
+.pulse-root .mono { font-family: var(--p-mono); }
+
+/* ── panels ── */
+.p-panel {
+  background: linear-gradient(180deg, var(--p-panel) 0%, rgba(23, 19, 42, 0.72) 100%);
+  border: 1px solid var(--p-line);
+  border-radius: 18px;
+  padding: 22px;
+  position: relative;
+}
+.p-panel + .p-panel, .pulse-stack > * + * { margin-top: 16px; }
+.pulse-stack { display: flex; flex-direction: column; }
+
+/* corner tick — instrument detail */
+.p-panel.ticked::before,
+.p-panel.ticked::after {
+  content: ""; position: absolute; width: 9px; height: 9px;
+  border-color: var(--p-line-2); border-style: solid;
+}
+.p-panel.ticked::before { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
+.p-panel.ticked::after { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+
+/* ── hero readout ── */
+.hero-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 22px; align-items: stretch; }
+.readout { display: flex; align-items: baseline; gap: 10px; }
+.readout .num { font-family: var(--p-display); font-weight: 700; font-size: clamp(56px, 11vw, 104px); line-height: 0.9; letter-spacing: -0.04em;
+  background: linear-gradient(120deg, var(--p-signal-2), var(--p-signal)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.readout .den { font-family: var(--p-mono); color: var(--p-muted); font-size: 15px; }
+.stat-row { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 6px; }
+.stat .k { font-family: var(--p-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--p-muted); }
+.stat .v { font-family: var(--p-display); font-size: 20px; font-weight: 600; }
+.stat .v.up { color: var(--p-mint); }
+
+/* ── meters (dimensions as signal strength) ── */
+.meter-row { display: grid; grid-template-columns: 1fr 130px 46px; align-items: center; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--p-line); }
+.meter-row:last-child { border-bottom: 0; }
+.meter-row .label { font-size: 13.5px; }
+.meter-row .conf { font-family: var(--p-mono); font-size: 10px; color: var(--p-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.meter { height: 8px; border-radius: 99px; background: rgba(255,255,255,0.07); overflow: hidden; }
+.meter > span { display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--p-signal), var(--p-signal-2));
+  transform-origin: left; animation: p-fill 0.9s cubic-bezier(.2,.8,.2,1) both; }
+.meter.null > span { background: var(--p-line-2); }
+.meter-row .score { font-family: var(--p-display); font-weight: 600; text-align: right; }
+.meter-row .score.na { color: var(--p-muted); font-family: var(--p-mono); font-size: 12px; }
+
+/* ── gap list (ranked weakest-first — numbering earns its place here) ── */
+.gap { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--p-line); }
+.gap:last-child { border-bottom: 0; }
+.gap .rank { font-family: var(--p-mono); font-size: 12px; color: var(--p-signal); width: 26px; }
+.gap .g-label { flex: 1; font-size: 14px; }
+.gap .g-val { font-family: var(--p-display); font-weight: 600; }
+
+/* ── playbook ── */
+.play { border-left: 2px solid var(--p-cool); padding: 4px 0 4px 14px; margin: 12px 0; }
+.play .tech { font-size: 14.5px; line-height: 1.5; }
+.play .ev { color: var(--p-muted); font-style: italic; font-size: 13px; margin-top: 3px; }
+.play .src { font-family: var(--p-mono); font-size: 10.5px; color: var(--p-cool-ink); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 5px; }
+
+/* ── leaderboard / seats ── */
+.row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--p-line); font-size: 14px; }
+.row:last-child { border-bottom: 0; }
+
+/* ── controls ── */
+.p-btn { font-family: var(--p-display); font-weight: 600; font-size: 14px; border-radius: 11px; padding: 10px 18px; cursor: pointer; border: 1px solid transparent; transition: transform .12s, box-shadow .2s, background .2s; }
+.p-btn:active { transform: translateY(1px); }
+.p-btn.primary { background: var(--p-cool); color: #fff; box-shadow: 0 8px 24px -8px var(--p-cool); }
+.p-btn.primary:hover { background: #8b7bff; }
+.p-btn.signal { background: linear-gradient(120deg, var(--p-signal), var(--p-signal-2)); color: #1a0d06; box-shadow: 0 8px 26px -10px var(--p-signal); }
+.p-btn.signal:hover { filter: brightness(1.05); }
+.p-btn.ghost { background: transparent; border-color: var(--p-line-2); color: var(--p-text); }
+.p-btn.ghost:hover { background: rgba(255,255,255,0.05); }
+.p-btn:disabled { opacity: .5; cursor: default; }
+.p-input { width: 100%; background: var(--p-panel-2); border: 1px solid var(--p-line); border-radius: 11px; padding: 11px 14px; color: var(--p-text); font-family: var(--p-body); font-size: 14px; }
+.p-input:focus { outline: none; border-color: var(--p-cool); box-shadow: 0 0 0 3px rgba(124,107,255,0.22); }
+.p-input::placeholder { color: var(--p-muted); }
+
+.p-tag { font-family: var(--p-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--p-muted); border: 1px solid var(--p-line); border-radius: 99px; padding: 4px 11px; }
+.p-code { font-family: var(--p-mono); font-size: 11.5px; background: var(--p-panel-2); border: 1px solid var(--p-line); border-radius: 9px; padding: 9px 11px; display: block; word-break: break-all; color: var(--p-cool-ink); }
+.p-link { color: var(--p-cool-ink); background: none; border: none; cursor: pointer; font-size: 13px; font-family: var(--p-mono); }
+
+/* choice chips (cadence / region) */
+.chip { font-family: var(--p-mono); font-size: 12px; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--p-line-2); background: transparent; color: var(--p-muted); cursor: pointer; }
+.chip[data-on="true"] { background: rgba(124,107,255,0.16); border-color: var(--p-cool); color: var(--p-cool-ink); }
+
+/* drop zone */
+.dropzone { border: 1.5px dashed var(--p-line-2); border-radius: 14px; padding: 26px 16px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+.dropzone[data-over="true"] { border-color: var(--p-cool); background: rgba(124,107,255,0.08); }
+.dropzone .big { font-size: 26px; }
+
+.card-lift { transition: transform .15s, border-color .15s; cursor: pointer; }
+.card-lift:hover { transform: translateY(-2px); border-color: var(--p-line-2); }
+
+/* waveform */
+.wave-box { position: relative; width: 100%; }
+.wave-path { animation: p-draw 1.6s cubic-bezier(.4,0,.2,1) both; }
+.wave-dot { animation: p-dot-in .5s ease .9s both; }
+
+@keyframes p-fill { from { transform: scaleX(0); } }
+@keyframes p-draw { from { stroke-dashoffset: var(--len, 1200); } to { stroke-dashoffset: 0; } }
+@keyframes p-dot-in { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+@keyframes p-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.rise { animation: p-rise .5s cubic-bezier(.2,.8,.2,1) both; }
+
+.pulse-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+@media (max-width: 760px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .pulse-two { grid-template-columns: 1fr; }
+  .meter-row { grid-template-columns: 1fr 84px 40px; }
+  .pulse-wrap { padding: 24px 16px 60px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-root * { animation: none !important; }
+}

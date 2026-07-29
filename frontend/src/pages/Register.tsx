@@ -20,6 +20,12 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<ActiveMode>(prefilledAccountType ?? 'candidate')
+  // Product intent drives the account capability + where we land after signup.
+  // 'pulse' users are companies measuring their team → recruiter-capable account.
+  type Intent = 'jobseeker' | 'hiring' | 'pulse'
+  const [intent, setIntent] = useState<Intent>(prefilledAccountType === 'recruiter' ? 'hiring' : 'jobseeker')
+  const chooseIntent = (i: Intent) => { setIntent(i); setRole(i === 'jobseeker' ? 'candidate' : 'recruiter') }
+  const landingFor = (i: Intent) => (i === 'pulse' ? '/pulse' : i === 'hiring' ? '/recruiter' : '/')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -60,7 +66,7 @@ export default function Register() {
     setLoading(true)
     try {
       await verifySignupOtp(email, otp.trim(), role)
-      navigate(role === 'recruiter' ? '/recruiter' : '/', { replace: true })
+      navigate(landingFor(intent), { replace: true })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(msg || 'Verification failed. Please try again.')
@@ -139,19 +145,24 @@ export default function Register() {
         </div>
 
         <Card padding={32}>
-          {/* Role selector */}
+          {/* Intent selector — what brings you here */}
           <div className="mb-5">
-            <p className="text-sm font-bold text-ink mb-2">I want to join as…</p>
-            <div className="grid grid-cols-2 gap-3">
-              {(['candidate', 'recruiter'] as const).map(r => {
-                const active = role === r
+            <p className="text-sm font-bold text-ink mb-2">What brings you here?</p>
+            <div className="grid gap-3">
+              {([
+                ['jobseeker', 'Find a job', 'Apply and show recruiters how you work with AI'],
+                ['hiring', 'Hire & assess candidates', 'Post roles, run AI-fluency take-homes'],
+                ['pulse', 'Measure my team’s AI fluency', 'Nideknil Pulse — for founders & eng leaders'],
+              ] as const).map(([val, title, sub]) => {
+                const active = intent === val
                 return (
-                  <button key={r} type="button" onClick={() => setRole(r)}
-                    className="rounded-xl py-3 px-4 text-sm font-extrabold transition-all"
+                  <button key={val} type="button" onClick={() => chooseIntent(val)}
+                    className="rounded-xl py-3 px-4 text-left transition-all"
                     style={active
-                      ? { border: '2px solid var(--ink)', background: 'var(--ink)', color: 'var(--bg)', boxShadow: '3px 3px 0 var(--violet)', fontFamily: 'var(--font-display)' }
-                      : { border: '2px solid var(--line)', background: 'var(--surface)', color: 'var(--muted)', fontFamily: 'var(--font-display)' }}>
-                    {r === 'candidate' ? 'Job Seeker' : 'Recruiter'}
+                      ? { border: '2px solid var(--ink)', background: 'var(--ink)', color: 'var(--bg)', boxShadow: '3px 3px 0 var(--violet)' }
+                      : { border: '2px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14.5 }}>{title}</div>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginTop: 2, color: active ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{sub}</div>
                   </button>
                 )
               })}

@@ -21,6 +21,8 @@ from config import settings
 from services.fluency.prompts import (
     AGGREGATE_SYSTEM,
     CHUNK_SYSTEM,
+    GENERAL_WORK_AGGREGATE_SYSTEM,
+    GENERAL_WORK_CHUNK_SYSTEM,
     build_aggregate_prompt,
     build_chunk_prompt,
 )
@@ -52,27 +54,34 @@ class FluencyJudge(ABC):
                              max_tokens: int) -> dict: ...
 
     async def score_chunk(self, chunk_text: str, assignment_brief: str,
-                          evaluation_focus: str | None) -> dict:
+                          evaluation_focus: str | None,
+                          general_work: bool = False) -> dict:
         return await self._complete_json(
-            CHUNK_SYSTEM,
-            build_chunk_prompt(chunk_text, assignment_brief, evaluation_focus),
+            GENERAL_WORK_CHUNK_SYSTEM if general_work else CHUNK_SYSTEM,
+            build_chunk_prompt(chunk_text, assignment_brief, evaluation_focus,
+                               general_work=general_work),
             model=self.chunk_model,
             max_tokens=3_000,
         )
 
     async def score_chunks(self, chunks: list[str], assignment_brief: str,
-                           evaluation_focus: str | None) -> list[dict]:
+                           evaluation_focus: str | None,
+                           general_work: bool = False) -> list[dict]:
         """
         Score all chunks concurrently under a semaphore. Individual chunk
         failures are tolerated (logged, skipped) as long as at least one
         chunk succeeds — a 40-session submission shouldn't die on one 500.
+
+        general_work=True selects the brief-free "real day-to-day work" framing
+        used by the Pulse team product; False keeps the hiring path unchanged.
         """
         sem = asyncio.Semaphore(settings.FLUENCY_CHUNK_CONCURRENCY)
 
         async def _one(i: int, chunk: str):
             async with sem:
                 try:
-                    result = await self.score_chunk(chunk, assignment_brief, evaluation_focus)
+                    result = await self.score_chunk(chunk, assignment_brief,
+                                                    evaluation_focus, general_work)
                     result["chunk_index"] = i
                     return result
                 except Exception as exc:
@@ -89,11 +98,13 @@ class FluencyJudge(ABC):
 
     async def aggregate(self, chunk_results: list[dict], metrics: dict,
                         integrity_flags: list[dict], assignment_brief: str,
-                        evaluation_focus: str | None) -> dict:
+                        evaluation_focus: str | None,
+                        general_work: bool = False) -> dict:
         return await self._complete_json(
-            AGGREGATE_SYSTEM,
+            GENERAL_WORK_AGGREGATE_SYSTEM if general_work else AGGREGATE_SYSTEM,
             build_aggregate_prompt(chunk_results, metrics, integrity_flags,
-                                   assignment_brief, evaluation_focus),
+                                   assignment_brief, evaluation_focus,
+                                   general_work=general_work),
             model=self.aggregate_model,
             max_tokens=6_000,
         )

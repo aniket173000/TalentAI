@@ -35,6 +35,10 @@ import JobAssignments from './pages/JobAssignments'
 import ColdEmail from './pages/ColdEmail'
 import FluencyReportPage from './pages/FluencyReportPage'
 import AssignmentPortal from './pages/AssignmentPortal'
+import TeamPulseDashboard from './pages/TeamPulseDashboard'
+import PulsePortal from './pages/PulsePortal'
+import PulseLanding from './pages/PulseLanding'
+import PulseAdmin from './pages/PulseAdmin'
 
 // Skipping hides the modal for the current browser session only.
 // On next login (new session) it reappears until the form is actually completed.
@@ -131,6 +135,8 @@ function AppShell() {
                   <Route path="/auth/google/callback" element={<GoogleCallback />} />
                   <Route path="/status/:token" element={<ApplicationStatus />} />
                   <Route path="/assignment/:token" element={<AssignmentPortal />} />
+                  <Route path="/pulse" element={<PulseLanding />} />
+                  <Route path="/pulse/portal/:token" element={<PulsePortal />} />
                   <Route path="/feedback" element={<Feedback />} />
 
                   {/* Referrals — candidate-facing discovery (recruiters blocked) */}
@@ -206,6 +212,24 @@ function AppShell() {
                     element={
                       <ProtectedRoute requires="recruiter">
                         <RecruiterPortal />
+                      </ProtectedRoute>
+                    }
+                  />
+                  {/* Pulse dashboard — decoupled from hiring: any signed-in user,
+                      gated on early-access inside the component. */}
+                  <Route
+                    path="/pulse/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <TeamPulseDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/pulse/admin"
+                    element={
+                      <ProtectedRoute>
+                        <PulseAdmin />
                       </ProtectedRoute>
                     }
                   />
