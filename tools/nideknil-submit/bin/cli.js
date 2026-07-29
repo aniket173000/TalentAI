@@ -44,6 +44,8 @@ function parseArgs(argv) {
     else if (a === '--until') args.until = argv[++i];
     else if (a === '--repo') args.repo = argv[++i];
     else if (a === '--api') args.api = argv[++i];
+    else if (a === '--pulse') args.pulse = true;   // submit to the team ("Pulse") product
+    else if (a === '--note') args.note = argv[++i]; // optional "what I worked on" (Pulse)
     else args._.push(a);
   }
   return args;
@@ -215,7 +217,8 @@ async function main() {
   } else {
     console.log('Git:      not a git repo (no git metadata will be sent)');
   }
-  console.log(`Endpoint: ${apiBase}/api/assignments/portal/${token.slice(0, 8)}…/submit`);
+  const submitPath = args.pulse ? 'pulse/portal' : 'assignments/portal';
+  console.log(`Endpoint: ${apiBase}/api/${submitPath}/${token.slice(0, 8)}…/submit`);
   console.log('\nFiles to send:');
   prepared.forEach((p) => console.log(`  • ${p.name}  ${fmtBytes(p.size)}`));
 
@@ -238,10 +241,11 @@ async function main() {
   }
   form.append('consent', 'true');
   form.append('submit_source', 'cli');
-  if (args.repo) form.append('repo_url', args.repo);
+  if (args.repo && !args.pulse) form.append('repo_url', args.repo);
+  if (args.note && args.pulse) form.append('work_note', args.note);
   if (git) form.append('git_metadata', JSON.stringify(git));
 
-  const url = `${apiBase}/api/assignments/portal/${token}/submit`;
+  const url = `${apiBase}/api/${submitPath}/${token}/submit`;
   process.stdout.write('\nUploading… ');
   let res;
   try {

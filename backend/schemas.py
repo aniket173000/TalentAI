@@ -622,3 +622,150 @@ class CandidateAssignmentView(BaseModel):
     status: str
     submitted_at: Optional[datetime] = None
     assignment_open: bool
+
+
+# ── AI Fluency Team Report ("Pulse") ───────────────────────────────────────────
+
+class OrgCreate(BaseModel):
+    name: str
+    cadence: Literal["weekly", "monthly"] = "monthly"
+    region: Literal["IN", "US"] = "IN"
+
+
+class OrgResponse(BaseModel):
+    id: int
+    name: str
+    cadence: str
+    plan: str
+    seats_limit: int
+    region: str
+    active_seats: int = 0
+    trial_ends_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SeatInviteRequest(BaseModel):
+    emails: List[EmailStr]
+    role: Literal["engineer", "exec", "admin"] = "engineer"
+
+
+class SeatResponse(BaseModel):
+    id: int
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    status: str
+    share_individual_report: bool = False
+    playbook_attribution: bool = False
+    connected_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    invited_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SeatInviteResult(BaseModel):
+    """Returned to the admin right after inviting — includes the connect command
+    the engineer must run (contains their seat token, shown once to the admin so
+    it can be relayed; also emailed)."""
+    seat: SeatResponse
+    connect_command: str
+
+
+class ConsentUpdate(BaseModel):
+    share_individual_report: Optional[bool] = None
+    playbook_attribution: Optional[bool] = None
+
+
+class PulseReportResponse(BaseModel):
+    submission_id: int
+    period_label: str
+    overall_score: float
+    summary: str
+    dimensions: list
+    highlights: dict
+    metrics: dict
+    integrity_flags: list
+    integrity_confidence: Optional[str] = None
+    created_at: datetime
+
+
+class PulsePortalView(BaseModel):
+    """What an invited engineer sees at /pulse/portal/{token} — consent screen +
+    setup instructions. No team/other-engineer data."""
+    org_name: str
+    engineer_name: Optional[str] = None
+    cadence: str
+    status: str                         # invited | active
+    consented: bool
+    current_period_label: str
+    latest_status: Optional[str] = None  # latest submission status, if any
+    connect_command: str
+    submit_command: str
+
+
+class LeaderboardEntry(BaseModel):
+    name: str                           # "Anonymous engineer" unless opted in
+    overall_score: float
+    attributed: bool
+
+
+class TeamDashboardResponse(BaseModel):
+    org_id: int
+    period_label: str
+    team_index: Optional[float] = None
+    seats_reporting: int = 0
+    seats_active: int = 0
+    adoption: float = 0.0               # seats_reporting / seats_active
+    dimension_averages: dict = {}
+    gap_heatmap: list = []
+    trend: list = []
+    leaderboard: List[LeaderboardEntry] = []
+
+
+class PlaybookEntryResponse(BaseModel):
+    id: int
+    period_label: str
+    dimension_key: Optional[str] = None
+    technique: str
+    evidence: Optional[str] = None
+    attributed_name: Optional[str] = None  # None => anonymized
+
+    class Config:
+        from_attributes = True
+
+
+class PlanResponse(BaseModel):
+    key: str
+    name: str
+    seats_limit: int
+    cadence: str
+    price_minor: int
+    currency: str
+    features: List[str]
+
+
+class EarlyAccessRequest(BaseModel):
+    email: EmailStr
+    company: Optional[str] = None
+    team_size: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PulseAccessStatus(BaseModel):
+    has_access: bool
+    status: str   # granted | requested | denied | none
+
+
+class PulseAccessRequestRow(BaseModel):
+    id: int
+    email: str
+    company: Optional[str] = None
+    team_size: Optional[str] = None
+    note: Optional[str] = None
+    status: str
+    created_at: datetime

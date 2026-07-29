@@ -160,6 +160,24 @@ def upload_transcript_file(content: bytes, assignment_id: int,
 
     safe = Path(filename).name or "session.jsonl"
     key = f"assignments/{assignment_id}/{submission_id}/{uuid.uuid4().hex}-{safe}"
+    return _put_transcript(key, content, safe)
+
+
+def upload_pulse_transcript_file(content: bytes, org_id: int,
+                                 submission_id: int, filename: str) -> str | None:
+    """
+    Store one (already-scrubbed) transcript session file for a Pulse team
+    submission. Separate key prefix from hiring assignments so the two products'
+    objects never collide. Returns the S3 key, or None if S3 is unavailable.
+    """
+    if not s3_enabled():
+        return None
+    safe = Path(filename).name or "session.jsonl"
+    key = f"pulse/{org_id}/{submission_id}/{uuid.uuid4().hex}-{safe}"
+    return _put_transcript(key, content, safe)
+
+
+def _put_transcript(key: str, content: bytes, safe: str) -> str | None:
     try:
         _client().put_object(
             Bucket=settings.S3_BUCKET,

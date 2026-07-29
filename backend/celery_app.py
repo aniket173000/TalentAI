@@ -45,6 +45,18 @@ celery_app.conf.update(
     worker_max_tasks_per_child=20,  # recycle workers periodically to bound memory
 )
 
+# ── Scheduled jobs (Celery beat) ────────────────────────────────────────────
+# Pulse period rollover: hourly, close any open reporting period whose window
+# has ended (builds the team rollup + Playbook). The task is idempotent, so an
+# hourly cadence that occasionally double-fires or misses a tick is safe. Run
+# beat alongside the worker:  celery -A celery_app.celery_app beat --loglevel=info
+celery_app.conf.beat_schedule = {
+    "pulse-period-rollover": {
+        "task": "pulse_period_rollover_task",
+        "schedule": 3600.0,          # every hour
+    },
+}
+
 
 @worker_ready.connect
 def _warm_worker(**_kwargs):

@@ -29,8 +29,10 @@ from routers import recruiter_mcp_keys as recruiter_mcp_keys_router
 from routers import ai_assist as ai_assist_router
 from routers import outreach as outreach_router
 from routers import cold_email as cold_email_router
+from routers import pulse as pulse_router
 from routers.mcp_candidate import mcp as candidate_mcp
 from routers.mcp_recruiter import mcp as recruiter_mcp
+from routers.mcp_pulse import mcp as pulse_mcp
 
 logging.basicConfig(level=logging.INFO)
 
@@ -487,6 +489,7 @@ async def lifespan(app: FastAPI):
     async with contextlib.AsyncExitStack() as stack:
         await stack.enter_async_context(candidate_mcp.session_manager.run())
         await stack.enter_async_context(recruiter_mcp.session_manager.run())
+        await stack.enter_async_context(pulse_mcp.session_manager.run())
         yield
 
 
@@ -532,6 +535,7 @@ app.include_router(recruiter_mcp_keys_router.router)
 app.include_router(ai_assist_router.router)
 app.include_router(outreach_router.router)
 app.include_router(cold_email_router.router)
+app.include_router(pulse_router.router)
 
 # Claude Code MCP companion servers. streamable_http_path="/" (set on each FastMCP
 # instance) is required — without it, each server's own internal route defaults to
@@ -546,6 +550,9 @@ app.include_router(cold_email_router.router)
 # on both servers). Using a non-overlapping path sidesteps the ambiguity entirely
 # instead of relying on registration order.
 app.mount("/mcp-recruiter", recruiter_mcp.streamable_http_app())
+# Pulse (team product) engineer MCP server — non-overlapping path, same rationale
+# as /mcp-recruiter above. Registered before the "/mcp" catch-all mount.
+app.mount("/mcp-pulse", pulse_mcp.streamable_http_app())
 app.mount("/mcp", candidate_mcp.streamable_http_app())
 
 

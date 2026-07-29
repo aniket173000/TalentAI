@@ -997,3 +997,228 @@ class GoogleMailCredential(Base):
     revoked_at = Column(DateTime, nullable=True)
 
     user = relationship("User", foreign_keys=[user_id])
+
+
+# ── AI Fluency Team Report ("Pulse") — second product line ─────────────────────
+# Continuous, per-team AI-fluency reporting for a company's OWN engineers, sold
+# per-seat to startups. Reuses the fluency scoring engine (services/fluency) in a
+# brief-free "general work" mode. All tables are additive — the hiring product
+# (Assignment/AssignmentSubmission/FluencyReport) is untouched.
+
+class Organization(Base):
+    """
+    A paying company (multi-tenant). The org admin buys seats, invites
+    engineers, and sees the aggregated team report. `region` selects the price
+    list (IN vs US); `plan`/`seats_limit` are the billing scaffold.
+    """
+    __tablename__ = "pulse_organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    admin_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    cadence = Column(String(20), default="monthly", nullable=False)   # weekly | monthly
+    plan = Column(String(20), default="trial", nullable=False)        # trial|starter|growth|business|enterprise
+    seats_limit = Column(Integer, default=5, nullable=False)
+    region = Column(String(4), default="IN", nullable=False)          # IN | US
+    trial_ends_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    admin = relationship("User", foreign_keys=[admin_user_id])
+    seats = relationship("OrgSeat", back_populates="organization",
+                         cascade="all, delete-orphan")
+    periods = relationship("ReportingPeriod", back_populates="organization",
+                          cascade="all, delete-orphan")
+
+
+class OrgSeat(Base):
+    """
+    One engineer's membership in an organization. Holds the revocable long-lived
+    bearer token the engineer uses for `npx nideknil-submit` / the Pulse MCP
+    server (mirrors RecruiterMcpApiKey — a static CLI bearer, not a JWT), plus
+    the CONSENT flags that make "transparency without surveillance" enforceable
+    in the auth layer:
+      share_individual_report → admin may see this engineer's named report
+      playbook_attribution     → this engineer's techniques may be credited by name
+    Both default OFF (aggregates-only, anonymized playbook).
+    """
+    __tablename__ = "pulse_org_seats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("pulse_organizations.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # null until accepted
+
+    email = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    role = Column(String(20), default="engineer", nullable=False)     # admin | engineer | exec
+    status = Column(String(20), default="invited", nullable=False, index=True)  # invited|active|revoked
+
+    seat_token = Column(String(64), unique=True, index=True, nullable=False)     # bearer for CLI/MCP/submit
+
+    # Consent (see docstring) — both default False.
+    share_individual_report = Column(Boolean, default=False, nullable=False)
+    playbook_attribution = Column(Boolean, default=False, nullable=False)
+    consented_at = Column(DateTime, nullable=True)   # non-null once the engineer opts in
+
+    invited_at = Column(DateTime, server_default=func.now())
+    connected_at = Column(DateTime, nullable=True)   # first MCP/CLI handshake
+    last_seen_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)     # non-null => offboarded, token rejected
+
+    organization = relationship("Organization", back_populates="seats")
+    user = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "email", name="uq_seat_org_email"),
+        Index("ix_seat_org_status", "org_id", "status"),
+    )
+
+
+class ReportingPeriod(Base):
+    """A cadence window (weekly/monthly) for one org. Submissions attach to the
+    open period; team rollups + playbook are built when it closes."""
+    __tablename__ = "pulse_reporting_periods"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("pulse_organizations.id"), nullable=False, index=True)
+    label = Column(String(20), nullable=False)        # "2026-W30" | "2026-07"
+    cadence = Column(String(20), nullable=False)
+    starts_at = Column(DateTime, nullable=False)
+    ends_at = Column(DateTime, nullable=False)
+    status = Column(String(20), default="open", nullable=False, index=True)  # open | closed
+
+    organization = relationship("Organization", back_populates="periods")
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "label", name="uq_period_org_label"),
+    )
+
+
+class PulseSubmission(Base):
+    """
+    One engineer's bundle of Claude Code sessions for one reporting period. Maps
+    onto the existing "many transcript files → one report" fluency pipeline.
+    Status machine mirrors AssignmentSubmission: submitted→processing→analyzed|failed.
+    """
+    __tablename__ = "pulse_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("pulse_organizations.id"), nullable=False, index=True)
+    seat_id = Column(Integer, ForeignKey("pulse_org_seats.id"), nullable=False, index=True)
+    period_id = Column(Integer, ForeignKey("pulse_reporting_periods.id"), nullable=False, index=True)
+
+    status = Column(String(20), default="submitted", nullable=False, index=True)
+    error = Column(Text, nullable=True)
+    attempts = Column(Integer, default=0, nullable=False)
+
+    transcript_file_keys = Column(Text, nullable=True)   # JSON list of scrubbed store keys
+    transcript_bytes = Column(Integer, nullable=True)
+    session_count = Column(Integer, nullable=True)
+    work_note = Column(Text, nullable=True)              # optional light "what I worked on" context
+    git_metadata = Column(Text, nullable=True)           # JSON snapshot from the submit CLI
+    submit_source = Column(String(20), default="cli", nullable=False)  # cli | web | mcp
+
+    submitted_at = Column(DateTime, server_default=func.now())
+    analyzed_at = Column(DateTime, nullable=True)
+
+    seat = relationship("OrgSeat", foreign_keys=[seat_id])
+    report = relationship("PulseReport", back_populates="submission", uselist=False,
+                         cascade="all, delete-orphan")
+
+    __table_args__ = (
+        # one active submission per (seat, period) — enforced in app + here.
+        Index("ix_pulse_sub_seat_period", "seat_id", "period_id"),
+    )
+
+
+class PulseReport(Base):
+    """Scored output for one PulseSubmission (== one engineer for one period).
+    Same JSON-column shape as FluencyReport, kept as a separate table so the
+    hiring and team products evolve independently."""
+    __tablename__ = "pulse_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("pulse_submissions.id"),
+                          nullable=False, unique=True, index=True)
+    org_id = Column(Integer, ForeignKey("pulse_organizations.id"), nullable=False, index=True)
+    seat_id = Column(Integer, ForeignKey("pulse_org_seats.id"), nullable=False, index=True)
+    period_id = Column(Integer, ForeignKey("pulse_reporting_periods.id"), nullable=False, index=True)
+
+    overall_score = Column(Float, nullable=False)
+    summary = Column(Text, nullable=True)
+    dimensions = Column(Text, nullable=False)            # JSON [{key,label,score,confidence,note,evidence[]}]
+    highlights = Column(Text, nullable=True)             # JSON {best_moment, growth_area, coaching_tips[]}
+    metrics = Column(Text, nullable=True)
+    integrity_flags = Column(Text, nullable=True)
+    integrity_confidence = Column(String(20), nullable=True)
+
+    provider = Column(String(20), nullable=True)
+    chunk_model = Column(String(100), nullable=True)
+    aggregate_model = Column(String(100), nullable=True)
+    input_tokens_est = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    submission = relationship("PulseSubmission", back_populates="report")
+
+
+class TeamReport(Base):
+    """Precomputed org rollup for one period — the dashboard reads this directly
+    (O(1)) instead of aggregating live at request time."""
+    __tablename__ = "pulse_team_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("pulse_organizations.id"), nullable=False, index=True)
+    period_id = Column(Integer, ForeignKey("pulse_reporting_periods.id"), nullable=False, index=True)
+
+    seats_reporting = Column(Integer, default=0, nullable=False)
+    team_index = Column(Float, nullable=True)            # mean of engineers' overall scores
+    dimension_averages = Column(Text, nullable=True)     # JSON {key: avg_score}
+    trend = Column(Text, nullable=True)                  # JSON [{period_label, team_index}]
+    gap_heatmap = Column(Text, nullable=True)            # JSON [{key, label, avg, rank}] weakest first
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "period_id", name="uq_teamreport_org_period"),
+    )
+
+
+class PulseAccessRequest(Base):
+    """
+    Early-access waitlist for the Pulse product (it's pre-launch). One row per
+    requesting email. Access is granted when status flips to 'granted' (by an
+    admin); org creation is gated on this. Kept as its own table so it's fully
+    additive — no ALTER on users. ADMIN_EMAILS are treated as auto-granted in
+    code, so the owner never needs a row to test.
+    """
+    __tablename__ = "pulse_access_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    company = Column(String(255), nullable=True)
+    team_size = Column(String(50), nullable=True)
+    note = Column(Text, nullable=True)
+    status = Column(String(20), default="requested", nullable=False, index=True)  # requested|granted|denied
+
+    created_at = Column(DateTime, server_default=func.now())
+    granted_at = Column(DateTime, nullable=True)
+
+
+class PlaybookEntry(Base):
+    """A transferable technique mined from a top-scoring session. Anonymized by
+    default; credited only if the source engineer set playbook_attribution."""
+    __tablename__ = "pulse_playbook_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("pulse_organizations.id"), nullable=False, index=True)
+    period_id = Column(Integer, ForeignKey("pulse_reporting_periods.id"), nullable=False, index=True)
+    source_seat_id = Column(Integer, ForeignKey("pulse_org_seats.id"), nullable=True)
+
+    dimension_key = Column(String(50), nullable=True)
+    technique = Column(Text, nullable=False)             # the shareable "try this" snippet
+    evidence = Column(Text, nullable=True)               # scrubbed illustrative quote
+    anonymized = Column(Boolean, default=True, nullable=False)
+    attributed_name = Column(String(255), nullable=True) # set only when attribution opted in
+    created_at = Column(DateTime, server_default=func.now())

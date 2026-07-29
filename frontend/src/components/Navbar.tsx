@@ -196,6 +196,36 @@ function ModeSwitcher() {
   )
 }
 
+// ── Product switcher (Hiring ⇄ Pulse) ─────────────────────────────────────────
+
+function ProductSwitcher() {
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { activeMode } = useAuth()
+  const inPulse = pathname.startsWith('/pulse')
+
+  const go = (p: 'hiring' | 'pulse') => {
+    localStorage.setItem('active_product', p)
+    navigate(p === 'pulse' ? '/pulse' : (activeMode === 'recruiter' ? '/recruiter' : '/jobs'))
+  }
+  const opts: ['hiring' | 'pulse', string][] = [['hiring', 'Hiring'], ['pulse', 'Pulse']]
+  return (
+    <div style={{ display: 'flex', gap: 3, padding: 3, background: 'var(--surface-2)', border: '2px solid var(--line)', borderRadius: 12 }}>
+      {opts.map(([val, label]) => {
+        const active = (val === 'pulse') === inPulse
+        return (
+          <button key={val} onClick={() => go(val)} style={{
+            padding: '6px 13px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+            fontFamily: 'var(--font-display)', letterSpacing: '-0.01em', border: 'none',
+            background: active ? 'var(--ink)' : 'transparent', color: active ? 'var(--bg)' : 'var(--muted)',
+            transition: 'all .15s ease',
+          }}>{label}</button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main Navbar ───────────────────────────────────────────────────────────────
 
 export default function Navbar() {
@@ -257,25 +287,39 @@ export default function Navbar() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-5">
           <Link to="/" aria-label="Home" onClick={() => setMobileOpen(false)}><Logo dark={dark} /></Link>
 
-          {/* Desktop nav — hidden on mobile */}
+          {user && <div className="hidden md:block"><ProductSwitcher /></div>}
+
+          {/* Desktop nav — product-aware, hidden on mobile */}
           <nav className="hidden md:flex items-center gap-5 ml-2">
-            <Link to="/jobs" className={linkClass('/jobs')}>Jobs</Link>
-            <Link to="/colleges" className={linkClass('/colleges')}>Colleges</Link>
-            <Link to="/feedback" className={linkClass('/feedback')}>Feedback</Link>
-            {!(isRecruiter && !isCandidate) && (
-              <Link to="/referrals" className={linkClass('/referrals')}>Referrals</Link>
-            )}
-            {isCandidate && (
-              <Link to="/dashboard" className={linkClass('/dashboard')}>My Applications</Link>
-            )}
-            {isRecruiter && (
-              <Link to="/recruiter" className={linkClass('/recruiter')}>Recruiter</Link>
-            )}
-            {isRecruiter && (
-              <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>Rank</Link>
-            )}
-            {user?.is_admin && (
-              <Link to="/admin" className={linkClass('/admin')}>Admin</Link>
+            {pathname.startsWith('/pulse') ? (
+              <>
+                <Link to="/pulse" className={linkClass('/pulse')}>Overview</Link>
+                <Link to="/pulse/dashboard" className={linkClass('/pulse/dashboard')}>Dashboard</Link>
+                {user?.is_admin && (
+                  <Link to="/pulse/admin" className={linkClass('/pulse/admin')}>Requests</Link>
+                )}
+              </>
+            ) : (
+              <>
+                <Link to="/jobs" className={linkClass('/jobs')}>Jobs</Link>
+                <Link to="/colleges" className={linkClass('/colleges')}>Colleges</Link>
+                <Link to="/feedback" className={linkClass('/feedback')}>Feedback</Link>
+                {!(isRecruiter && !isCandidate) && (
+                  <Link to="/referrals" className={linkClass('/referrals')}>Referrals</Link>
+                )}
+                {isCandidate && (
+                  <Link to="/dashboard" className={linkClass('/dashboard')}>My Applications</Link>
+                )}
+                {isRecruiter && (
+                  <Link to="/recruiter" className={linkClass('/recruiter')}>Recruiter</Link>
+                )}
+                {isRecruiter && (
+                  <Link to="/recruiter/rank-candidates" className={linkClass('/recruiter/rank-candidates')}>Rank</Link>
+                )}
+                {user?.is_admin && (
+                  <Link to="/admin" className={linkClass('/admin')}>Admin</Link>
+                )}
+              </>
             )}
           </nav>
 
@@ -353,23 +397,36 @@ export default function Navbar() {
             className="md:hidden px-4 pb-4 pt-1 flex flex-col gap-1"
             style={{ borderTop: '1px solid var(--line)', background: dark ? 'rgba(8,8,11,.96)' : 'var(--bg)' }}
           >
-            <Link to="/jobs" className={mobileLinkClass('/jobs')} onClick={() => setMobileOpen(false)}>Jobs</Link>
-            <Link to="/colleges" className={mobileLinkClass('/colleges')} onClick={() => setMobileOpen(false)}>Colleges</Link>
-            <Link to="/feedback" className={mobileLinkClass('/feedback')} onClick={() => setMobileOpen(false)}>Feedback</Link>
-            {!(isRecruiter && !isCandidate) && (
-              <Link to="/referrals" className={mobileLinkClass('/referrals')} onClick={() => setMobileOpen(false)}>Referrals</Link>
-            )}
-            {isCandidate && (
-              <Link to="/dashboard" className={mobileLinkClass('/dashboard')} onClick={() => setMobileOpen(false)}>My Applications</Link>
-            )}
-            {isRecruiter && (
-              <Link to="/recruiter" className={mobileLinkClass('/recruiter')} onClick={() => setMobileOpen(false)}>Recruiter</Link>
-            )}
-            {isRecruiter && (
-              <Link to="/recruiter/rank-candidates" className={mobileLinkClass('/recruiter/rank-candidates')} onClick={() => setMobileOpen(false)}>Rank Candidates</Link>
-            )}
-            {user?.is_admin && (
-              <Link to="/admin" className={mobileLinkClass('/admin')} onClick={() => setMobileOpen(false)}>Admin</Link>
+            {user && <div className="pb-1"><ProductSwitcher /></div>}
+            {pathname.startsWith('/pulse') ? (
+              <>
+                <Link to="/pulse" className={mobileLinkClass('/pulse')} onClick={() => setMobileOpen(false)}>Overview</Link>
+                <Link to="/pulse/dashboard" className={mobileLinkClass('/pulse/dashboard')} onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                {user?.is_admin && (
+                  <Link to="/pulse/admin" className={mobileLinkClass('/pulse/admin')} onClick={() => setMobileOpen(false)}>Requests</Link>
+                )}
+              </>
+            ) : (
+              <>
+                <Link to="/jobs" className={mobileLinkClass('/jobs')} onClick={() => setMobileOpen(false)}>Jobs</Link>
+                <Link to="/colleges" className={mobileLinkClass('/colleges')} onClick={() => setMobileOpen(false)}>Colleges</Link>
+                <Link to="/feedback" className={mobileLinkClass('/feedback')} onClick={() => setMobileOpen(false)}>Feedback</Link>
+                {!(isRecruiter && !isCandidate) && (
+                  <Link to="/referrals" className={mobileLinkClass('/referrals')} onClick={() => setMobileOpen(false)}>Referrals</Link>
+                )}
+                {isCandidate && (
+                  <Link to="/dashboard" className={mobileLinkClass('/dashboard')} onClick={() => setMobileOpen(false)}>My Applications</Link>
+                )}
+                {isRecruiter && (
+                  <Link to="/recruiter" className={mobileLinkClass('/recruiter')} onClick={() => setMobileOpen(false)}>Recruiter</Link>
+                )}
+                {isRecruiter && (
+                  <Link to="/recruiter/rank-candidates" className={mobileLinkClass('/recruiter/rank-candidates')} onClick={() => setMobileOpen(false)}>Rank Candidates</Link>
+                )}
+                {user?.is_admin && (
+                  <Link to="/admin" className={mobileLinkClass('/admin')} onClick={() => setMobileOpen(false)}>Admin</Link>
+                )}
+              </>
             )}
             {isDualMode && (
               <div className="pt-2 pb-1"><ModeSwitcher /></div>

@@ -164,6 +164,22 @@ class Settings(BaseSettings):
     FLUENCY_MAX_TOTAL_MB: int = 80
     FLUENCY_MAX_FILES: int = 40
 
+    # ── AI Fluency Team Report ("Pulse") ─────────────────────────────────────
+    # Second product line: continuous, per-team AI-fluency reporting for a
+    # company's OWN engineers (not job candidates). Reuses the entire fluency
+    # engine above in a brief-free "general work" scoring mode.
+    PULSE_ENABLED: bool = True
+    # Base URL an engineer uses to `claude mcp add` the Pulse MCP server. Same
+    # host as the backend; mounted at /mcp-pulse in main.py.
+    PULSE_MCP_PUBLIC_URL: str = "http://localhost:8000"
+    # How many top-scoring sessions the Playbook extractor mines per period.
+    PULSE_PLAYBOOK_TOP_K: int = 5
+    # Minimum submitted sessions in a period before a report is considered
+    # meaningful (avoids over-indexing on a single short session).
+    PULSE_MIN_SESSIONS_FOR_REPORT: int = 1
+    # Free-trial length: seats/period granted before payment is required.
+    PULSE_TRIAL_SEATS: int = 5
+
     # ── Razorpay payments ─────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""

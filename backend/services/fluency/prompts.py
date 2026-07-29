@@ -104,8 +104,31 @@ CHUNK_SYSTEM = (
 )
 
 
+# ── General-work variant (Pulse: an employee's real day-to-day work, no brief) ──
+# Same rubric, neutral framing: we score an ENGINEER's AI collaboration on their
+# own real work rather than a CANDIDATE against a take-home spec. Selected when
+# general_work=True so the hiring path stays byte-identical.
+GENERAL_WORK_CHUNK_SYSTEM = (
+    "You are an expert engineering coach assessing how well an engineer collaborates "
+    "with an AI coding agent during their real day-to-day work (not a test). Judge ONLY "
+    "the engineer's behavior — the human PROMPTs — not the quality of the AI's output. "
+    "Cite evidence verbatim. If a dimension does not appear in this portion, say so "
+    "instead of inventing a score. Respond with valid JSON only."
+)
+
+GENERAL_WORK_AGGREGATE_SYSTEM = (
+    "You are an expert engineering coach writing an AI-fluency report on an engineer's "
+    "real work sessions, to help them and their team improve. Be honest and calibrated, "
+    "constructive, and never exceed what the evidence supports. This is coaching material, "
+    "NOT a performance-review verdict. Respond with valid JSON only."
+)
+
+
 def build_chunk_prompt(chunk_text: str, assignment_brief: str,
-                       evaluation_focus: str | None) -> str:
+                       evaluation_focus: str | None,
+                       general_work: bool = False) -> str:
+    if general_work:
+        return _build_general_chunk_prompt(chunk_text, assignment_brief)
     focus = f"\nRECRUITER'S EVALUATION FOCUS: {evaluation_focus}" if evaluation_focus else ""
     return f"""A candidate built this take-home project using an AI coding agent:
 
@@ -149,7 +172,11 @@ AGGREGATE_SYSTEM = (
 
 def build_aggregate_prompt(chunk_results: list[dict], metrics: dict,
                            integrity_flags: list[dict], assignment_brief: str,
-                           evaluation_focus: str | None) -> str:
+                           evaluation_focus: str | None,
+                           general_work: bool = False) -> str:
+    if general_work:
+        return _build_general_aggregate_prompt(chunk_results, metrics,
+                                               integrity_flags, assignment_brief)
     focus = f"\nRECRUITER'S EVALUATION FOCUS: {evaluation_focus}" if evaluation_focus else ""
     return f"""ASSIGNMENT BRIEF:
 {assignment_brief[:1500]}{focus}
@@ -198,3 +225,89 @@ Rules:
 - overall_score should reflect that weighting and the metrics
   (e.g. verification_runs=0 in metrics caps Verification & Validation).
 - Critical Thinking / Pushback: absence is neutral (score null), presence scores high."""
+
+
+# ── General-work prompt builders (Pulse) ───────────────────────────────────────
+
+def _build_general_chunk_prompt(chunk_text: str, work_note: str | None) -> str:
+    note = f"\nWHAT THE ENGINEER SAID THEY WORKED ON (optional context): {work_note[:800]}" \
+        if work_note else ""
+    return f"""This is a portion of an engineer's real AI-assisted coding session
+(their normal day-to-day work — there is NO fixed assignment to grade against;
+judge HOW they collaborate with the AI, not whether they hit a spec).{note}
+
+RUBRIC DIMENSIONS:
+{_rubric_block()}
+
+TRANSCRIPT PORTION (chronological; [PROMPT] = what the engineer typed,
+[AI] = assistant reply, [TOOL] = action the agent took, [RESULT] = tool output):
+
+{chunk_text}
+
+Return JSON with exactly these keys:
+{{
+  "observations": [
+    {{
+      "dimension": "<one of: {', '.join(RUBRIC_KEYS)}>",
+      "signal": "positive" | "negative",
+      "evidence": "<short VERBATIM quote from a [PROMPT], max 200 chars>",
+      "note": "<one sentence on why this quote matters>"
+    }}
+  ],
+  "provisional_scores": {{ "<dimension_key>": <0-100 or null if not observable here> }},
+  "chunk_summary": "<2 sentences: what happened in this portion>"
+}}
+
+Rules: every observation MUST quote a real [PROMPT] line. 3-10 observations.
+Score null for dimensions with no evidence in this portion — do not guess."""
+
+
+def _build_general_aggregate_prompt(chunk_results: list[dict], metrics: dict,
+                                    integrity_flags: list[dict],
+                                    work_note: str | None) -> str:
+    note = f"\nWHAT THE ENGINEER SAID THEY WORKED ON (optional context): {work_note[:800]}" \
+        if work_note else ""
+    return f"""You are scoring an engineer's real AI-assisted work sessions for a team
+AI-fluency report (coaching material, not a review verdict).{note}
+
+DETERMINISTIC METRICS (computed from the full transcript, trustworthy):
+{json.dumps(metrics, indent=1)}
+
+INTEGRITY FLAGS (heuristic anomaly signals):
+{json.dumps(integrity_flags, indent=1)}
+
+PER-PORTION ANALYSES (chronological):
+{json.dumps(chunk_results, indent=1)[:60000]}
+
+RUBRIC DIMENSIONS:
+{_rubric_block()}
+
+Produce the final report as JSON with exactly these keys:
+{{
+  "overall_score": <0-100, weighted judgment across dimensions>,
+  "summary": "<4-6 sentence coaching narrative: how this engineer works with AI, their strongest and weakest habits>",
+  "dimensions": [
+    {{
+      "key": "<dimension_key>",
+      "label": "<dimension label>",
+      "score": <0-100 or null if never observable>,
+      "confidence": "high" | "medium" | "low",
+      "note": "<1-2 sentences>",
+      "evidence": ["<up to 3 verbatim quotes carried from the portion analyses>"]
+    }}
+  ],
+  "highlights": {{
+    "best_moment": "<the single most impressive engineer prompt/behavior, with quote>",
+    "growth_area": "<the clearest weak habit to improve, with quote>",
+    "coaching_tips": ["<1-2 concrete 'try this next' tips grounded in THIS transcript>"]
+  }}
+}}
+
+Rules:
+- Include ALL {len(RUBRIC)} dimensions in "dimensions", in rubric order.
+- A dimension nobody exercised gets score null + confidence "low" — never a made-up number.
+- The overall is a WEIGHTED average of the dimensions you score, renormalized over the
+  ones actually observed — calibrate each dimension carefully.
+- overall_score should reflect that weighting and the metrics
+  (e.g. verification_runs=0 caps Verification & Validation).
+- coaching_tips must be actionable and specific to this engineer's transcript."""
