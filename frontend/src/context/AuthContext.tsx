@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import api from '../api/client'
+import api, { API_BASE } from '../api/client'
 import { AuthUser } from '../types'
 
 export type ActiveMode = 'recruiter' | 'candidate'
@@ -192,8 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const loginWithLinkedIn = (accountType: ActiveMode | 'login') => {
-    const base = (import.meta as any).env?.VITE_API_URL ?? ''
-    window.location.href = `${base}/api/auth/linkedin/authorize?account_type=${accountType}`
+    window.location.href = `${API_BASE}/auth/linkedin/authorize?account_type=${accountType}`
   }
 
   const completeLinkedInLogin = async (token: string, accountType: ActiveMode) => {
@@ -205,8 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const loginWithGoogle = (accountType: ActiveMode | 'login') => {
-    const base = (import.meta as any).env?.VITE_API_URL ?? ''
-    window.location.href = `${base}/api/auth/google/authorize?account_type=${accountType}`
+    window.location.href = `${API_BASE}/auth/google/authorize?account_type=${accountType}`
   }
 
   // Identical post-OAuth handling to LinkedIn (store token, fetch user, set mode)
