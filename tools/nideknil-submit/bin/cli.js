@@ -44,7 +44,9 @@ function parseArgs(argv) {
     else if (a === '--until') args.until = argv[++i];
     else if (a === '--repo') args.repo = argv[++i];
     else if (a === '--api') args.api = argv[++i];
-    else if (a === '--pulse') args.pulse = true;   // submit to the team ("Pulse") product
+    // Destination is normally detected from the token; these force it.
+    else if (a === '--pulse') args.pulse = true;
+    else if (a === '--assignment') args.assignment = true;
     else if (a === '--note') args.note = argv[++i]; // optional "what I worked on" (Pulse)
     else args._.push(a);
   }
@@ -52,19 +54,63 @@ function parseArgs(argv) {
 }
 
 const HELP = `
-nideknil-submit — submit your Claude Code transcripts for a take-home assignment
+nideknil-submit — submit your Claude Code transcripts for review
 
   npx nideknil-submit <token> [--project <slug|path>]
                               [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]
-                              [--repo <url>] [--api <url>] [--yes] [--dry-run]
+                              [--repo <url>] [--note <text>]
+                              [--api <url>] [--yes] [--dry-run]
 
-The <token> is in your invitation email/link (…/assignment/<token>).
-Run this from inside the project folder you built the assignment in.
+The <token> is in your invitation email/link. It works for both a take-home
+assignment (…/assignment/<token>) and a Nideknil Pulse seat
+(…/pulse/portal/<token>) — the command detects which one it belongs to, so
+there is nothing to choose. Pass --pulse or --assignment to force it.
+
+Run this from inside the project folder the work happened in.
+
+  --repo <url>   link the repo you built (assignments only)
+  --note <text>  what you worked on this period (Pulse only)
 
 If that project folder has sessions from unrelated work too, use --since/
 --until to only include the ones from when you actually built this
 assignment, or answer the prompt shown when multiple sessions are found.
 `;
+
+// Assignment tokens and Pulse seat tokens look identical, so the product a
+// token belongs to cannot be read off the string. Ask the API which portal
+// resolves it rather than making the person remember a flag: submitting a
+// Pulse token to the assignments endpoint just 404s with nothing to act on.
+// --pulse / --assignment skip the probe when you already know.
+async function resolveSubmitPath(apiBase, token, args) {
+  if (args.pulse) return 'pulse/portal';
+  if (args.assignment) return 'assignments/portal';
+
+  const probe = async (path) => {
+    try {
+      const res = await fetch(`${apiBase}/api/${path}/${token}`);
+      return res.ok;
+    } catch {
+      return null;   // network/DNS failure — distinct from "token not found"
+    }
+  };
+
+  const [isAssignment, isPulse] = await Promise.all([
+    probe('assignments/portal'), probe('pulse/portal'),
+  ]);
+
+  if (isAssignment) return 'assignments/portal';
+  if (isPulse) return 'pulse/portal';
+  if (isAssignment === null && isPulse === null) {
+    console.error(`Could not reach ${apiBase}. Check your connection, or pass --api.`);
+    process.exit(1);
+  }
+  console.error(
+    `That token isn't valid for an assignment or a Pulse seat.\n` +
+    `Check you copied the whole token from your invite link, and that the\n` +
+    `assignment or reporting period is still open.`,
+  );
+  process.exit(1);
+}
 
 function fmtBytes(n) {
   return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -217,7 +263,9 @@ async function main() {
   } else {
     console.log('Git:      not a git repo (no git metadata will be sent)');
   }
-  const submitPath = args.pulse ? 'pulse/portal' : 'assignments/portal';
+  const submitPath = await resolveSubmitPath(apiBase, token, args);
+  const isPulse = submitPath === 'pulse/portal';
+  console.log(`Sending to: ${isPulse ? 'Nideknil Pulse (team report)' : 'a take-home assignment'}`);
   console.log(`Endpoint: ${apiBase}/api/${submitPath}/${token.slice(0, 8)}…/submit`);
   console.log('\nFiles to send:');
   prepared.forEach((p) => console.log(`  • ${p.name}  ${fmtBytes(p.size)}`));
@@ -241,8 +289,9 @@ async function main() {
   }
   form.append('consent', 'true');
   form.append('submit_source', 'cli');
-  if (args.repo && !args.pulse) form.append('repo_url', args.repo);
-  if (args.note && args.pulse) form.append('work_note', args.note);
+  // Field names differ per endpoint — keyed off the resolved path, not the flag.
+  if (args.repo && !isPulse) form.append('repo_url', args.repo);
+  if (args.note && isPulse) form.append('work_note', args.note);
   if (git) form.append('git_metadata', JSON.stringify(git));
 
   const url = `${apiBase}/api/${submitPath}/${token}/submit`;

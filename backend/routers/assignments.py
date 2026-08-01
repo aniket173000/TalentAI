@@ -521,6 +521,22 @@ def _by_token(db: Session, token: str) -> models.AssignmentSubmission:
         .first()
     )
     if not submission:
+        # Assignment tokens and Pulse seat tokens are indistinguishable strings,
+        # so a Pulse token sent here used to 404 as "invalid link" — true but
+        # useless, and it cost a production round-trip to diagnose. Name the
+        # actual mistake when the token resolves to a seat.
+        seat = (
+            db.query(models.OrgSeat)
+            .filter(models.OrgSeat.seat_token == token)
+            .first()
+        )
+        if seat:
+            raise HTTPException(
+                status_code=404,
+                detail="That's a Nideknil Pulse seat token, not an assignment "
+                       "token. Use /api/pulse/portal/{token} — or, from the "
+                       "CLI, `npx nideknil-submit <token>` (it detects this).",
+            )
         raise HTTPException(status_code=404, detail="Invalid assignment link")
     return submission
 
