@@ -150,8 +150,13 @@ class Settings(BaseSettings):
     FLUENCY_CHUNK_MODEL: str = "gpt-5.4-mini"
     FLUENCY_AGGREGATE_MODEL: str = "gpt-5.5"
     # Claude equivalents, used when the judge provider is "claude".
-    FLUENCY_CHUNK_MODEL_CLAUDE: str = "claude-haiku-4-5-20251001"
-    FLUENCY_AGGREGATE_MODEL_CLAUDE: str = "claude-sonnet-4-5"
+    FLUENCY_CHUNK_MODEL_CLAUDE: str = "claude-haiku-4-5"
+    FLUENCY_AGGREGATE_MODEL_CLAUDE: str = "claude-opus-5"
+    # Extra output budget for the Claude judge only. Claude Opus 5 thinks by
+    # default and thinking shares the max_tokens ceiling with the JSON reply,
+    # so the per-call caps (3K chunk / 6K aggregate) are topped up by this much
+    # to stop a long reasoning pass truncating the answer mid-object.
+    FLUENCY_CLAUDE_THINKING_TOKENS: int = 8_000
     # Hard cap on effective tokens fed to the judge per submission — bounds
     # cost regardless of raw transcript size (sessions are sampled if over).
     FLUENCY_TOKEN_BUDGET: int = 400_000

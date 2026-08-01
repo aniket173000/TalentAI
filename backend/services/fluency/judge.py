@@ -143,20 +143,51 @@ class ClaudeFluencyJudge(FluencyJudge):
     def __init__(self):
         self.chunk_model = settings.FLUENCY_CHUNK_MODEL_CLAUDE
         self.aggregate_model = settings.FLUENCY_AGGREGATE_MODEL_CLAUDE
+        self._client = None
+
+    def _get_client(self):
+        """One AsyncAnthropic per judge instance — score_chunks fans out dozens
+        of concurrent calls and a client per call would mean a connection pool
+        per call. The judge itself is lru_cached, so this lives for the process.
+        """
+        if self._client is None:
+            import anthropic
+            if not settings.ANTHROPIC_API_KEY:
+                raise FluencyJudgeError("ANTHROPIC_API_KEY is not set")
+            self._client = anthropic.AsyncAnthropic(
+                api_key=settings.ANTHROPIC_API_KEY)
+        return self._client
 
     async def _complete_json(self, system: str, user: str, model: str,
                              max_tokens: int) -> dict:
-        import anthropic
-        if not settings.ANTHROPIC_API_KEY:
-            raise FluencyJudgeError("ANTHROPIC_API_KEY is not set")
-        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        client = self._get_client()
         resp = await client.messages.create(
             model=model,
-            max_tokens=max_tokens,
+            # Thinking counts against max_tokens on the reasoning models, so the
+            # caller's budget is for the JSON alone — add reasoning room on top.
+            max_tokens=max_tokens + settings.FLUENCY_CLAUDE_THINKING_TOKENS,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        return _parse_json_reply(resp.content[0].text)
+
+        # Safety classifiers can decline with a 200 + empty/partial content;
+        # surface that as a judge error rather than a JSONDecodeError.
+        if resp.stop_reason == "refusal":
+            category = getattr(resp.stop_details, "category", None)
+            raise FluencyJudgeError(
+                f"Claude declined to score this content (category={category})")
+        if resp.stop_reason == "max_tokens":
+            raise FluencyJudgeError(
+                f"Judge reply truncated at {max_tokens} tokens on {model} — "
+                "raise FLUENCY_CLAUDE_THINKING_TOKENS")
+
+        # Thinking blocks precede the answer, so the reply is not content[0].
+        text = "".join(b.text for b in resp.content if b.type == "text")
+        if not text.strip():
+            raise FluencyJudgeError(
+                f"Judge returned no text content on {model} "
+                f"(stop_reason={resp.stop_reason})")
+        return _parse_json_reply(text)
 
 
 @lru_cache(maxsize=2)
